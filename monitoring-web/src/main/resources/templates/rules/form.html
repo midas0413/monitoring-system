@@ -60,7 +60,14 @@
             </div>
             <div class="col-md-3">
               <label class="form-label">Timezone</label>
-              <input class="form-control" th:field="*{timezone}" placeholder="ex) Asia/Seoul">
+              <select class="form-select" th:field="*{timezone}">
+                <option value="">-- 선택하세요 --</option>
+                <option th:each="tz : ${timezones}" 
+                        th:value="${tz.timezoneId}"
+                        th:with="offsetH=${tz.offsetHours.intValue()}, offsetM=${tz.offsetMinutes}, offsetSign=${offsetH >= 0 ? '+' : ''}, offsetMFormatted=${offsetM != 0 ? (offsetM < 10 ? ':0' + offsetM : ':' + offsetM) : ''}, displayText=${tz.displayName + ' (UTC' + offsetSign + offsetH + offsetMFormatted + ')'}"
+                        th:text="${displayText}">
+                </option>
+              </select>
             </div>
 
             <!-- SSH 연결 (SHELL용) -->
@@ -177,7 +184,41 @@
               <textarea class="form-control" rows="3" th:field="*{messageTemplate}" required
                         placeholder="예: [MON] ${ruleName} - target=${targetName} output=${output}"></textarea>
               <div class="form-text small text-muted">
-                변수: ${ruleName} ${checkId} ${targetName} ${checkName} ${success} ${output} ${error} ${outputLen} ${threshold} ${status}
+                <strong>사용 가능한 변수:</strong><br>
+                <strong>Rule 정보:</strong> ${ruleName} (Rule 이름)<br>
+                <strong>Check 정보:</strong> ${checkId}, ${checkName} (Check ID, 이름), ${serverId}, ${serverName} (${checkId}, ${targetName}과 동일)<br>
+                <strong>서버 정보:</strong> ${targetName} (서버명)<br>
+                <strong>실행 결과:</strong> ${success} (true/false), ${status} (SUCCESS/FAIL/UNKNOWN), ${output} (출력 내용), ${error} (에러 메시지)<br>
+                <strong>출력 값:</strong> ${outputNum} (출력에서 추출한 숫자 값), ${outputLen} (출력 길이)<br>
+                <strong>실행 정보:</strong> ${startedAt} (시작 시간), ${finishedAt} (종료 시간), ${durationMs} (실행 시간 ms)<br>
+                <strong>임계값:</strong> ${threshold} (임계값)<br>
+                <small class="text-muted">참고: ${변수명} 또는 {변수명} 형식 모두 사용 가능</small>
+              </div>
+            </div>
+
+            <!-- 알림 채널 -->
+            <div class="col-12"><h6 class="text-muted border-bottom pb-2">알림 채널</h6></div>
+            <div class="col-12">
+              <label class="form-label">Notification Channels</label>
+              <div class="d-flex gap-4">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="channelSMS" value="SMS"
+                         th:field="*{channelList}">
+                  <label class="form-check-label" for="channelSMS">SMS</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="channelEMAIL" value="EMAIL"
+                         th:field="*{channelList}">
+                  <label class="form-check-label" for="channelEMAIL">EMAIL</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="channelKAKAO" value="KAKAO"
+                         th:field="*{channelList}">
+                  <label class="form-check-label" for="channelKAKAO">KAKAO</label>
+                </div>
+              </div>
+              <div class="form-text small text-muted">
+                Rule에 설정된 채널로만 알림이 발송됩니다. 비어있으면 수신자의 채널 설정을 사용합니다.
               </div>
             </div>
           </div>

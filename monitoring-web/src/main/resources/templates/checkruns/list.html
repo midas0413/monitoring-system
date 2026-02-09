@@ -5,7 +5,7 @@
   <div class="container-fluid">
 
     <div class="page-header mb-3">
-      <h5>Check Runs</h5>
+      <h5>Check Results</h5>
       <div class="page-header-actions">
         <a class="btn btn-outline-secondary" th:href="@{/}">← Home</a>
       </div>
@@ -34,7 +34,8 @@
           <thead class="table-light">
           <tr>
             <th style="width:70px">ID</th>
-            <th style="width:90px">Check</th>
+            <th style="width:250px">Rule Name</th>
+            <th style="width:120px">Server명</th>
             <th style="width:80px">Success</th>
             <th style="width:195px">Started</th>
             <th style="width:100px">Duration</th>
@@ -44,7 +45,8 @@
           <tbody>
           <tr th:each="r : ${items}">
             <td th:text="${r.id}">1</td>
-            <td th:text="${r.checkId}">1</td>
+            <td th:text="${r.checkId != null && ruleNameDisplay != null ? (ruleNameDisplay.get(r.checkId) != null ? ruleNameDisplay.get(r.checkId) : '-') : '-'}">-</td>
+            <td th:text="${r.checkId != null && serverDisplay != null ? (serverDisplay.get(r.checkId) != null ? serverDisplay.get(r.checkId) : '-') : '-'}">-</td>
             <td>
               <span class="badge rounded-pill"
                     th:classappend="${r.success} ? ' text-bg-success' : ' text-bg-danger'"
@@ -60,7 +62,7 @@
             </td>
           </tr>
           <tr th:if="${items == null || #lists.isEmpty(items)}">
-            <td colspan="6" class="text-center text-muted py-4">No data</td>
+            <td colspan="7" class="text-center text-muted py-4">해당 데이터가 없습니다</td>
           </tr>
           </tbody>
         </table>

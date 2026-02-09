@@ -95,6 +95,7 @@ public class AlertRuleService {
         f.setPattern(rule.getPattern());
         f.setMessageTemplate(rule.getMessageTemplate());
         f.setCooldownSec(rule.getCooldownSec());
+        f.loadFromChannelsCsv(rule.getChannels());
 
         if (rule.getCheckId() != null) {
             CheckEntity c = checkRepo.findById(rule.getCheckId()).orElse(null);
@@ -152,6 +153,8 @@ public class AlertRuleService {
         e.setPattern(f.getPattern());
         e.setMessageTemplate(f.getMessageTemplate());
         e.setCooldownSec(f.getCooldownSec() != null ? f.getCooldownSec() : 300);
+        String channelsCsv = f.toChannelsCsv();
+        e.setChannels(StringUtils.hasText(channelsCsv) ? channelsCsv : null);
     }
 
     @Transactional(readOnly = true)
@@ -163,6 +166,34 @@ public class AlertRuleService {
             String display = checkRepo.findById(r.getCheckId())
                     .map(c -> "[" + c.getId() + "] " + (c.getName() != null ? c.getName() : ""))
                     .orElse("[" + r.getCheckId() + "] -");
+            map.put(r.getCheckId(), display);
+        }
+        return map;
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, String> buildServerDisplayMap(List<AlertRuleEntity> rules) {
+        Map<Long, String> map = new HashMap<>();
+        for (AlertRuleEntity r : rules) {
+            if (r.getCheckId() == null) continue;
+            if (map.containsKey(r.getCheckId())) continue;
+            String display = checkRepo.findById(r.getCheckId())
+                    .map(c -> c.getTargetName() != null ? c.getTargetName() : "-")
+                    .orElse("-");
+            map.put(r.getCheckId(), display);
+        }
+        return map;
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, String> buildTimezoneDisplayMap(List<AlertRuleEntity> rules) {
+        Map<Long, String> map = new HashMap<>();
+        for (AlertRuleEntity r : rules) {
+            if (r.getCheckId() == null) continue;
+            if (map.containsKey(r.getCheckId())) continue;
+            String display = checkRepo.findById(r.getCheckId())
+                    .map(c -> c.getTimezone() != null ? c.getTimezone() : "-")
+                    .orElse("-");
             map.put(r.getCheckId(), display);
         }
         return map;

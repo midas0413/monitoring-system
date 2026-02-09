@@ -29,19 +29,21 @@
           <thead class="table-light">
           <tr>
             <th style="width:70px">ID</th>
-            <th style="width:120px">Name</th>
-            <th style="width:150px">Check Name</th>
+            <th style="width:150px">Rule Name</th>
+            <th style="width:120px">Server 명</th>
+            <th style="width:120px">Timezone</th>
             <th style="width:85px">Enabled</th>
             <th style="width:120px">Type</th>
             <th style="width:100px">Cooldown</th>
-            <th style="width:280px" class="text-end">Actions</th>
+            <th style="width:280px" class="text-end">Action</th>
           </tr>
           </thead>
           <tbody>
           <tr th:each="it : ${items}">
             <td th:text="${it.id}">1</td>
             <td class="fw-semibold" th:text="${it.name}">rule</td>
-            <td th:text="${it.checkId != null && checkDisplay != null ? (checkDisplay.get(it.checkId) != null ? checkDisplay.get(it.checkId) : '-') : '-'}">-</td>
+            <td th:text="${it.checkId != null && serverDisplay != null ? (serverDisplay.get(it.checkId) != null ? serverDisplay.get(it.checkId) : '-') : '-'}">-</td>
+            <td th:text="${it.checkId != null && timezoneDisplay != null ? (timezoneDisplay.get(it.checkId) != null ? timezoneDisplay.get(it.checkId) : '-') : '-'}">-</td>
             <td>
               <span class="badge rounded-pill"
                     th:classappend="${it.enabled} ? ' text-bg-success' : ' text-bg-secondary'"
@@ -62,7 +64,7 @@
             </td>
           </tr>
           <tr th:if="${items == null || #lists.isEmpty(items)}">
-            <td colspan="7" class="text-center text-muted py-4">No data</td>
+            <td colspan="8" class="text-center text-muted py-4">해당 데이터가 없습니다</td>
           </tr>
           </tbody>
         </table>

@@ -30,6 +30,7 @@ public class NotificationOutboxPageController {
 
         List<NotificationOutboxEntity> items = service.list(page);
         model.addAttribute("items", items);
+        model.addAttribute("createdDisplay", service.buildCreatedDisplayMap(items));
         model.addAttribute("page", page);
         model.addAttribute("hasNext", items.size() >= 100);
 

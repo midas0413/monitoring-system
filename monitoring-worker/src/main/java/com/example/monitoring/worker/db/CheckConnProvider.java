@@ -1,6 +1,8 @@
 package com.example.monitoring.worker.db;
 
 import com.example.monitoring.common.domain.CheckEntity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.stereotype.Component;
@@ -11,6 +13,7 @@ import javax.sql.DataSource;
 @Component
 public class CheckConnProvider {
 
+    private static final Logger log = LoggerFactory.getLogger(CheckConnProvider.class);
     private static final int CONNECT_TIMEOUT_SEC = 10;
     private static final int QUERY_TIMEOUT_SEC = 30;
 
@@ -21,14 +24,46 @@ public class CheckConnProvider {
     private DataSource createDataSource(CheckEntity check) {
         String url = resolveDbUrl(check);
         if (!StringUtils.hasText(url) || !StringUtils.hasText(check.getDbUsername())) {
-            throw new IllegalStateException("Check DB info missing. checkId=" + check.getId() + ", url=" + (url != null ? "set" : "null") + ", user=" + (check.getDbUsername() != null ? "set" : "null"));
+            String errorMsg = String.format("Check DB info missing. checkId=%d, url=%s, user=%s, host=%s, dbType=%s, dbPort=%s, dbName=%s",
+                    check.getId(),
+                    (url != null ? "set" : "null"),
+                    (check.getDbUsername() != null ? check.getDbUsername() : "null"),
+                    check.getHost(),
+                    check.getDbType(),
+                    check.getDbPort(),
+                    check.getDbName());
+            log.error(errorMsg);
+            throw new IllegalStateException(errorMsg);
         }
 
+        // 패스워드가 null이면 빈 문자열로 설정 (일부 DB는 패스워드 없이 접속 가능)
+        // 하지만 패스워드가 필요한 경우를 위해 경고 로그 남김
+        String password = check.getDbPassword() != null ? check.getDbPassword() : "";
+        if (!StringUtils.hasText(password)) {
+            // 패스워드가 없으면 빈 문자열로 설정하되, 실제 DB 접속 시 인증 실패 가능
+            // 이 경우 계정 잠금을 방지하기 위해 로그 남김
+            log.warn("Check DB password is empty. checkId={}, username={}. This may cause authentication failures and account lockouts.", 
+                    check.getId(), check.getDbUsername());
+        }
+
+        String driverClassName = driverClassFor(url);
+        if (driverClassName == null) {
+            String errorMsg = String.format("Unsupported DB type or invalid URL. checkId=%d, url=%s, dbType=%s", 
+                    check.getId(), url, check.getDbType());
+            log.error(errorMsg);
+            throw new IllegalStateException(errorMsg);
+        }
+
+        String finalUrl = appendConnectionProps(url);
+        
+        log.debug("Creating DataSource. checkId={}, url={}, username={}, driver={}", 
+                check.getId(), finalUrl, check.getDbUsername(), driverClassName);
+
         DriverManagerDataSource ds = new DriverManagerDataSource();
-        ds.setDriverClassName(driverClassFor(url));
-        ds.setUrl(appendConnectionProps(url));
+        ds.setDriverClassName(driverClassName);
+        ds.setUrl(finalUrl);
         ds.setUsername(check.getDbUsername());
-        ds.setPassword(check.getDbPassword() != null ? check.getDbPassword() : "");
+        ds.setPassword(password);
 
         return ds;
     }

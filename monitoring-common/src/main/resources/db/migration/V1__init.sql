@@ -8,6 +8,7 @@ create table if not exists checks (
     target_name varchar(100) not null,             -- 표시용 (ex: DEV_DBMS)
 
     host varchar(255) not null,
+    timezone varchar(50) null,                     -- 서버 타임존 정보 (ex: Asia/Seoul, America/New_York)
 
     -- SHELL용
     port int null,                                 -- SSH port (기본 22)
@@ -165,38 +166,66 @@ create table if not exists notification_outbox (
 create index if not exists idx_outbox_due on notification_outbox(status, next_attempt_at, id);
 create index if not exists idx_outbox_processing_until on notification_outbox(status, processing_until);
 
--- seed checks (개발용, 연결 정보 포함)
-insert into checks (type, name, target_name, host, port, ssh_username, ssh_password, db_type, db_port, db_name, db_url, db_username, db_password, script, interval_sec, enabled, next_run_at, created_at)
-values ('SQL', 'DB_PING', 'DEV_POSTGRE', '172.22.1.113', 22, 'root', 'Cnit52940*', 'postgresql', 5432, 'monitoring',
- 'jdbc:postgresql://172.22.1.113:5432/monitoring', 'monitoring', 'monitoring', 'select count(*) from check_runs', 60, true, now(), now());
+-- 8) timezone_codes (타임존 코드 테이블)
+create table if not exists timezone_codes (
+    id bigserial primary key,
+    timezone_id varchar(100) not null unique,
+    display_name varchar(200) not null,
+    offset_hours integer not null,  -- UTC 기준 시차 (시간)
+    offset_minutes integer not null default 0,  -- UTC 기준 시차 (분)
+    description varchar(500) null,
+    enabled boolean not null default true,
+    display_order integer not null default 0,
+    created_at timestamptz not null default now()
+);
 
-insert into checks (type, name, target_name, host, port, ssh_username, ssh_password, db_type, db_port, db_name, db_url, db_username, db_password, script, interval_sec, enabled, next_run_at, created_at)
-values ('SQL', 'DB_TEST', 'DEV_ORACLE', '172.25.6.133', 22, 'root', 'growin2$6*', 'oracle', 1521, 'irmdb',
- 'jdbc:oracle:thin:@172.25.6.133:1521:irmdb', 'NMKIRM', 'cc52940', 'select count(*) from TB_IRS001M', 60, true, now(), now());
+create index if not exists idx_timezone_codes_enabled on timezone_codes(enabled, display_order);
 
-insert into checks (type, name, target_name, host, port, ssh_username, ssh_password, script, interval_sec, enabled, next_run_at, created_at)
-values ('SHELL', 'ECHO', 'TCS_DB', '172.22.1.113', 22, 'root', '2940*', 'echo date', 60, true, now(), now());
+-- 주요 타임존 데이터 삽입
+insert into timezone_codes (timezone_id, display_name, offset_hours, offset_minutes, description, display_order) values
+-- 아시아/태평양
+('Asia/Seoul', '한국 표준시 (KST)', 9, 0, '대한민국, 일본', 1),
+('Asia/Tokyo', '일본 표준시 (JST)', 9, 0, '일본', 2),
+('Asia/Shanghai', '중국 표준시 (CST)', 8, 0, '중국, 대만, 홍콩', 3),
+('Asia/Hong_Kong', '홍콩 표준시 (HKT)', 8, 0, '홍콩', 4),
+('Asia/Singapore', '싱가포르 표준시 (SGT)', 8, 0, '싱가포르, 말레이시아', 5),
+('Asia/Bangkok', '태국 표준시 (ICT)', 7, 0, '태국, 베트남', 6),
+('Asia/Jakarta', '인도네시아 서부 표준시 (WIB)', 7, 0, '인도네시아 서부', 7),
+('Asia/Manila', '필리핀 표준시 (PHT)', 8, 0, '필리핀', 8),
+('Asia/Kolkata', '인도 표준시 (IST)', 5, 30, '인도', 9),
+('Asia/Dubai', '아랍에미리트 표준시 (GST)', 4, 0, 'UAE, 오만', 10),
 
--- alert_rules seed
-insert into alert_rules ("name", enabled, check_id, rule_type, threshold_num, threshold_len, pattern, channels, message_template, cooldown_sec, last_fired_at, created_at)
-values ('[DB count] 설정치 초과', true, 1, 'OUTPUT_NUM_GT', 20, 300, '', 'KAKAO', '[{targetName}] check={checkName} outputLen={outputLen} threshold={threshold} status={status}', 300, null, now());
+-- 유럽
+('Europe/London', '영국 표준시 (GMT/BST)', 0, 0, '영국, 아일랜드', 20),
+('Europe/Paris', '중앙유럽 표준시 (CET/CEST)', 1, 0, '프랑스, 독일, 이탈리아, 스페인', 21),
+('Europe/Berlin', '독일 표준시 (CET/CEST)', 1, 0, '독일', 22),
+('Europe/Rome', '이탈리아 표준시 (CET/CEST)', 1, 0, '이탈리아', 23),
+('Europe/Madrid', '스페인 표준시 (CET/CEST)', 1, 0, '스페인', 24),
+('Europe/Amsterdam', '네덜란드 표준시 (CET/CEST)', 1, 0, '네덜란드', 25),
+('Europe/Stockholm', '스웨덴 표준시 (CET/CEST)', 1, 0, '스웨덴', 26),
+('Europe/Moscow', '모스크바 표준시 (MSK)', 3, 0, '러시아 서부', 27),
+('Europe/Athens', '그리스 표준시 (EET/EEST)', 2, 0, '그리스', 28),
+('Europe/Istanbul', '터키 표준시 (TRT)', 3, 0, '터키', 29),
 
-insert into alert_rules ("name", enabled, check_id, rule_type, threshold_num, threshold_len, pattern, channels, message_template, cooldown_sec, last_fired_at, created_at)
-values ('[DB ping] output 길이 임계치 초과', true, 2, 'OUTPUT_LEN_GT', 200, 300, '', 'KAKAO', '[{targetName}] check={checkName} outputLen={outputLen} threshold={threshold} status={status}', 300, null, now());
+-- 아메리카
+('America/New_York', '미국 동부 표준시 (EST/EDT)', -5, 0, '미국 동부', 40),
+('America/Chicago', '미국 중부 표준시 (CST/CDT)', -6, 0, '미국 중부', 41),
+('America/Denver', '미국 산지 표준시 (MST/MDT)', -7, 0, '미국 산지', 42),
+('America/Los_Angeles', '미국 태평양 표준시 (PST/PDT)', -8, 0, '미국 서부', 43),
+('America/Toronto', '캐나다 동부 표준시 (EST/EDT)', -5, 0, '캐나다 동부', 44),
+('America/Vancouver', '캐나다 태평양 표준시 (PST/PDT)', -8, 0, '캐나다 서부', 45),
+('America/Mexico_City', '멕시코 표준시 (CST)', -6, 0, '멕시코', 46),
+('America/Sao_Paulo', '브라질 표준시 (BRT)', -3, 0, '브라질', 47),
+('America/Buenos_Aires', '아르헨티나 표준시 (ART)', -3, 0, '아르헨티나', 48),
 
--- alert_recipients seed
-insert into alert_recipients ("name", enabled, channels, phone, email, kakao, created_at)
-values ('Alex', true, 'KAKAO', '01053250413', 'hjkim@cnit21.com', '@grioom22', now());
+-- 기타
+('UTC', '협정 세계시 (UTC)', 0, 0, 'UTC', 100),
+('Australia/Sydney', '호주 동부 표준시 (AEST/AEDT)', 10, 0, '호주 동부', 60),
+('Australia/Melbourne', '호주 동부 표준시 (AEST/AEDT)', 10, 0, '호주 동부', 61),
+('Pacific/Auckland', '뉴질랜드 표준시 (NZST/NZDT)', 12, 0, '뉴질랜드', 70);
 
-insert into alert_recipients ("name", enabled, channels, phone, email, kakao, created_at)
-values ('Zena', true, 'KAKAO', '01022529095', 'jjaeock108@cnit21.com', '@jjaeock', now());
 
--- alert_rule_recipient_links seed
-insert into alert_rule_recipient_links (rule_id, recipient_id, enabled, created_at)
-values (1, 1, true, now());
 
-insert into alert_rule_recipient_links (rule_id, recipient_id, enabled, created_at)
-values (1, 2, true, now());
 
 -- 시퀀스 보정
 SELECT setval('checks_id_seq', (SELECT COALESCE(MAX(id), 1) FROM checks));

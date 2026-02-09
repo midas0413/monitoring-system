@@ -38,7 +38,8 @@
             <td th:text="${n.ruleId}">-</td>
             <td th:text="${n.checkRunId}">-</td>
             <td th:text="${n.toAddr}">-</td>
-            <td th:text="${n.createdAt != null ? #temporals.format(n.createdAt, 'yyyy-MM-dd HH:mm') : '-'}">-</td>
+            <td th:with="disp=${createdDisplay != null ? createdDisplay.get(n.id) : null}"
+                th:text="${disp != null ? disp : (n.createdAt != null ? #temporals.format(n.createdAt, 'yyyy-MM-dd HH:mm') : '-')}">-</td>
             <td>
               <span class="small text-break d-inline-block" style="max-width:480px" th:text="${#strings.abbreviate(n.body, 80)}">-</span>
               <button type="button" class="btn btn-link btn-sm p-0 ms-1" data-bs-toggle="modal" data-bs-target="#bodyModal"
@@ -46,7 +47,7 @@
             </td>
           </tr>
           <tr th:if="${items == null || #lists.isEmpty(items)}">
-            <td colspan="8" class="text-center text-muted py-4">No data</td>
+            <td colspan="8" class="text-center text-muted py-4">해당 데이터가 없습니다</td>
           </tr>
           </tbody>
         </table>

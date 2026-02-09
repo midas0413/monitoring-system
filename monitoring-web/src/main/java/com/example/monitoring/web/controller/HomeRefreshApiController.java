@@ -3,38 +3,34 @@ package com.example.monitoring.web.controller;
 import com.example.monitoring.common.domain.CheckEntity;
 import com.example.monitoring.common.domain.CheckRunEntity;
 import com.example.monitoring.web.service.CheckRunService;
-import com.example.monitoring.web.service.CheckService;
 import com.example.monitoring.web.service.HomeService;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Controller
-public class PortalController {
+/**
+ * Home 화면 리프레시용 API
+ * 알림 건수와 Check Runs 데이터를 JSON으로 반환
+ */
+@RestController
+@RequestMapping("/api/home/refresh")
+public class HomeRefreshApiController {
 
     private final HomeService homeService;
     private final CheckRunService checkRunService;
-    private final CheckService checkService;
 
-    public PortalController(HomeService homeService, CheckRunService checkRunService, CheckService checkService) {
+    public HomeRefreshApiController(HomeService homeService, CheckRunService checkRunService) {
         this.homeService = homeService;
         this.checkRunService = checkRunService;
-        this.checkService = checkService;
     }
 
-    @GetMapping("/")
-    public String home(
-            @RequestParam(required = false) Long checkId,
-            Model model) {
-        model.addAttribute("pageTitle", "Home");
-        model.addAttribute("activeMenu", "home");
-        model.addAttribute("content", "home :: content");
-
+    @GetMapping
+    public Map<String, Object> refresh(@RequestParam(required = false) Long checkId) {
         Map<String, List<CheckEntity>> checksByTarget = homeService.listChecksGroupByTarget();
 
         Map<Long, Long> notificationCountByCheck = new HashMap<>();
@@ -44,18 +40,13 @@ public class PortalController {
             }
         }
 
-        model.addAttribute("checksByTarget", checksByTarget);
-        model.addAttribute("notificationCountByCheck", notificationCountByCheck);
-
         List<CheckRunEntity> checkRuns = checkRunService.list(checkId, null);
-        model.addAttribute("checkRuns", checkRuns);
-        model.addAttribute("startedDisplay", checkRunService.buildStartedDisplayMap(checkRuns));
-        model.addAttribute("ruleNameDisplay", checkRunService.buildRuleNameDisplayMap(checkRuns));
-        model.addAttribute("serverDisplay", checkRunService.buildServerDisplayMap(checkRuns));
-        model.addAttribute("filterCheckId", checkId);
-        model.addAttribute("allChecks", checkService.list(null));
+        Map<Long, String> startedDisplay = checkRunService.buildStartedDisplayMap(checkRuns);
+        Map<Long, String> ruleNameDisplay = checkRunService.buildRuleNameDisplayMap(checkRuns);
+        Map<Long, String> serverDisplay = checkRunService.buildServerDisplayMap(checkRuns);
         
-        // 서버 상태 맵 생성 (targetName -> status) - 초기 로드용
+        // 서버 상태 맵 생성 (targetName -> status)
+        // 같은 targetName의 checks 중 하나라도 UP이면 UP, 모두 DOWN이면 DOWN, 그 외 UNKNOWN
         Map<String, String> serverStatusByTarget = new HashMap<>();
         for (Map.Entry<String, List<CheckEntity>> entry : checksByTarget.entrySet()) {
             String targetName = entry.getKey();
@@ -83,8 +74,14 @@ public class PortalController {
                 serverStatusByTarget.put(targetName, "UNKNOWN");
             }
         }
-        model.addAttribute("serverStatusByTarget", serverStatusByTarget);
 
-        return "layout";
+        Map<String, Object> result = new HashMap<>();
+        result.put("notificationCountByCheck", notificationCountByCheck);
+        result.put("checkRuns", checkRuns);
+        result.put("startedDisplay", startedDisplay);
+        result.put("ruleNameDisplay", ruleNameDisplay);
+        result.put("serverDisplay", serverDisplay);
+        result.put("serverStatusByTarget", serverStatusByTarget);
+        return result;
     }
 }

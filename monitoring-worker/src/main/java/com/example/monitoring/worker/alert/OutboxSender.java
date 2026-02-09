@@ -1,5 +1,6 @@
 package com.example.monitoring.worker.alert;
 
+import com.example.monitoring.common.domain.NotificationChannel;
 import com.example.monitoring.common.domain.NotificationOutboxEntity;
 import com.example.monitoring.common.domain.NotificationStatus;
 import com.example.monitoring.common.repo.NotificationOutboxRepository;
@@ -61,14 +62,29 @@ public class OutboxSender {
         String title = n.getTitle();
         String body = n.getBody();
 
-        var r = deliverer.deliver(to, title, body);
+        log.info("알림 발송 시도. id={}, channel={}, to={}, attempt={}/{}", 
+                n.getId(), n.getChannel(), to, n.getAttempt(), n.getMaxAttempt());
+
+        NotificationDeliverer.DeliverResult r;
+        
+        // KAKAO 채널일 때는 checkRunId를 전달하여 정확한 서버명 추출
+        if (n.getChannel() == com.example.monitoring.common.domain.NotificationChannel.KAKAO 
+                && deliverer instanceof KakaoDeliverer) {
+            r = ((KakaoDeliverer) deliverer).deliverWithContext(to, title, body, n.getCheckRunId());
+        } else {
+            r = deliverer.deliver(to, title, body);
+        }
 
         if (r.success()) {
             n.setStatus(NotificationStatus.SENT);
             n.setSentAt(OffsetDateTime.now());
             n.setLastError(null);
             outboxRepository.save(n);
+            log.info("알림 발송 성공. id={}, channel={}, to={}, providerMessage={}", 
+                    n.getId(), n.getChannel(), to, r.providerMessage());
         } else {
+            log.warn("알림 발송 실패. id={}, channel={}, to={}, error={}", 
+                    n.getId(), n.getChannel(), to, r.providerMessage());
             failAndRetry(n, StringUtils.hasText(r.providerMessage()) ? r.providerMessage() : "deliver failed");
         }
     }

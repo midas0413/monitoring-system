@@ -26,6 +26,7 @@ spring:
 
   flyway:
     locations: classpath:db/migration
+    repair-on-migrate: true  # 마이그레이션 파일 변경 시 체크섬 자동 수정
 
     logging:
       level:

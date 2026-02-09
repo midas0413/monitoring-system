@@ -4,6 +4,8 @@ import com.example.monitoring.common.domain.AlertRecipientEntity;
 import com.example.monitoring.common.domain.AlertRuleRecipientLinkEntity;
 import com.example.monitoring.common.repo.AlertRecipientRepository;
 import com.example.monitoring.common.repo.AlertRuleRecipientLinkRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,6 +13,8 @@ import java.util.*;
 
 @Service
 public class RuleRecipientLinkService {
+
+    private static final Logger log = LoggerFactory.getLogger(RuleRecipientLinkService.class);
 
     private final AlertRecipientRepository recipientRepo;
     private final AlertRuleRecipientLinkRepository linkRepo;
@@ -38,17 +42,55 @@ public class RuleRecipientLinkService {
 
     @Transactional
     public void saveLinks(Long ruleId, List<Long> newRecipientIds) {
+        log.info("Rule recipients 저장 시작: ruleId={}, recipientIds={}", ruleId, newRecipientIds);
+        
         // 전략: ruleId 기준으로 "전체 갱신" (가장 단순/안정)
-        linkRepo.deleteByRuleId(ruleId);
-
-        if (newRecipientIds == null) return;
-        for (Long rid : newRecipientIds) {
-            if (rid == null) continue;
-            AlertRuleRecipientLinkEntity link = new AlertRuleRecipientLinkEntity();
-            link.setRuleId(ruleId);
-            link.setRecipient(recipientRepo.getReferenceById(rid));  // alert_recipients 참조
-            link.setEnabled(true);
-            linkRepo.save(link);
+        try {
+            linkRepo.deleteByRuleId(ruleId);
+            log.debug("기존 링크 삭제 완료: ruleId={}", ruleId);
+        } catch (Exception e) {
+            log.warn("기존 링크 삭제 중 오류 (무시 가능): ruleId={}", ruleId, e);
         }
+
+        if (newRecipientIds == null || newRecipientIds.isEmpty()) {
+            log.info("Rule recipients 저장 완료: ruleId={}, recipientIds=null 또는 empty", ruleId);
+            return;
+        }
+        
+        int savedCount = 0;
+        int skippedCount = 0;
+        
+        for (Long rid : newRecipientIds) {
+            if (rid == null) {
+                skippedCount++;
+                log.debug("null recipientId 스킵: ruleId={}", ruleId);
+                continue;
+            }
+            
+            // getReferenceById 대신 findById 사용하여 존재 여부 확인
+            // getReferenceById는 존재하지 않는 경우에도 lazy proxy를 반환하여 나중에 오류 발생 가능
+            AlertRecipientEntity recipient = recipientRepo.findById(rid).orElse(null);
+            if (recipient == null) {
+                log.warn("Recipient가 존재하지 않습니다. recipientId={}, ruleId={}", rid, ruleId);
+                skippedCount++;
+                continue;
+            }
+            
+            try {
+                AlertRuleRecipientLinkEntity link = new AlertRuleRecipientLinkEntity();
+                link.setRuleId(ruleId);
+                link.setRecipient(recipient);
+                link.setEnabled(true);
+                linkRepo.save(link);
+                savedCount++;
+                log.debug("Rule recipient link 저장 완료: ruleId={}, recipientId={}, linkId={}", 
+                        ruleId, rid, link.getId());
+            } catch (Exception e) {
+                log.error("Rule recipient link 저장 실패: ruleId={}, recipientId={}", ruleId, rid, e);
+                throw e; // 트랜잭션 롤백을 위해 예외 재발생
+            }
+        }
+        
+        log.info("Rule recipients 저장 완료: ruleId={}, saved={}, skipped={}", ruleId, savedCount, skippedCount);
     }
 }

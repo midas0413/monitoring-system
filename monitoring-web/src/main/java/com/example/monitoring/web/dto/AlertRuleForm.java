@@ -1,5 +1,8 @@
 package com.example.monitoring.web.dto;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Alert Rule + Check 통합 폼. Check 1개당 Rule 1개.
  */
@@ -16,6 +19,9 @@ public class AlertRuleForm {
     private String pattern;
     private String messageTemplate;
     private Integer cooldownSec = 300;
+
+    // 화면에서 체크박스 등으로 다루기 쉽게 List로 둠 (ex: ["SMS","EMAIL"])
+    private List<String> channelList = new ArrayList<>();
 
     // === Check 필드 ===
     private String type = "SHELL";        // SHELL / SQL
@@ -112,4 +118,34 @@ public class AlertRuleForm {
 
     public String getSqlText() { return sqlText; }
     public void setSqlText(String sqlText) { this.sqlText = sqlText; }
+
+    public List<String> getChannelList() { return channelList; }
+    public void setChannelList(List<String> channelList) {
+        this.channelList = (channelList == null) ? new ArrayList<>() : channelList;
+    }
+
+    /** DB의 channels(CSV: "SMS,EMAIL") → form.channelList 로딩 */
+    public void loadFromChannelsCsv(String csv) {
+        this.channelList.clear();
+        if (csv == null || csv.isBlank()) return;
+
+        for (String s : csv.split(",")) {
+            String v = s.trim().toUpperCase();
+            if (!v.isBlank() && !this.channelList.contains(v)) {
+                this.channelList.add(v);
+            }
+        }
+    }
+
+    /** form.channelList → DB 저장용 CSV("SMS,EMAIL") */
+    public String toChannelsCsv() {
+        if (channelList == null || channelList.isEmpty()) return "";
+        List<String> normalized = new ArrayList<>();
+        for (String s : channelList) {
+            if (s == null) continue;
+            String v = s.trim().toUpperCase();
+            if (!v.isBlank() && !normalized.contains(v)) normalized.add(v);
+        }
+        return String.join(",", normalized);
+    }
 }

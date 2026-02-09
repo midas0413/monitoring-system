@@ -27,13 +27,15 @@ public class CheckRunPageController {
     public String list(
             @RequestParam(required = false) Long checkId,
             Model model) {
-        model.addAttribute("pageTitle", "Check Runs");
+        model.addAttribute("pageTitle", "Check Results");
         model.addAttribute("activeMenu", "checkRuns");
         model.addAttribute("content", "checkruns/list :: content");
 
         List<CheckRunEntity> items = checkRunService.list(checkId, null);
         model.addAttribute("items", items);
         model.addAttribute("startedDisplay", checkRunService.buildStartedDisplayMap(items));
+        model.addAttribute("ruleNameDisplay", checkRunService.buildRuleNameDisplayMap(items));
+        model.addAttribute("serverDisplay", checkRunService.buildServerDisplayMap(items));
         model.addAttribute("checkId", checkId);
         model.addAttribute("checks", checkService.list(null));
 

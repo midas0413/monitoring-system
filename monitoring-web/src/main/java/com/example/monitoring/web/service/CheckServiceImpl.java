@@ -106,7 +106,10 @@ public class CheckServiceImpl implements CheckService {
         if ("SHELL".equalsIgnoreCase(form.getType())) {
             e.setPort(form.getPort() != null ? form.getPort() : 22);
             e.setSshUsername(StringUtils.hasText(form.getSshUsername()) ? form.getSshUsername().trim() : null);
-            e.setSshPassword(form.getSshPassword());
+            // SSH 패스워드: 값이 있으면 업데이트, 빈 문자열이면 기존 값 유지
+            if (StringUtils.hasText(form.getSshPassword())) {
+                e.setSshPassword(form.getSshPassword());
+            }
             e.setSshPrivateKeyPath(StringUtils.hasText(form.getSshPrivateKeyPath()) ? form.getSshPrivateKeyPath().trim() : null);
             e.setDbType(null);
             e.setDbPort(null);
@@ -123,7 +126,11 @@ public class CheckServiceImpl implements CheckService {
             e.setDbPort(form.getDbPort());
             e.setDbName(StringUtils.hasText(form.getDbName()) ? form.getDbName().trim() : null);
             e.setDbUsername(StringUtils.hasText(form.getDbUsername()) ? form.getDbUsername().trim() : null);
-            e.setDbPassword(form.getDbPassword());
+            // 패스워드: 값이 있으면 업데이트, 빈 문자열이면 기존 값 유지 (password input은 변경 안하면 빈 문자열 전송)
+            if (StringUtils.hasText(form.getDbPassword())) {
+                e.setDbPassword(form.getDbPassword());
+            }
+            // form.getDbPassword()가 null이거나 빈 문자열이면 기존 값 유지 (setDbPassword 호출 안함)
             e.setDbUrl(buildDbUrl(form.getHost(), form.getDbType(), form.getDbPort(), form.getDbName()));
         }
     }

@@ -18,6 +18,9 @@
         <div class="card card-shadow h-100">
           <div class="card-header d-flex justify-content-between align-items-center py-2">
             <span class="fw-bold" th:text="${entry.key}">Target</span>
+            <span class="server-status-indicator" th:attr="data-target-name=${entry.key}">
+              <span class="status-dot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: #6c757d; margin-left: 8px;"></span>
+            </span>
           </div>
           <div class="card-body py-2">
             <div class="border-top pt-2">
@@ -25,9 +28,9 @@
               <ul class="list-unstyled small mb-0">
                 <li class="d-flex justify-content-between align-items-center py-1 border-bottom" th:each="check : ${entry.value}">
                   <span th:text="${check.name}">check</span>
-                  <span class="badge bg-primary" th:text="${'알림 ' + (notificationCountByCheck != null && notificationCountByCheck[check.id] != null ? notificationCountByCheck[check.id] : 0) + '건'}">0건</span>
+                  <span class="badge bg-primary notification-badge" th:attr="data-check-id=${check.id}" th:text="${'알림 ' + (notificationCountByCheck != null && notificationCountByCheck[check.id] != null ? notificationCountByCheck[check.id] : 0) + '건'}">0건</span>
                 </li>
-                <li class="text-muted py-1" th:if="${entry.value == null || entry.value.isEmpty()}">등록된 체크 없음</li>
+                <li class="text-muted py-1" th:if="${entry.value == null || entry.value.isEmpty()}">해당 데이터가 없습니다</li>
               </ul>
             </div>
           </div>
@@ -38,10 +41,10 @@
       </div>
     </div>
 
-    <!-- 2. Check Runs 목록 + 검색 -->
+    <!-- 2. Check Results 목록 + 검색 -->
     <div class="card card-shadow">
       <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <h6 class="mb-0">Check Runs</h6>
+        <h6 class="mb-0">Check Results</h6>
         <a class="btn btn-sm btn-outline-primary" th:href="@{/check-runs}">전체 보기</a>
       </div>
       <div class="card-body">
@@ -63,31 +66,36 @@
           <table class="table table-hover table-sm align-middle mb-0">
             <thead class="table-light">
             <tr>
-              <th style="width:60px">ID</th>
-              <th style="width:70px">Check</th>
-              <th style="width:70px">Success</th>
-              <th style="width:140px">Started</th>
+              <th style="width:70px">ID</th>
+              <th style="width:250px">Rule Name</th>
+              <th style="width:120px">Server명</th>
+              <th style="width:80px">Success</th>
+              <th style="width:195px">Started</th>
+              <th style="width:100px">Duration</th>
               <th>Output / Error</th>
             </tr>
             </thead>
-            <tbody>
+            <tbody id="checkRunsTableBody">
             <tr th:each="r : ${checkRuns}">
               <td th:text="${r.id}">1</td>
-              <td th:text="${r.checkId}">1</td>
+              <td th:text="${r.checkId != null && ruleNameDisplay != null ? (ruleNameDisplay.get(r.checkId) != null ? ruleNameDisplay.get(r.checkId) : '-') : '-'}">-</td>
+              <td th:text="${r.checkId != null && serverDisplay != null ? (serverDisplay.get(r.checkId) != null ? serverDisplay.get(r.checkId) : '-') : '-'}">-</td>
               <td>
                 <span class="badge rounded-pill"
                       th:classappend="${r.success} ? ' text-bg-success' : ' text-bg-danger'"
                       th:text="${r.success} ? 'OK' : 'FAIL'">OK</span>
               </td>
-              <td class="small" th:text="${r.startedAt != null ? #temporals.format(r.startedAt, 'yyyy-MM-dd HH:mm:ss') : '-'}">-</td>
-              <td class="small text-break" style="max-width:200px">
-                <span th:if="${r.errorMessage}" class="text-danger" th:text="${#strings.abbreviate(r.errorMessage, 50)}">error</span>
-                <span th:if="${r.errorMessage == null && r.output != null}" class="text-muted" th:text="${#strings.abbreviate(r.output, 50)}">output</span>
+              <td th:with="disp=${startedDisplay != null ? startedDisplay.get(r.id) : null}"
+                  th:text="${disp != null ? disp : (r.startedAt != null ? #temporals.format(r.startedAt, 'yyyy-MM-dd HH:mm:ss') : '-')}">-</td>
+              <td th:text="${r.durationMs != null ? r.durationMs + ' ms' : '-'}">-</td>
+              <td class="small text-break" style="max-width:300px">
+                <span th:if="${r.errorMessage}" class="text-danger" th:text="${#strings.abbreviate(r.errorMessage, 80)}">error</span>
+                <span th:if="${r.errorMessage == null && r.output != null}" class="text-muted" th:text="${#strings.abbreviate(r.output, 80)}">output</span>
                 <span th:if="${r.errorMessage == null && r.output == null}">-</span>
               </td>
             </tr>
             <tr th:if="${checkRuns == null || #lists.isEmpty(checkRuns)}">
-              <td colspan="5" class="text-center text-muted py-3">No check runs</td>
+              <td colspan="7" class="text-center text-muted py-3">해당 데이터가 없습니다</td>
             </tr>
             </tbody>
           </table>
@@ -97,5 +105,157 @@
 
   </div>
 </section>
+
+<script th:inline="javascript">
+(function() {
+  const REFRESH_INTERVAL = 30000; // 30초
+  const checkId = /*[[${filterCheckId}]]*/ null;
+  
+  function formatDateTime(dateTimeStr) {
+    if (!dateTimeStr) return '-';
+    try {
+      const dt = new Date(dateTimeStr);
+      const year = dt.getFullYear();
+      const month = String(dt.getMonth() + 1).padStart(2, '0');
+      const day = String(dt.getDate()).padStart(2, '0');
+      const hours = String(dt.getHours()).padStart(2, '0');
+      const minutes = String(dt.getMinutes()).padStart(2, '0');
+      const seconds = String(dt.getSeconds()).padStart(2, '0');
+      return year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds;
+    } catch (e) {
+      return dateTimeStr;
+    }
+  }
+  
+  function abbreviate(str, maxLen) {
+    if (!str) return '';
+    return str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
+  }
+  
+  function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  function updateNotificationCounts(notificationCountByCheck) {
+    if (!notificationCountByCheck) return;
+    
+    document.querySelectorAll('.notification-badge').forEach(function(badge) {
+      const checkIdStr = badge.getAttribute('data-check-id');
+      if (checkIdStr) {
+        const checkIdNum = parseInt(checkIdStr, 10);
+        // JSON에서 Long은 문자열 키로 변환될 수 있으므로 두 가지 모두 시도
+        const count = notificationCountByCheck[checkIdNum] !== undefined 
+            ? notificationCountByCheck[checkIdNum] 
+            : (notificationCountByCheck[checkIdStr] !== undefined ? notificationCountByCheck[checkIdStr] : 0);
+        badge.textContent = '알림 ' + count + '건';
+      }
+    });
+  }
+  
+  function updateServerStatusIndicators(serverStatusByTarget) {
+    if (!serverStatusByTarget) return;
+    
+    document.querySelectorAll('.server-status-indicator').forEach(function(indicator) {
+      const targetName = indicator.getAttribute('data-target-name');
+      if (targetName && serverStatusByTarget[targetName]) {
+        const status = serverStatusByTarget[targetName];
+        const dot = indicator.querySelector('.status-dot');
+        if (dot) {
+          if (status === 'UP') {
+            dot.style.backgroundColor = '#28a745'; // 녹색
+          } else if (status === 'DOWN') {
+            dot.style.backgroundColor = '#dc3545'; // 레드
+          } else {
+            dot.style.backgroundColor = '#6c757d'; // 회색 (UNKNOWN)
+          }
+        }
+      }
+    });
+  }
+  
+  function updateCheckRunsTable(checkRuns, startedDisplay, ruleNameDisplay, serverDisplay) {
+    const tbody = document.getElementById('checkRunsTableBody');
+    if (!tbody) return;
+    
+    if (!checkRuns || checkRuns.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">해당 데이터가 없습니다</td></tr>';
+      return;
+    }
+    
+    let html = '';
+    checkRuns.forEach(function(run) {
+      const ruleName = (ruleNameDisplay && run.checkId && ruleNameDisplay[run.checkId]) ? ruleNameDisplay[run.checkId] : '-';
+      const serverName = (serverDisplay && run.checkId && serverDisplay[run.checkId]) ? serverDisplay[run.checkId] : '-';
+      const started = (startedDisplay && startedDisplay[run.id]) ? startedDisplay[run.id] : formatDateTime(run.startedAt);
+      const successClass = run.success ? 'text-bg-success' : 'text-bg-danger';
+      const successText = run.success ? 'OK' : 'FAIL';
+      const duration = (run.durationMs != null) ? run.durationMs + ' ms' : '-';
+      
+      let outputHtml = '-';
+      if (run.errorMessage) {
+        outputHtml = '<span class="text-danger">' + escapeHtml(abbreviate(run.errorMessage, 80)) + '</span>';
+      } else if (run.output) {
+        outputHtml = '<span class="text-muted">' + escapeHtml(abbreviate(run.output, 80)) + '</span>';
+      }
+      
+      html += '<tr>' +
+        '<td>' + escapeHtml(String(run.id || '')) + '</td>' +
+        '<td>' + escapeHtml(ruleName) + '</td>' +
+        '<td>' + escapeHtml(serverName) + '</td>' +
+        '<td><span class="badge rounded-pill ' + successClass + '">' + successText + '</span></td>' +
+        '<td class="small">' + escapeHtml(started) + '</td>' +
+        '<td>' + escapeHtml(duration) + '</td>' +
+        '<td class="small text-break" style="max-width:300px">' + outputHtml + '</td>' +
+        '</tr>';
+    });
+    
+    tbody.innerHTML = html;
+  }
+  
+  function refreshData() {
+    const url = '/api/home/refresh' + (checkId ? '?checkId=' + checkId : '');
+    
+    fetch(url)
+      .then(function(response) {
+        if (!response.ok) {
+          throw new Error('Network response was not ok: ' + response.status);
+        }
+        return response.json();
+      })
+      .then(function(data) {
+        if (data.notificationCountByCheck) {
+          updateNotificationCounts(data.notificationCountByCheck);
+        }
+        if (data.serverStatusByTarget) {
+          updateServerStatusIndicators(data.serverStatusByTarget);
+        }
+        if (data.checkRuns) {
+          updateCheckRunsTable(data.checkRuns, data.startedDisplay || {}, data.ruleNameDisplay || {}, data.serverDisplay || {});
+        }
+      })
+      .catch(function(error) {
+        console.error('Refresh failed:', error);
+      });
+  }
+  
+  // 30초 간격으로 자동 리프레시
+  setInterval(refreshData, REFRESH_INTERVAL);
+  
+  // 초기 로드 시 서버 상태 표시
+  const initialServerStatus = /*[[${serverStatusByTarget}]]*/ {};
+  if (initialServerStatus) {
+    updateServerStatusIndicators(initialServerStatus);
+  }
+  
+  // 페이지 로드 후 5초 후 첫 리프레시 (초기 로드와 겹치지 않도록)
+  setTimeout(refreshData, 5000);
+  
+  // 리프레시 상태 표시 (디버깅용)
+  console.log('Home 화면 자동 리프레시 시작: ' + REFRESH_INTERVAL / 1000 + '초 간격');
+})();
+</script>
 </body>
 </html>

@@ -1,9 +1,12 @@
 package com.example.monitoring.web.service;
 
 import com.example.monitoring.common.domain.CheckRunEntity;
+import com.example.monitoring.common.repo.AlertRuleRepository;
 import com.example.monitoring.common.repo.CheckRunRepository;
 import com.example.monitoring.common.repo.CheckRepository;
 import com.example.monitoring.web.dto.CheckRunCreateRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -20,14 +23,18 @@ import java.util.Map;
 @Service
 public class CheckRunService {
 
+    private static final Logger log = LoggerFactory.getLogger(CheckRunService.class);
+
     private static final int PAGE_SIZE = 100;
 
     private final CheckRunRepository checkRunRepository;
     private final CheckRepository checkRepository;
+    private final AlertRuleRepository alertRuleRepository;
 
-    public CheckRunService(CheckRunRepository checkRunRepository, CheckRepository checkRepository) {
+    public CheckRunService(CheckRunRepository checkRunRepository, CheckRepository checkRepository, AlertRuleRepository alertRuleRepository) {
         this.checkRunRepository = checkRunRepository;
         this.checkRepository = checkRepository;
+        this.alertRuleRepository = alertRuleRepository;
     }
 
     public CheckRunEntity create(CheckRunCreateRequest req) {
@@ -74,9 +81,55 @@ public class CheckRunService {
                         .filter(t -> t != null && !t.isBlank())
                         .orElse(null);
             }
-            ZoneId zone = (tz != null) ? ZoneId.of(tz) : ZoneId.systemDefault();
+            
+            // 타임존 변환 (잘못된 타임존 ID 처리)
+            ZoneId zone;
+            try {
+                if (tz != null) {
+                    // 잘못된 타임존 ID 수정 (예: Europe/Scopje -> Europe/Skopje)
+                    if ("Europe/Scopje".equals(tz)) {
+                        tz = "Europe/Skopje";
+                    }
+                    zone = ZoneId.of(tz);
+                } else {
+                    zone = ZoneId.systemDefault();
+                }
+            } catch (Exception e) {
+                // 잘못된 타임존 ID인 경우 시스템 기본 타임존 사용
+                log.warn("잘못된 타임존 ID: {}. 시스템 기본 타임존 사용. checkId={}", tz, r.getCheckId());
+                zone = ZoneId.systemDefault();
+            }
+            
             String formatted = r.getStartedAt().atZoneSameInstant(zone).format(fmt);
             map.put(r.getId(), formatted);
+        }
+        return map;
+    }
+
+    /** checkId -> Rule Name (AlertRuleEntity의 name) */
+    public Map<Long, String> buildRuleNameDisplayMap(List<CheckRunEntity> runs) {
+        Map<Long, String> map = new HashMap<>();
+        for (CheckRunEntity r : runs) {
+            if (r.getCheckId() == null) continue;
+            if (map.containsKey(r.getCheckId())) continue;
+            String ruleName = alertRuleRepository.findFirstByCheckId(r.getCheckId())
+                    .map(rule -> rule.getName() != null ? rule.getName() : "-")
+                    .orElse("-");
+            map.put(r.getCheckId(), ruleName);
+        }
+        return map;
+    }
+
+    /** checkId -> Server Name (CheckEntity의 targetName) */
+    public Map<Long, String> buildServerDisplayMap(List<CheckRunEntity> runs) {
+        Map<Long, String> map = new HashMap<>();
+        for (CheckRunEntity r : runs) {
+            if (r.getCheckId() == null) continue;
+            if (map.containsKey(r.getCheckId())) continue;
+            String serverName = checkRepository.findById(r.getCheckId())
+                    .map(c -> c.getTargetName() != null ? c.getTargetName() : "-")
+                    .orElse("-");
+            map.put(r.getCheckId(), serverName);
         }
         return map;
     }

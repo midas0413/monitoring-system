@@ -6,6 +6,7 @@ import com.example.monitoring.web.dto.AlertRuleForm;
 import com.example.monitoring.web.dto.RuleRecipientsForm;
 import com.example.monitoring.web.service.AlertRuleService;
 import com.example.monitoring.web.service.RuleRecipientLinkService;
+import com.example.monitoring.web.service.TimezoneService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -18,11 +19,14 @@ public class AlertRuleController {
 
     private final AlertRuleService ruleService;
     private final RuleRecipientLinkService linkService;
+    private final TimezoneService timezoneService;
 
     public AlertRuleController(AlertRuleService ruleService,
-                               RuleRecipientLinkService linkService) {
+                               RuleRecipientLinkService linkService,
+                               TimezoneService timezoneService) {
         this.ruleService = ruleService;
         this.linkService = linkService;
+        this.timezoneService = timezoneService;
     }
 
     // ① rules list
@@ -36,6 +40,8 @@ public class AlertRuleController {
         model.addAttribute("q", q);
         model.addAttribute("items", items);
         model.addAttribute("checkDisplay", ruleService.buildCheckDisplayMap(items));
+        model.addAttribute("serverDisplay", ruleService.buildServerDisplayMap(items));
+        model.addAttribute("timezoneDisplay", ruleService.buildTimezoneDisplayMap(items));
         return "layout";
     }
 
@@ -52,9 +58,14 @@ public class AlertRuleController {
         f.setIntervalSec(60);
         f.setRuleType("RUN_FAILED");
         f.setCooldownSec(300);
-        f.setMessageTemplate("[${targetName}] ${checkName} - output=${output}");
+        f.setMessageTemplate("${ruleName}에 모니터링 알림이 발생하였습니다.\n임계값 : ${threshold}\n현재값 : ${outputNum}");
         model.addAttribute("form", f);
         model.addAttribute("id", null);
+        try {
+            model.addAttribute("timezones", timezoneService.listEnabled());
+        } catch (Exception e) {
+            model.addAttribute("timezones", new java.util.ArrayList<>());
+        }
         return "layout";
     }
 
@@ -74,6 +85,11 @@ public class AlertRuleController {
         AlertRuleEntity e = ruleService.get(id);
         model.addAttribute("id", id);
         model.addAttribute("form", ruleService.toForm(e));
+        try {
+            model.addAttribute("timezones", timezoneService.listEnabled());
+        } catch (Exception ex) {
+            model.addAttribute("timezones", new java.util.ArrayList<>());
+        }
         return "layout";
     }
 

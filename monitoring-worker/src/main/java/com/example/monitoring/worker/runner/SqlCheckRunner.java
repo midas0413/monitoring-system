@@ -68,7 +68,30 @@ public class SqlCheckRunner implements CheckRunner {
 
         } catch (Exception e) {
             success = false;
-            errorMessage = StringUtils.hasText(e.getMessage()) ? e.getMessage() : e.getClass().getSimpleName();
+            
+            // 더 자세한 오류 메시지 생성
+            String baseMessage = StringUtils.hasText(e.getMessage()) ? e.getMessage() : e.getClass().getSimpleName();
+            
+            // JDBC 연결 오류인 경우 추가 정보 포함
+            if (baseMessage.contains("JDBC Connection") || baseMessage.contains("Connection") || 
+                baseMessage.contains("authentication") || baseMessage.contains("password")) {
+                StringBuilder errorDetail = new StringBuilder(baseMessage);
+                errorDetail.append(" [checkId=").append(check.getId());
+                errorDetail.append(", host=").append(check.getHost());
+                errorDetail.append(", dbType=").append(check.getDbType());
+                errorDetail.append(", dbPort=").append(check.getDbPort());
+                errorDetail.append(", dbName=").append(check.getDbName());
+                errorDetail.append(", username=").append(check.getDbUsername());
+                errorDetail.append(", password=").append(check.getDbPassword() != null ? "***" : "null");
+                errorDetail.append("]");
+                errorMessage = errorDetail.toString();
+                
+                log.error("SQL Check failed. checkId={}, error={}", check.getId(), baseMessage, e);
+            } else {
+                errorMessage = baseMessage;
+                log.warn("SQL Check failed. checkId={}, error={}", check.getId(), baseMessage);
+            }
+            
             if (errorMessage.length() > 1000) errorMessage = errorMessage.substring(0, 1000);
         }
 

@@ -1,10 +1,17 @@
 package com.example.monitoring.worker.alert;
 
+import com.example.monitoring.common.domain.CheckEntity;
+import com.example.monitoring.common.domain.CheckRunEntity;
 import com.example.monitoring.common.domain.NotificationChannel;
+import com.example.monitoring.common.repo.CheckRepository;
+import com.example.monitoring.common.repo.CheckRunRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * KAKAO 알림 발송 - Aligo API 연동
@@ -17,10 +24,19 @@ public class KakaoDeliverer implements NotificationDeliverer {
 
     private final AligoClient aligoClient;
     private final AligoProperties aligoProperties;
+    private final CheckRepository checkRepository;
+    private final CheckRunRepository checkRunRepository;
 
-    public KakaoDeliverer(AligoClient aligoClient, AligoProperties aligoProperties) {
+    public KakaoDeliverer(
+            AligoClient aligoClient,
+            AligoProperties aligoProperties,
+            CheckRepository checkRepository,
+            CheckRunRepository checkRunRepository
+    ) {
         this.aligoClient = aligoClient;
         this.aligoProperties = aligoProperties;
+        this.checkRepository = checkRepository;
+        this.checkRunRepository = checkRunRepository;
     }
 
     @Override
@@ -30,6 +46,14 @@ public class KakaoDeliverer implements NotificationDeliverer {
 
     @Override
     public DeliverResult deliver(String toAddr, String title, String body) {
+        // 이 메서드는 NotificationOutboxEntity 없이 호출되므로 body에서만 추출
+        return deliverWithContext(toAddr, title, body, null);
+    }
+    
+    /**
+     * checkRunId를 통해 정확한 서버명을 가져오는 메서드
+     */
+    public DeliverResult deliverWithContext(String toAddr, String title, String body, Long checkRunId) {
         if (!StringUtils.hasText(toAddr)) {
             return DeliverResult.fail("수신자 정보 없음");
         }
@@ -48,9 +72,31 @@ public class KakaoDeliverer implements NotificationDeliverer {
 
         // 1) 알림톡 시도 (설정 있으면)
         if (aligoProperties.isAlimtalkAvailable()) {
-            var ar = aligoClient.sendAlimtalk(toAddr, title, body);
+            // 템플릿 변수 추출: var1=#{시스템}(서버명), var2=#{알림}(알림내용)
+            String systemName = extractSystemName(body, checkRunId);
+            String alertContent = extractAlertContent(body);
+            
+            // 변수 값 검증
+            if (!StringUtils.hasText(systemName)) {
+                log.warn("[KAKAO] 시스템명이 비어있습니다. checkRunId={}, body={}", checkRunId, body);
+                systemName = "알 수 없음"; // 기본값 설정
+            }
+            if (!StringUtils.hasText(alertContent)) {
+                log.warn("[KAKAO] 알림내용이 비어있습니다. body={}", body);
+                alertContent = body != null ? body : "알림 내용 없음"; // 기본값 설정
+            }
+            
+            log.info("[KAKAO] 알림톡 템플릿 변수. var1(시스템)={}, var2(알림)={}", systemName, alertContent);
+            
+            var ar = aligoClient.sendAlimtalk(toAddr, title, body, systemName, alertContent);
             if (ar.success()) {
-                log.info("[KAKAO] 알림톡 발송 완료. to={}", toAddr);
+                // Aligo API 응답 메시지에 "대체발송" 키워드가 포함되어 있는지 확인
+                String resultMsg = ar.message() != null ? ar.message() : "";
+                if (resultMsg.contains("대체발송") || resultMsg.contains("failover")) {
+                    log.warn("[KAKAO] 알림톡 발송 실패 후 Aligo에서 자동 대체발송(SMS/LMS) 처리됨. to={}, message={}", toAddr, resultMsg);
+                } else {
+                    log.info("[KAKAO] 알림톡 발송 완료. to={}, systemName={}", toAddr, systemName);
+                }
                 return DeliverResult.ok(ar.message());
             }
             log.warn("[KAKAO] 알림톡 실패, LMS로 재시도. err={}", ar.message());
@@ -63,5 +109,76 @@ public class KakaoDeliverer implements NotificationDeliverer {
             return DeliverResult.ok(lr.message());
         }
         return DeliverResult.fail(lr.message());
+    }
+    
+    /**
+     * 시스템명(서버명) 추출 - 템플릿 변수 #{시스템}에 매핑
+     * checkRunId가 있으면 CheckEntity에서 정확히 가져오고, 없으면 body에서 추출
+     */
+    private String extractSystemName(String body, Long checkRunId) {
+        // 1) checkRunId를 통해 정확한 서버명 가져오기
+        if (checkRunId != null) {
+            CheckRunEntity run = checkRunRepository.findById(checkRunId).orElse(null);
+            if (run != null && run.getCheckId() != null) {
+                CheckEntity check = checkRepository.findById(run.getCheckId()).orElse(null);
+                if (check != null && StringUtils.hasText(check.getTargetName())) {
+                    return check.getTargetName();
+                }
+            }
+        }
+        
+        // 2) body에서 추출 시도
+        return extractServerNameFromBody(body);
+    }
+    
+    /**
+     * 알림내용 추출 - 템플릿 변수 #{알림}에 매핑
+     * body를 간결하게 정리하여 반환
+     */
+    private String extractAlertContent(String body) {
+        if (!StringUtils.hasText(body)) return "";
+        
+        // body가 너무 길면 앞부분만 사용 (200자 제한)
+        String content = body.trim();
+        if (content.length() > 200) {
+            content = content.substring(0, 197) + "...";
+        }
+        
+        // 줄바꿈을 공백으로 변환 (템플릿 형식에 맞게)
+        content = content.replaceAll("\\s+", " ");
+        
+        return content;
+    }
+
+    /**
+     * body에서 서버명 추출
+     * body에 target=, serverName=, targetName= 등의 패턴이 있으면 추출
+     * 없으면 body에서 첫 번째 서버명 패턴을 찾거나, 빈 문자열 반환
+     */
+    private String extractServerNameFromBody(String body) {
+        if (!StringUtils.hasText(body)) return "";
+
+        // 패턴 1: target=서버명, serverName=서버명, targetName=서버명
+        Pattern pattern1 = Pattern.compile("(?:target|serverName|targetName)\\s*[=:]\\s*([^\\s\\n,]+)", Pattern.CASE_INSENSITIVE);
+        Matcher matcher1 = pattern1.matcher(body);
+        if (matcher1.find()) {
+            return matcher1.group(1).trim();
+        }
+
+        // 패턴 2: [서버명] 형식
+        Pattern pattern2 = Pattern.compile("\\[([^\\]]+)\\]");
+        Matcher matcher2 = pattern2.matcher(body);
+        if (matcher2.find()) {
+            String found = matcher2.group(1).trim();
+            // 너무 긴 경우 제외 (50자 이상)
+            if (found.length() <= 50) {
+                return found;
+            }
+        }
+
+        // 패턴 3: ${targetName}, ${serverName} 등이 치환된 경우를 찾기 어려우므로 빈 문자열 반환
+        // 실제로는 NotificationOutboxEntity의 checkRunId를 통해 조회하는 것이 더 정확하지만,
+        // 현재 구조상 body만 받으므로 추출 로직으로 처리
+        return "";
     }
 }

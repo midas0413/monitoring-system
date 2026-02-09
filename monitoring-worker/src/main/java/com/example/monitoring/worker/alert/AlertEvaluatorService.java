@@ -47,11 +47,41 @@ public class AlertEvaluatorService {
         OffsetDateTime now = OffsetDateTime.now();
 
         for (AlertRuleEntity rule : rules) {
-            if (!isScopeMatch(rule, run)) continue;
-            if (!isCooldownOk(rule, now)) continue;
-            if (!evaluateRule(rule, run)) continue;
+            // Rule 2번 디버깅을 위한 상세 로깅
+            if (rule.getId() != null && rule.getId() == 2L) {
+                log.info("[Rule 2] 평가 시작. ruleId={}, checkId={}, run.checkId={}", 
+                        rule.getId(), rule.getCheckId(), run.getCheckId());
+            }
+            
+            if (!isScopeMatch(rule, run)) {
+                if (rule.getId() != null && rule.getId() == 2L) {
+                    log.warn("[Rule 2] Scope 불일치. rule.checkId={}, run.checkId={}", 
+                            rule.getCheckId(), run.getCheckId());
+                }
+                continue;
+            }
+            if (!isCooldownOk(rule, now)) {
+                if (rule.getId() != null && rule.getId() == 2L) {
+                    log.warn("[Rule 2] Cooldown 시간 미경과. cooldownSec={}, lastFiredAt={}", 
+                            rule.getCooldownSec(), rule.getLastFiredAt());
+                }
+                continue;
+            }
+            if (!evaluateRule(rule, run)) {
+                if (rule.getId() != null && rule.getId() == 2L) {
+                    log.warn("[Rule 2] 규칙 조건 불만족. ruleType={}, thresholdNum={}, thresholdLen={}, pattern={}, run.success={}, output={}", 
+                            rule.getRuleType(), rule.getThresholdNum(), rule.getThresholdLen(), 
+                            rule.getPattern(), run.getSuccess(), 
+                            run.getOutput() != null ? run.getOutput().substring(0, Math.min(100, run.getOutput().length())) : "null");
+                }
+                continue;
+            }
 
             // fired
+            if (rule.getId() != null && rule.getId() == 2L) {
+                log.info("[Rule 2] 규칙 조건 만족. 알림 큐에 추가 시작.");
+            }
+            
             rule.setLastFiredAt(now);
             ruleRepo.save(rule);
 
@@ -131,21 +161,60 @@ public class AlertEvaluatorService {
     private void enqueue(AlertRuleEntity rule, CheckRunEntity run, OffsetDateTime now) {
         // link와 함께 alert_recipients(수신자) JOIN FETCH 로 로드
         List<AlertRuleRecipientLinkEntity> links = linkRepo.findByRuleIdAndEnabledTrue(rule.getId());
-        if (links.isEmpty()) return;
+        
+        // Rule 2번 디버깅을 위한 상세 로깅
+        if (rule.getId() != null && rule.getId() == 2L) {
+            log.info("[Rule 2] enqueue 시작. links.size={}", links.size());
+        }
+        
+        if (links.isEmpty()) {
+            if (rule.getId() != null && rule.getId() == 2L) {
+                log.warn("[Rule 2] 수신자 링크가 없습니다. ruleId={}", rule.getId());
+            }
+            return;
+        }
 
-        Set<NotificationChannel> ruleChannels = parseChannels(rule.getChannels()); // optional
+        Set<NotificationChannel> ruleChannels = parseChannels(rule.getChannels()); // Rule에 설정된 채널
         String body = renderMessage(rule, run);
+        
+        if (rule.getId() != null && rule.getId() == 2L) {
+            log.info("[Rule 2] ruleChannels={}, body.length={}", ruleChannels, body != null ? body.length() : 0);
+        }
 
+        int enqueuedCount = 0;
         for (AlertRuleRecipientLinkEntity link : links) {
             AlertRecipientEntity r = link.getRecipient();  // alert_recipients
-            if (r == null || !Boolean.TRUE.equals(r.getEnabled())) continue;
+            if (r == null || !Boolean.TRUE.equals(r.getEnabled())) {
+                if (rule.getId() != null && rule.getId() == 2L) {
+                    log.warn("[Rule 2] 수신자가 비활성화됨. recipientId={}, enabled={}", 
+                            r != null ? r.getId() : null, r != null ? r.getEnabled() : null);
+                }
+                continue;
+            }
 
-            Set<NotificationChannel> rc = parseChannels(r.getChannels());
-            Set<NotificationChannel> finalChannels = ruleChannels.isEmpty() ? rc : intersect(ruleChannels, rc);
+            // Rule에 채널이 설정되어 있으면 그것만 사용, 없으면 수신자의 채널 사용
+            Set<NotificationChannel> finalChannels;
+            if (!ruleChannels.isEmpty()) {
+                // Rule에 설정된 채널만 사용
+                finalChannels = ruleChannels;
+            } else {
+                // Rule에 채널이 없으면 수신자의 채널 사용
+                Set<NotificationChannel> rc = parseChannels(r.getChannels());
+                finalChannels = rc;
+            }
+            
+            if (rule.getId() != null && rule.getId() == 2L) {
+                log.info("[Rule 2] 수신자 처리. recipientId={}, finalChannels={}", r.getId(), finalChannels);
+            }
 
             for (NotificationChannel ch : finalChannels) {
                 String to = resolveTo(r, ch);
-                if (!StringUtils.hasText(to)) continue;
+                if (!StringUtils.hasText(to)) {
+                    if (rule.getId() != null && rule.getId() == 2L) {
+                        log.warn("[Rule 2] 수신자 주소 없음. channel={}, recipientId={}", ch, r.getId());
+                    }
+                    continue;
+                }
 
                 NotificationOutboxEntity n = new NotificationOutboxEntity();
                 n.setStatus(NotificationStatus.PENDING);
@@ -161,7 +230,16 @@ public class AlertEvaluatorService {
                 n.setNextAttemptAt(now);
 
                 outboxRepo.save(n);
+                enqueuedCount++;
+                
+                if (rule.getId() != null && rule.getId() == 2L) {
+                    log.info("[Rule 2] 알림 큐에 추가됨. channel={}, to={}, outboxId={}", ch, to, n.getId());
+                }
             }
+        }
+        
+        if (rule.getId() != null && rule.getId() == 2L) {
+            log.info("[Rule 2] enqueue 완료. 총 {}개 알림 큐에 추가됨", enqueuedCount);
         }
     }
 
@@ -224,12 +302,51 @@ public class AlertEvaluatorService {
         String threshold = (rule.getThresholdNum() != null) ? String.valueOf(rule.getThresholdNum())
                 : (rule.getThresholdLen() != null) ? String.valueOf(rule.getThresholdLen()) : "";
         String status = run.getSuccess() != null ? (run.getSuccess() ? "SUCCESS" : "FAIL") : "UNKNOWN";
+        
+        // outputNum: output에서 숫자 추출 (규칙 타입에 따라 다르게 추출)
+        String outputNum = extractOutputNum(rule, run);
 
-        return replaceVars(tpl, rule, run, targetName, checkName, outputLen, threshold, status);
+        return replaceVars(tpl, rule, run, targetName, checkName, outputLen, threshold, status, outputNum);
+    }
+    
+    /**
+     * output에서 숫자 값을 추출
+     * 규칙 타입에 따라 추출 방법이 다름
+     */
+    private String extractOutputNum(AlertRuleEntity rule, CheckRunEntity run) {
+        String output = (run.getOutput() == null) ? "" : run.getOutput();
+        if (!StringUtils.hasText(output)) return "";
+        
+        return switch (rule.getRuleType()) {
+            case OUTPUT_NUM_GT, OUTPUT_NUM_LT -> {
+                // output 전체를 숫자로 파싱 시도
+                Double val = tryParseDouble(output.trim());
+                yield (val != null) ? String.valueOf(val) : "";
+            }
+            case OUTPUT_REGEX_NUM_GT -> {
+                // regex 패턴으로 숫자 추출
+                String regex = rule.getPattern();
+                if (StringUtils.hasText(regex)) {
+                    Double extracted = extractFirstNumberByRegex(output, regex);
+                    yield (extracted != null) ? String.valueOf(extracted) : "";
+                }
+                yield "";
+            }
+            default -> {
+                // 기본: output에서 첫 번째 숫자 추출 시도
+                Double val = tryParseDouble(output.trim());
+                if (val != null) {
+                    yield String.valueOf(val);
+                }
+                // 숫자 파싱 실패 시 정규식으로 첫 숫자 찾기
+                Double extracted = extractFirstNumberByRegex(output, "(-?\\d+(?:\\.\\d+)?)");
+                yield (extracted != null) ? String.valueOf(extracted) : "";
+            }
+        };
     }
 
     private String replaceVars(String tpl, AlertRuleEntity rule, CheckRunEntity run,
-                               String targetName, String checkName, int outputLen, String threshold, String status) {
+                               String targetName, String checkName, int outputLen, String threshold, String status, String outputNum) {
         String result = tpl
                 .replace("${ruleName}", safe(rule.getName()))
                 .replace("${checkId}", safeNum(run.getCheckId()))
@@ -238,6 +355,7 @@ public class AlertEvaluatorService {
                 .replace("${checkName}", safe(checkName))
                 .replace("${serverName}", safe(targetName))
                 .replace("${outputLen}", String.valueOf(outputLen))
+                .replace("${outputNum}", safe(outputNum))
                 .replace("${threshold}", threshold)
                 .replace("${status}", status)
                 .replace("${success}", String.valueOf(run.getSuccess()))
@@ -255,6 +373,7 @@ public class AlertEvaluatorService {
                 .replace("{checkName}", safe(checkName))
                 .replace("{serverName}", safe(targetName))
                 .replace("{outputLen}", String.valueOf(outputLen))
+                .replace("{outputNum}", safe(outputNum))
                 .replace("{threshold}", threshold)
                 .replace("{status}", status)
                 .replace("{success}", String.valueOf(run.getSuccess()))
