@@ -1,0 +1,56 @@
+spring:
+  main:
+    web-application-type: none  # 웹 서버 미기동 (Worker 전용)
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+  datasource:
+    url: jdbc:postgresql://172.22.1.113:5432/monitoring
+    username: monitoring
+    password: monitoring
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+worker:
+  id: worker-1
+  claim-limit: 10
+  lock-seconds: 30
+  loop-sleep-ms: 1000
+
+  sql-timeout-ms: 3000
+  ssh-connect-timeout-ms: 5000
+  ssh-command-timeout-ms: 15000
+
+  outbox-claim-limit: 50
+  outbox-tick-ms: 1000
+
+  alert:
+    sender-delay-ms: 1000
+    sender-batch-size: 50
+
+    # 규칙 수신자(B)가 비어있으면 여기(C)로 발송
+    default-sms-recipients:
+      - "01053250413"
+      - "01099998888"
+    default-email-recipients:
+      - "hjkim@cnit21.com"
+    default-kakao-recipients:
+      - "01053250413"
+
+# Aligo API (카카오 알림톡/LMS)
+# 알리고: https://smartsms.aligo.in
+aligo:
+  api-key: ${ALIGO_API_KEY:}
+  user-id: ${ALIGO_USER_ID:}
+  sender: ${ALIGO_SENDER:}           # 발신번호 (사이트에 등록된 번호)
+  sender-key: ${ALIGO_SENDER_KEY:}   # 알림톡용 (카카오 채널 발신프로필 키)
+  template-code: ${ALIGO_TEMPLATE_CODE:}  # 알림톡 템플릿 코드 (선택, 없으면 LMS로 발송)
+  test-mode: ${ALIGO_TEST_MODE:N}    # Y: 테스트(실제 전송 안함), N: 실제 전송

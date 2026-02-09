@@ -1,0 +1,122 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="layout/portal :: content">
+<body>
+<div th:with="pageTitle='Alert Recipients'">
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title" th:text="${form.id == null ? 'New Recipient' : 'Edit Recipient'}">New Recipient</div>
+      </div>
+
+      <form th:action="@{/alert/recipients/save(q=${q})}" method="post" th:object="${form}">
+        <input type="hidden" th:field="*{id}"/>
+
+        <div class="field">
+          <label>Name *</label>
+          <input type="text" th:field="*{name}" placeholder="e.g. NOC Admin"/>
+          <div class="err" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">name error</div>
+        </div>
+
+        <div class="field">
+          <label>Phone</label>
+          <input type="text" th:field="*{phone}" placeholder="010-1234-5678"/>
+        </div>
+
+        <div class="field">
+          <label>Email</label>
+          <input type="text" th:field="*{email}" placeholder="user@example.com"/>
+          <div class="err" th:if="${#fields.hasErrors('email')}" th:errors="*{email}">email error</div>
+        </div>
+
+        <div class="field">
+          <label>Kakao</label>
+          <input type="text" th:field="*{kakao}" placeholder="kakao channel id"/>
+        </div>
+
+        <div class="field-inline">
+          <label>Enabled</label>
+          <label class="chk"><input type="radio" name="enabled" th:value="true" th:field="*{enabled}"/> ON</label>
+          <label class="chk"><input type="radio" name="enabled" th:value="false" th:field="*{enabled}"/> OFF</label>
+        </div>
+
+        <div class="actions">
+          <button class="btn primary" type="submit">Save</button>
+          <a class="btn" th:href="@{/alert/recipients(q=${q})}">Reset</a>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Recipients</div>
+
+        <form class="search" th:action="@{/alert/recipients}" method="get">
+          <input type="text" name="q" th:value="${q}" placeholder="Search name/phone/email/kakao"/>
+          <button class="btn" type="submit">Search</button>
+        </form>
+      </div>
+
+      <table class="tbl">
+        <thead>
+        <tr>
+          <th style="width:70px;">ID</th>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>Kakao</th>
+          <th style="width:110px;">Enabled</th>
+          <th>Channels</th>
+          <th style="width:220px;">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="r : ${list}">
+          <td th:text="${r.id}">1</td>
+          <td th:text="${r.name}">name</td>
+          <td th:text="${r.phone}">phone</td>
+          <td th:text="${r.email}">email</td>
+          <td th:text="${r.kakao}">kakao</td>
+          <td>
+              <span th:class="${r.enabled} ? 'badge ok' : 'badge off'"
+                    th:text="${r.enabled} ? 'ON' : 'OFF'">ON</span>
+          </td>
+          <div class="field">
+            <label>Channels</label>
+            <div class="chips">
+              <label class="chip">
+                <input type="checkbox" th:field="*{channelList}" value="SMS"> SMS
+              </label>
+              <label class="chip">
+                <input type="checkbox" th:field="*{channelList}" value="EMAIL"> EMAIL
+              </label>
+              <label class="chip">
+                <input type="checkbox" th:field="*{channelList}" value="KAKAO"> KAKAO
+              </label>
+            </div>
+          </div>
+          <td class="row-actions">
+            <a class="btn sm" th:href="@{/alert/recipients(q=${q}, editId=${r.id})}">Edit</a>
+
+            <form th:action="@{/alert/recipients/{id}/toggle(id=${r.id}, q=${q})}" method="post">
+              <button class="btn sm" type="submit" th:text="${r.enabled} ? 'Disable' : 'Enable'">Toggle</button>
+            </form>
+
+            <form th:action="@{/alert/recipients/{id}/delete(id=${r.id}, q=${q})}" method="post"
+                  onsubmit="return confirm('Delete this recipient?');">
+              <button class="btn sm danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr th:if="${#lists.isEmpty(list)}">
+          <td colspan="7" class="empty">No recipients</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

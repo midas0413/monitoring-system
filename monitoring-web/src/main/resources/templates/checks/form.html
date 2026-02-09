@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<section th:fragment="content">
+  <div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="mb-0" th:text="${id == null} ? 'New Check' : 'Edit Check'">Form</h5>
+      <a class="btn btn-outline-secondary" th:href="@{/checks}">Back</a>
+    </div>
+
+    <div class="card card-shadow">
+      <div class="card-body">
+        <form method="post"
+              th:action="${id == null} ? @{/checks/new} : @{/checks/{id}/edit(id=${id})}"
+              th:object="${form}">
+
+          <div class="row g-3">
+            <div class="col-12"><h6 class="text-muted border-bottom pb-2">기본 정보</h6></div>
+            <div class="col-md-4">
+              <label class="form-label">Name</label>
+              <input class="form-control" th:field="*{name}" placeholder="ex) disk-usage">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Type</label>
+              <select class="form-select" id="checkType" th:field="*{type}">
+                <option value="SHELL">SHELL</option>
+                <option value="SQL">SQL</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Enabled</label>
+              <div class="d-flex gap-3 pt-2">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="enabled" id="enabledOn" th:value="true" th:field="*{enabled}">
+                  <label class="form-check-label" for="enabledOn">ON</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="enabled" id="enabledOff" th:value="false" th:field="*{enabled}">
+                  <label class="form-check-label" for="enabledOff">OFF</label>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Interval(sec)</label>
+              <input class="form-control" type="number" th:field="*{intervalSec}" placeholder="60">
+            </div>
+
+            <!-- 서버 등록정보 (공통) -->
+            <div class="col-12">
+              <h6 class="text-muted border-bottom pb-2">서버 등록정보</h6>
+              <div class="row g-3">
+                <div class="col-md-3">
+                  <label class="form-label">서버명</label>
+                  <input class="form-control" th:field="*{targetName}" placeholder="ex) DEV_SERVER">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Host</label>
+                  <input class="form-control" th:field="*{host}" placeholder="ex) 10.0.0.10">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Timezone</label>
+                  <input class="form-control" th:field="*{timezone}" placeholder="ex) Asia/Seoul">
+                </div>
+              </div>
+            </div>
+
+            <!-- SHELL: SSH 연결 정보 -->
+            <div class="col-12" id="sshBlock" th:style="${form.type != 'SQL'} ? 'display:block' : 'display:none'">
+              <h6 class="text-muted border-bottom pb-2">SSH 연결 정보 (SHELL용)</h6>
+              <div class="row g-3">
+                <div class="col-md-2">
+                  <label class="form-label">SSH Port</label>
+                  <input class="form-control" type="number" th:field="*{port}" placeholder="22">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">SSH Username</label>
+                  <input class="form-control" th:field="*{sshUsername}" placeholder="ex) root">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">SSH Password</label>
+                  <input class="form-control" type="password" th:field="*{sshPassword}" placeholder="(선택)">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">SSH Private Key Path</label>
+                  <input class="form-control" th:field="*{sshPrivateKeyPath}" placeholder="ex) /home/user/.ssh/id_rsa">
+                </div>
+              </div>
+            </div>
+
+            <!-- SQL: DB 연결 정보 -->
+            <div class="col-12" id="dbBlock" th:style="${form.type == 'SQL'} ? 'display:block' : 'display:none'">
+              <h6 class="text-muted border-bottom pb-2">DB 연결 정보 (SQL용)</h6>
+              <div class="row g-3">
+                <div class="col-md-2">
+                  <label class="form-label">DB 종류</label>
+                  <select class="form-select" th:field="*{dbType}">
+                    <option value="">-- 선택 --</option>
+                    <option value="postgresql">PostgreSQL</option>
+                    <option value="mysql">MySQL</option>
+                    <option value="oracle">Oracle</option>
+                    <option value="mssql">MSSQL</option>
+                  </select>
+                </div>
+                <div class="col-md-1">
+                  <label class="form-label">Port</label>
+                  <input class="form-control" type="number" th:field="*{dbPort}" placeholder="5432">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">DB Name</label>
+                  <input class="form-control" th:field="*{dbName}" placeholder="ex) monitoring">
+                </div>
+                <div class="col-md-1">
+                  <label class="form-label">User</label>
+                  <input class="form-control" th:field="*{dbUsername}" placeholder="user">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Password</label>
+                  <input class="form-control" type="password" th:field="*{dbPassword}" placeholder="(선택)">
+                </div>
+              </div>
+            </div>
+
+            <!-- SHELL Script -->
+            <div class="col-12" id="shellBlock" th:style="${form.type != 'SQL'} ? 'display:block' : 'display:none'">
+              <label class="form-label">SHELL Script</label>
+              <div class="d-flex gap-2 align-items-start">
+                <textarea class="form-control flex-grow-1" rows="5" id="script" name="script" th:field="*{script}"
+                          placeholder="ex) df -h | head -n 5"></textarea>
+                <button type="button" class="btn btn-outline-primary btn-test" data-type="SHELL">테스트</button>
+              </div>
+            </div>
+
+            <!-- SQL Text -->
+            <div class="col-12" id="sqlBlock" th:style="${form.type == 'SQL'} ? 'display:block' : 'display:none'">
+              <label class="form-label">SQL Text</label>
+              <div class="d-flex gap-2 align-items-start">
+                <textarea class="form-control flex-grow-1" rows="5" id="sqlText" name="sqlText" th:field="*{sqlText}"
+                          placeholder="ex) select 1"></textarea>
+                <button type="button" class="btn btn-outline-primary btn-test" data-type="SQL">테스트</button>
+              </div>
+            </div>
+
+            <div class="col-12" id="testResult" style="display:none">
+              <div class="alert mb-0" role="alert">
+                <strong>테스트 결과:</strong> <span id="testResultText"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Save</button>
+            <a class="btn btn-outline-secondary" th:href="@{/checks}">Cancel</a>
+          </div>
+
+        </form>
+
+<script th:inline="javascript">
+(function(){
+  var typeSel = document.getElementById('checkType');
+  var sshBlock = document.getElementById('sshBlock');
+  var dbBlock = document.getElementById('dbBlock');
+  var shellBlock = document.getElementById('shellBlock');
+  var sqlBlock = document.getElementById('sqlBlock');
+  function toggleType(){
+    var t = typeSel.value;
+    if (t === 'SHELL') {
+      sshBlock.style.display = 'block';
+      dbBlock.style.display = 'none';
+      shellBlock.style.display = 'block';
+      sqlBlock.style.display = 'none';
+    } else {
+      sshBlock.style.display = 'none';
+      dbBlock.style.display = 'block';
+      shellBlock.style.display = 'none';
+      sqlBlock.style.display = 'block';
+    }
+  }
+  typeSel.addEventListener('change', toggleType);
+  toggleType();
+
+  document.querySelectorAll('.btn-test').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var type = this.dataset.type;
+      var resultEl = document.getElementById('testResult');
+      var textEl = document.getElementById('testResultText');
+      var url, body;
+
+      if (type === 'SHELL') {
+        var host = document.querySelector('[name="host"]').value;
+        var port = document.querySelector('[name="port"]').value;
+        var sshUsername = document.querySelector('[name="sshUsername"]').value;
+        var sshPassword = document.querySelector('[name="sshPassword"]').value || '';
+        var sshPrivateKeyPath = document.querySelector('[name="sshPrivateKeyPath"]').value || '';
+        var script = document.getElementById('script').value;
+        if (!host) { alert('Host를 입력하세요.'); return; }
+        if (!sshUsername) { alert('SSH Username을 입력하세요.'); return; }
+        if (!script) { alert('SHELL 스크립트를 입력하세요.'); return; }
+        url = /*[[@{/api/checks/test/shell}]]*/ '/api/checks/test/shell';
+        body = 'host=' + encodeURIComponent(host) + '&port=' + encodeURIComponent(port || '22') + '&sshUsername=' + encodeURIComponent(sshUsername) + '&sshPassword=' + encodeURIComponent(sshPassword) + '&sshPrivateKeyPath=' + encodeURIComponent(sshPrivateKeyPath) + '&script=' + encodeURIComponent(script);
+      } else {
+        var host = document.querySelector('[name="host"]').value;
+        var dbType = document.querySelector('[name="dbType"]').value;
+        var dbPort = document.querySelector('[name="dbPort"]').value;
+        var dbName = document.querySelector('[name="dbName"]').value;
+        var dbUsername = document.querySelector('[name="dbUsername"]').value;
+        var dbPassword = document.querySelector('[name="dbPassword"]').value || '';
+        var sql = document.getElementById('sqlText').value;
+        if (!host || !dbType || !dbPort || !dbName || !dbUsername) { alert('Host, DB종류, Port, DB명, Username을 입력하세요.'); return; }
+        if (!sql) { alert('SQL을 입력하세요.'); return; }
+        url = /*[[@{/api/checks/test/sql}]]*/ '/api/checks/test/sql';
+        body = 'host=' + encodeURIComponent(host) + '&dbType=' + encodeURIComponent(dbType) + '&dbPort=' + encodeURIComponent(dbPort) + '&dbName=' + encodeURIComponent(dbName) + '&dbUsername=' + encodeURIComponent(dbUsername) + '&dbPassword=' + encodeURIComponent(dbPassword) + '&sql=' + encodeURIComponent(sql);
+      }
+
+      resultEl.style.display = 'block';
+      resultEl.querySelector('.alert').className = 'alert alert-secondary mb-0';
+      textEl.textContent = '실행 중...';
+      fetch(url, { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: body })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          resultEl.querySelector('.alert').className = 'alert mb-0 ' + (data.success ? 'alert-success' : 'alert-danger');
+          textEl.textContent = data.success ? data.output : ('오류: ' + data.output);
+        })
+        .catch(function(e){
+          resultEl.querySelector('.alert').className = 'alert alert-danger mb-0';
+          textEl.textContent = '요청 실패: ' + e.message;
+        });
+    });
+  });
+})();
+</script>
+      </div>
+    </div>
+
+  </div>
+</section>
+</body>
+</html>

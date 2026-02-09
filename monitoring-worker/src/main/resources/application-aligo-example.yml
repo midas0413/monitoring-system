@@ -1,0 +1,17 @@
+# Aligo 연동 설정 예시
+# 이 파일을 application-local.yml 로 복사 후 실제 값으로 수정
+# 또는 환경변수로 설정: ALIGO_API_KEY, ALIGO_USER_ID, ALIGO_SENDER 등
+#
+# SMS/KAKAO(문자): api-key, user-id, sender 만 있으면 발송 가능
+# KAKAO 알림톡: sender-key, template-code 추가 시 알림톡 사용
+
+aligo:
+  api-key: "your-api-key"        # 알리고 관리자 > API 인증키
+  user-id: "your-user-id"        # 알리고 로그인 아이디
+  sender: "02-1234-5678"         # 발신번호 (사이트에 등록된 번호만, SMS/KAKAO 공통)
+
+  # 알림톡 사용 시 (KAKAO 채널 전용, 선택)
+  sender-key: "발신프로필키"      # 카카오 채널 연동 후 발급
+  template-code: "T000000"       # 승인된 알림톡 템플릿 코드
+
+  test-mode: "N"                 # Y: 테스트(실제 전송 안함), N: 실제 전송

@@ -1,0 +1,33 @@
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: always
+
+app:
+  system-name: Monitoring Portal
+
+logging:
+  level:
+    org.springframework.web: DEBUG
+    org.thymeleaf: DEBUG
+
+spring:
+  datasource:
+    url: jdbc:postgresql://172.22.1.113:5432/monitoring
+    username: monitoring
+    password: monitoring
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.format_sql: true
+
+  flyway:
+    locations: classpath:db/migration
+
+    logging:
+      level:
+        org.flywaydb: DEBUG
+        org.springframework.boot.autoconfigure.flyway: DEBUG

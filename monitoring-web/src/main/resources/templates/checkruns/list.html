@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="content">
+  <div class="container-fluid">
+
+    <div class="page-header mb-3">
+      <h5>Check Runs</h5>
+      <div class="page-header-actions">
+        <a class="btn btn-outline-secondary" th:href="@{/}">← Home</a>
+      </div>
+    </div>
+
+    <form class="row g-2 mb-3" method="get" th:action="@{/check-runs}">
+      <div class="col-auto">
+        <label class="form-label col-form-label-sm">Check</label>
+        <select class="form-select form-select-sm" name="checkId" style="min-width:160px; max-width:100%">
+          <option value="">-- All --</option>
+          <option th:each="c : ${checks}" th:value="${c.id}" th:text="'#' + ${c.id} + ' ' + ${c.name}"
+                  th:selected="${checkId != null && checkId == c.id}">#1 check</option>
+        </select>
+      </div>
+      <div class="col-auto d-flex align-items-end">
+        <button class="btn btn-outline-secondary btn-sm" type="submit">Search</button>
+      </div>
+      <div class="col-auto d-flex align-items-end" th:if="${checkId != null}">
+        <a class="btn btn-link btn-sm" th:href="@{/check-runs}">Clear</a>
+      </div>
+    </form>
+
+    <div class="card card-shadow">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+          <tr>
+            <th style="width:70px">ID</th>
+            <th style="width:90px">Check</th>
+            <th style="width:80px">Success</th>
+            <th style="width:195px">Started</th>
+            <th style="width:100px">Duration</th>
+            <th>Output / Error</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr th:each="r : ${items}">
+            <td th:text="${r.id}">1</td>
+            <td th:text="${r.checkId}">1</td>
+            <td>
+              <span class="badge rounded-pill"
+                    th:classappend="${r.success} ? ' text-bg-success' : ' text-bg-danger'"
+                    th:text="${r.success} ? 'OK' : 'FAIL'">OK</span>
+            </td>
+            <td th:with="disp=${startedDisplay != null ? startedDisplay.get(r.id) : null}"
+                th:text="${disp != null ? disp : (r.startedAt != null ? #temporals.format(r.startedAt, 'yyyy-MM-dd HH:mm:ss') : '-')}">-</td>
+            <td th:text="${r.durationMs != null ? r.durationMs + ' ms' : '-'}">-</td>
+            <td class="small text-break" style="max-width:300px">
+              <span th:if="${r.errorMessage}" class="text-danger" th:text="${r.errorMessage}">error</span>
+              <span th:if="${r.errorMessage == null && r.output != null}" class="text-muted" th:text="${#strings.abbreviate(r.output, 80)}">output</span>
+              <span th:if="${r.errorMessage == null && r.output == null}">-</span>
+            </td>
+          </tr>
+          <tr th:if="${items == null || #lists.isEmpty(items)}">
+            <td colspan="6" class="text-center text-muted py-4">No data</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

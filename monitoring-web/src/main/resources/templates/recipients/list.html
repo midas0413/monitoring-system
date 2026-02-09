@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<section th:fragment="content">
+    <div class="container-fluid">
+
+        <div class="page-header mb-3">
+            <h5>Recipients</h5>
+            <div class="page-header-actions">
+              <a class="btn btn-primary" th:href="@{/recipients/new}">+ New</a>
+            </div>
+        </div>
+
+        <form class="row g-2 mb-3" method="get" th:action="@{/recipients}">
+            <div class="col-sm-8 col-md-6">
+                <input class="form-control" name="q" placeholder="Search by name..." th:value="${q}">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-outline-secondary" type="submit">Search</button>
+            </div>
+            <div class="col-auto" th:if="${q != null && !#strings.isEmpty(q)}">
+                <a class="btn btn-link" th:href="@{/recipients}">Clear</a>
+            </div>
+        </form>
+
+        <div class="card card-shadow">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th style="width:90px;">ID</th>
+                        <th>Name</th>
+                        <th style="width:120px;">Enabled</th>
+                        <th style="width:180px;">Channels</th>
+                        <th>Phone</th>
+                        <th>Email</th>
+                        <th>Kakao</th>
+                        <th style="width:170px;"></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="r : ${items}">
+                        <td th:text="${r.id}">1</td>
+                        <td class="fw-semibold" th:text="${r.name}">name</td>
+                        <td>
+              <span class="badge rounded-pill"
+                    th:classappend="${r.enabled} ? ' text-bg-success' : ' text-bg-secondary'"
+                    th:text="${r.enabled} ? 'ON' : 'OFF'">ON</span>
+                        </td>
+                        <td><span class="badge rounded-pill badge-soft" th:text="${r.channels}">SMS,EMAIL</span></td>
+                        <td th:text="${r.phone}">010</td>
+                        <td th:text="${r.email}">a@b.com</td>
+                        <td th:text="${r.kakao}">channel</td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-primary"
+                               th:href="@{/recipients/{id}/edit(id=${r.id})}">Edit</a>
+                            <form class="d-inline" method="post"
+                                  th:action="@{/recipients/{id}/delete(id=${r.id})}"
+                                  onsubmit="return confirm('Delete this recipient?');">
+                                <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <tr th:if="${items == null || #lists.isEmpty(items)}">
+                        <td colspan="8" class="text-center text-muted py-4">No data</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</section>
+</body>
+</html>

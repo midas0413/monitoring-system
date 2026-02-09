@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="${systemName}">Monitoring</title></head>
+<body>
+<section th:fragment="content">
+  <div class="container-fluid">
+
+    <div class="page-header mb-4">
+      <div>
+        <h5 class="mb-1">Monitoring Dashboard</h5>
+        <div class="text-muted small">대상별 체크 상태 및 알림 현황</div>
+      </div>
+    </div>
+
+    <!-- 1. 대상별 체크 카드 -->
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-lg-6 col-xl-4" th:each="entry : ${checksByTarget}">
+        <div class="card card-shadow h-100">
+          <div class="card-header d-flex justify-content-between align-items-center py-2">
+            <span class="fw-bold" th:text="${entry.key}">Target</span>
+          </div>
+          <div class="card-body py-2">
+            <div class="border-top pt-2">
+              <div class="small fw-semibold mb-1">Checks</div>
+              <ul class="list-unstyled small mb-0">
+                <li class="d-flex justify-content-between align-items-center py-1 border-bottom" th:each="check : ${entry.value}">
+                  <span th:text="${check.name}">check</span>
+                  <span class="badge bg-primary" th:text="${'알림 ' + (notificationCountByCheck != null && notificationCountByCheck[check.id] != null ? notificationCountByCheck[check.id] : 0) + '건'}">0건</span>
+                </li>
+                <li class="text-muted py-1" th:if="${entry.value == null || entry.value.isEmpty()}">등록된 체크 없음</li>
+              </ul>
+            </div>
+          </div>
+          <div class="card-footer py-2">
+            <a class="btn btn-outline-primary btn-sm" th:href="@{/rules/new}">+ New Rule</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Check Runs 목록 + 검색 -->
+    <div class="card card-shadow">
+      <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h6 class="mb-0">Check Runs</h6>
+        <a class="btn btn-sm btn-outline-primary" th:href="@{/check-runs}">전체 보기</a>
+      </div>
+      <div class="card-body">
+        <form class="row g-2 mb-3" method="get" th:action="@{/}">
+          <div class="col-auto">
+            <label class="form-label col-form-label-sm mb-0">Check</label>
+            <select class="form-select form-select-sm" name="checkId" style="min-width:140px; max-width:100%">
+              <option value="">-- All --</option>
+              <option th:each="c : ${allChecks}" th:value="${c.id}" th:text="'#' + ${c.id} + ' ' + ${c.name}"
+                      th:selected="${filterCheckId != null && filterCheckId == c.id}">#1 check</option>
+            </select>
+          </div>
+          <div class="col-auto d-flex align-items-end">
+            <button class="btn btn-outline-secondary btn-sm" type="submit">Search</button>
+          </div>
+        </form>
+
+        <div class="table-responsive">
+          <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+            <tr>
+              <th style="width:60px">ID</th>
+              <th style="width:70px">Check</th>
+              <th style="width:70px">Success</th>
+              <th style="width:140px">Started</th>
+              <th>Output / Error</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="r : ${checkRuns}">
+              <td th:text="${r.id}">1</td>
+              <td th:text="${r.checkId}">1</td>
+              <td>
+                <span class="badge rounded-pill"
+                      th:classappend="${r.success} ? ' text-bg-success' : ' text-bg-danger'"
+                      th:text="${r.success} ? 'OK' : 'FAIL'">OK</span>
+              </td>
+              <td class="small" th:text="${r.startedAt != null ? #temporals.format(r.startedAt, 'yyyy-MM-dd HH:mm:ss') : '-'}">-</td>
+              <td class="small text-break" style="max-width:200px">
+                <span th:if="${r.errorMessage}" class="text-danger" th:text="${#strings.abbreviate(r.errorMessage, 50)}">error</span>
+                <span th:if="${r.errorMessage == null && r.output != null}" class="text-muted" th:text="${#strings.abbreviate(r.output, 50)}">output</span>
+                <span th:if="${r.errorMessage == null && r.output == null}">-</span>
+              </td>
+            </tr>
+            <tr th:if="${checkRuns == null || #lists.isEmpty(checkRuns)}">
+              <td colspan="5" class="text-center text-muted py-3">No check runs</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+</body>
+</html>

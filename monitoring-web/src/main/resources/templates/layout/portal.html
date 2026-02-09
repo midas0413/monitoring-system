@@ -1,0 +1,34 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <title th:text="${title} ?: 'Monitoring Portal'">Monitoring Portal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link th:href="@{/css/portal.css}" rel="stylesheet">
+</head>
+<body>
+<div class="app">
+    <aside class="side">
+        <div class="brand">Monitoring</div>
+
+        <nav class="menu">
+            <a th:classappend="${menu}=='home' ? ' active' : ''" th:href="@{/}">Home</a>
+            <div class="menu-group">Alert</div>
+            <a th:classappend="${menu}=='recipients' ? ' active' : ''" th:href="@{/alert/recipients}">Recipients</a>
+            <a th:classappend="${menu}=='rules' ? ' active' : ''" th:href="@{/alert/rules}">Rules</a>
+            <a th:classappend="${menu}=='outbox' ? ' active' : ''" th:href="@{/alert/outbox}">Outbox</a>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <header class="top">
+            <div class="title" th:text="${pageTitle} ?: 'Dashboard'">Dashboard</div>
+        </header>
+
+        <section class="content" th:fragment="content">
+            <!-- page content -->
+        </section>
+    </main>
+</div>
+</body>
+</html>

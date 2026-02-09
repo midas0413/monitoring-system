@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="content">
+  <div class="container-fluid">
+
+    <div class="page-header mb-3">
+      <h5>Alert Rules</h5>
+      <div class="page-header-actions">
+        <a class="btn btn-primary" th:href="@{/rules/new}">+ New Rule</a>
+      </div>
+    </div>
+
+    <form class="row g-2 mb-3" method="get" th:action="@{/rules}">
+      <div class="col-sm-8 col-md-6">
+        <input class="form-control" name="q" th:value="${q}" placeholder="Search by name...">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-outline-secondary" type="submit">Search</button>
+      </div>
+      <div class="col-auto" th:if="${q != null && !#strings.isEmpty(q)}">
+        <a class="btn btn-link" th:href="@{/rules}">Clear</a>
+      </div>
+    </form>
+
+    <div class="card card-shadow">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+          <tr>
+            <th style="width:70px">ID</th>
+            <th style="width:120px">Name</th>
+            <th style="width:150px">Check Name</th>
+            <th style="width:85px">Enabled</th>
+            <th style="width:120px">Type</th>
+            <th style="width:100px">Cooldown</th>
+            <th style="width:280px" class="text-end">Actions</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr th:each="it : ${items}">
+            <td th:text="${it.id}">1</td>
+            <td class="fw-semibold" th:text="${it.name}">rule</td>
+            <td th:text="${it.checkId != null && checkDisplay != null ? (checkDisplay.get(it.checkId) != null ? checkDisplay.get(it.checkId) : '-') : '-'}">-</td>
+            <td>
+              <span class="badge rounded-pill"
+                    th:classappend="${it.enabled} ? ' text-bg-success' : ' text-bg-secondary'"
+                    th:text="${it.enabled} ? 'ON' : 'OFF'">ON</span>
+            </td>
+            <td><span class="badge rounded-pill badge-soft" th:text="${it.ruleType}">RUN_FAILED</span></td>
+            <td th:text="${it.cooldownSec} + ' sec'">300 sec</td>
+            <td class="text-end">
+              <div class="table-actions">
+                <a class="btn btn-sm btn-outline-primary" th:href="@{/rules/{id}/edit(id=${it.id})}">Edit</a>
+                <a class="btn btn-sm btn-outline-secondary" th:href="@{/rules/{id}/recipients(id=${it.id})}">Recipients</a>
+                <a class="btn btn-sm btn-outline-secondary" th:if="${it.checkId != null}" th:href="@{/check-runs(checkId=${it.checkId})}">Runs</a>
+                <form class="d-inline" th:action="@{/rules/{id}/delete(id=${it.id})}" method="post"
+                      onsubmit="return confirm('Rule과 연결된 Check를 함께 삭제합니다. 삭제할까요?');">
+                  <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          <tr th:if="${items == null || #lists.isEmpty(items)}">
+            <td colspan="7" class="text-center text-muted py-4">No data</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="content">
+  <div class="container-fluid">
+
+    <div class="page-header mb-3">
+      <h5>Notification Center</h5>
+      <div class="page-header-actions">
+        <a class="btn btn-outline-secondary" th:href="@{/}">← Home</a>
+      </div>
+    </div>
+
+    <div class="card card-shadow">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+          <tr>
+            <th style="width:70px">ID</th>
+            <th style="width:90px">Status</th>
+            <th style="width:80px">Channel</th>
+            <th style="width:90px">Rule</th>
+            <th style="width:90px">CheckRun</th>
+            <th style="width:100px">To</th>
+            <th style="width:130px">Created</th>
+            <th style="min-width:400px">Body</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr th:each="n : ${items}">
+            <td th:text="${n.id}">1</td>
+            <td>
+              <span class="badge rounded-pill"
+                    th:classappend="${n.status.name() == 'SENT' ? ' text-bg-success' : n.status.name() == 'FAILED' ? ' text-bg-danger' : n.status.name() == 'PENDING' ? ' text-bg-warning' : ' text-bg-secondary'}"
+                    th:text="${n.status}">PENDING</span>
+            </td>
+            <td><span class="badge rounded-pill badge-soft" th:text="${n.channel}">SMS</span></td>
+            <td th:text="${n.ruleId}">-</td>
+            <td th:text="${n.checkRunId}">-</td>
+            <td th:text="${n.toAddr}">-</td>
+            <td th:text="${n.createdAt != null ? #temporals.format(n.createdAt, 'yyyy-MM-dd HH:mm') : '-'}">-</td>
+            <td>
+              <span class="small text-break d-inline-block" style="max-width:480px" th:text="${#strings.abbreviate(n.body, 80)}">-</span>
+              <button type="button" class="btn btn-link btn-sm p-0 ms-1" data-bs-toggle="modal" data-bs-target="#bodyModal"
+                      th:attr="data-body=${n.body}, data-id=${n.id}">보기</button>
+            </td>
+          </tr>
+          <tr th:if="${items == null || #lists.isEmpty(items)}">
+            <td colspan="8" class="text-center text-muted py-4">No data</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mt-2">
+      <span class="text-muted small" th:text="'Page ' + (${page} + 1)">Page 1</span>
+      <div th:if="${hasNext}">
+        <a class="btn btn-outline-secondary btn-sm" th:href="@{/outbox(page=${page + 1})}">Next →</a>
+      </div>
+    </div>
+
+    <!-- Body 전체 보기 모달 -->
+    <div class="modal fade" id="bodyModal" tabindex="-1" aria-labelledby="bodyModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="bodyModalLabel">Body 내용 <span id="bodyModalId" class="text-muted small">#</span></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <pre id="bodyModalContent" class="mb-0 p-3 bg-light rounded small text-break" style="white-space:pre-wrap; word-wrap:break-word; max-height:60vh; overflow-y:auto;">-</pre>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script th:inline="javascript">
+    document.getElementById('bodyModal').addEventListener('show.bs.modal', function(ev) {
+      var btn = ev.relatedTarget;
+      document.getElementById('bodyModalId').textContent = btn.getAttribute('data-id') ? '#' + btn.getAttribute('data-id') : '';
+      document.getElementById('bodyModalContent').textContent = btn.getAttribute('data-body') || '(내용 없음)';
+    });
+    </script>
+
+  </div>
+</div>
+</body>
+</html>

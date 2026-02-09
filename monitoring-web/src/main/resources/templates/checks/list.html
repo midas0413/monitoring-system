@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<section th:fragment="content">
+  <div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="mb-0">Checks</h5>
+      <a class="btn btn-primary" th:href="@{/checks/new}">+ New</a>
+    </div>
+
+    <form class="row g-2 mb-3" method="get" th:action="@{/checks}">
+      <div class="col-sm-8 col-md-6">
+        <input class="form-control" name="q" placeholder="Search by name..." th:value="${q}">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-outline-secondary" type="submit">Search</button>
+      </div>
+      <div class="col-auto" th:if="${q != null && !#strings.isEmpty(q)}">
+        <a class="btn btn-link" th:href="@{/checks}">Clear</a>
+      </div>
+    </form>
+
+    <div class="card card-shadow">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+          <tr>
+            <th style="width:90px;">ID</th>
+            <th>Name</th>
+            <th style="width:120px;">Type</th>
+            <th style="width:120px;">서버</th>
+            <th style="width:140px;">Interval</th>
+            <th style="width:120px;">Enabled</th>
+            <th style="width:170px;"></th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr th:each="c : ${items}">
+            <td th:text="${c.id}">1</td>
+            <td class="fw-semibold" th:text="${c.name}">check</td>
+            <td><span class="badge rounded-pill badge-soft" th:text="${c.type}">SHELL</span></td>
+            <td th:text="${c.targetName}">target</td>
+            <td th:text="${c.intervalSec} + ' sec'">60 sec</td>
+            <td>
+              <span class="badge rounded-pill"
+                    th:classappend="${c.enabled} ? ' text-bg-success' : ' text-bg-secondary'"
+                    th:text="${c.enabled} ? 'ON' : 'OFF'">ON</span>
+            </td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-primary"
+                 th:href="@{/checks/{id}/edit(id=${c.id})}">Edit</a>
+              <form class="d-inline" method="post"
+                    th:action="@{/checks/{id}/delete(id=${c.id})}"
+                    onsubmit="return confirm('Delete this check?');">
+                <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+          <tr th:if="${items == null || #lists.isEmpty(items)}">
+            <td colspan="7" class="text-center text-muted py-4">No data</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</section>
+</body>
+</html>
