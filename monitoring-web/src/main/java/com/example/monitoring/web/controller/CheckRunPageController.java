@@ -2,7 +2,7 @@ package com.example.monitoring.web.controller;
 
 import com.example.monitoring.common.domain.CheckRunEntity;
 import com.example.monitoring.web.service.CheckRunService;
-import com.example.monitoring.web.service.CheckService;
+// import com.example.monitoring.web.service.CheckService;  // Deprecated
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,11 +16,12 @@ import java.util.List;
 public class CheckRunPageController {
 
     private final CheckRunService checkRunService;
-    private final CheckService checkService;
+    // Deprecated: CheckService는 더 이상 사용되지 않음
+    // private final CheckService checkService;
 
-    public CheckRunPageController(CheckRunService checkRunService, CheckService checkService) {
+    public CheckRunPageController(CheckRunService checkRunService/*, CheckService checkService*/) {
         this.checkRunService = checkRunService;
-        this.checkService = checkService;
+        // this.checkService = checkService;
     }
 
     @GetMapping
@@ -37,7 +38,9 @@ public class CheckRunPageController {
         model.addAttribute("ruleNameDisplay", checkRunService.buildRuleNameDisplayMap(items));
         model.addAttribute("serverDisplay", checkRunService.buildServerDisplayMap(items));
         model.addAttribute("checkId", checkId);
-        model.addAttribute("checks", checkService.list(null));
+        // Deprecated: CheckService 사용 불가
+        // model.addAttribute("checks", checkService.list(null));
+        model.addAttribute("checks", new java.util.ArrayList<>());
 
         return "layout";
     }

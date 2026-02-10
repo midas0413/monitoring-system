@@ -1,38 +1,76 @@
 package com.example.monitoring.web.service;
 
-import com.example.monitoring.common.domain.CheckEntity;
-import com.example.monitoring.common.domain.NotificationStatus;
-import com.example.monitoring.common.repo.CheckRepository;
-import com.example.monitoring.common.repo.NotificationOutboxRepository;
+import com.example.monitoring.common.domain.*;
+import com.example.monitoring.common.repo.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 홈 대시보드용 데이터 조회 (Check 기준)
+ * 홈 대시보드용 데이터 조회 (Server 기반)
  */
 @Service
+@Transactional(readOnly = true)
 public class HomeService {
 
-    private final CheckRepository checkRepository;
+    private final ServerRepository serverRepo;
+    private final MonitoringRuleRepository ruleRepo;
+    private final VpnConnectionRepository vpnRepo;
     private final NotificationOutboxRepository notificationOutboxRepository;
 
-    public HomeService(CheckRepository checkRepository,
+    public HomeService(ServerRepository serverRepo,
+                       MonitoringRuleRepository ruleRepo,
+                       VpnConnectionRepository vpnRepo,
                        NotificationOutboxRepository notificationOutboxRepository) {
-        this.checkRepository = checkRepository;
+        this.serverRepo = serverRepo;
+        this.ruleRepo = ruleRepo;
+        this.vpnRepo = vpnRepo;
         this.notificationOutboxRepository = notificationOutboxRepository;
     }
 
-    public List<CheckEntity> listAllChecks() {
-        return checkRepository.findAll();
+    /** 모든 활성화된 서버 목록 */
+    public List<ServerEntity> listAllServers() {
+        return serverRepo.findAll().stream()
+                .filter(s -> Boolean.TRUE.equals(s.getEnabled()))
+                .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
+                .collect(Collectors.toList());
     }
 
-    /** targetName별로 checks 그룹화 */
-    public Map<String, List<CheckEntity>> listChecksGroupByTarget() {
-        return checkRepository.findAll().stream()
-                .collect(Collectors.groupingBy(c -> c.getTargetName() != null ? c.getTargetName() : "(미지정)"));
+    /** 서버별 모니터링 룰 그룹화 */
+    public Map<Long, List<MonitoringRuleEntity>> listRulesGroupByServer() {
+        List<MonitoringRuleEntity> allRules = ruleRepo.findAll();
+        return allRules.stream()
+                .filter(r -> Boolean.TRUE.equals(r.getEnabled()))
+                .collect(Collectors.groupingBy(MonitoringRuleEntity::getServerId));
+    }
+
+    /** 서버별 알림 건수 */
+    public Map<Long, Long> countNotificationsByServer() {
+        Map<Long, Long> result = new HashMap<>();
+        List<ServerEntity> servers = listAllServers();
+        for (ServerEntity server : servers) {
+            List<MonitoringRuleEntity> rules = ruleRepo.findByServerIdAndEnabledTrue(server.getId());
+            long totalCount = 0;
+            for (MonitoringRuleEntity rule : rules) {
+                totalCount += notificationOutboxRepository.countSentByMonitoringRuleId(rule.getId(), NotificationStatus.SENT);
+            }
+            result.put(server.getId(), totalCount);
+        }
+        return result;
+    }
+
+    /** 모든 활성화된 VPN 목록 */
+    public List<VpnConnectionEntity> listAllVpns() {
+        return vpnRepo.findByEnabledTrueOrderByNameAsc();
+    }
+
+    /** 서버 연결 상태 확인 (간단한 구현 - 실제로는 체크 결과 기반) */
+    public ServerStatus getServerStatus(ServerEntity server) {
+        // TODO: 실제 서버 연결 상태 체크 로직 구현
+        // 현재는 UNKNOWN 반환 (워커가 동작하지 않아도 표시하기 위해)
+        return ServerStatus.UNKNOWN;
     }
 
     public long countSentNotificationsByCheck(Long checkId) {

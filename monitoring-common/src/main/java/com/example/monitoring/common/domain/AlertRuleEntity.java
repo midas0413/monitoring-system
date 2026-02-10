@@ -3,8 +3,8 @@ package com.example.monitoring.common.domain;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
-@Entity
-@Table(name = "alert_rules")
+// @Entity  // Deprecated: alert_rules 테이블이 monitoring_rules로 통합됨
+// @Table(name = "alert_rules")
 public class AlertRuleEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)

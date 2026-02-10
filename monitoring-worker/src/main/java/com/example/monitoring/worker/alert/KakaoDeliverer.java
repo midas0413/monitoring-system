@@ -1,10 +1,13 @@
 package com.example.monitoring.worker.alert;
 
-import com.example.monitoring.common.domain.CheckEntity;
 import com.example.monitoring.common.domain.CheckRunEntity;
+import com.example.monitoring.common.domain.MonitoringRuleEntity;
 import com.example.monitoring.common.domain.NotificationChannel;
-import com.example.monitoring.common.repo.CheckRepository;
+import com.example.monitoring.common.domain.ServerEntity;
+// import com.example.monitoring.common.repo.CheckRepository;  // Deprecated
 import com.example.monitoring.common.repo.CheckRunRepository;
+import com.example.monitoring.common.repo.MonitoringRuleRepository;
+import com.example.monitoring.common.repo.ServerRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -24,19 +27,22 @@ public class KakaoDeliverer implements NotificationDeliverer {
 
     private final AligoClient aligoClient;
     private final AligoProperties aligoProperties;
-    private final CheckRepository checkRepository;
     private final CheckRunRepository checkRunRepository;
+    private final MonitoringRuleRepository monitoringRuleRepository;
+    private final ServerRepository serverRepository;
 
     public KakaoDeliverer(
             AligoClient aligoClient,
             AligoProperties aligoProperties,
-            CheckRepository checkRepository,
-            CheckRunRepository checkRunRepository
+            CheckRunRepository checkRunRepository,
+            MonitoringRuleRepository monitoringRuleRepository,
+            ServerRepository serverRepository
     ) {
         this.aligoClient = aligoClient;
         this.aligoProperties = aligoProperties;
-        this.checkRepository = checkRepository;
         this.checkRunRepository = checkRunRepository;
+        this.monitoringRuleRepository = monitoringRuleRepository;
+        this.serverRepository = serverRepository;
     }
 
     @Override
@@ -72,8 +78,8 @@ public class KakaoDeliverer implements NotificationDeliverer {
 
         // 1) 알림톡 시도 (설정 있으면)
         if (aligoProperties.isAlimtalkAvailable()) {
-            // 템플릿 변수 추출: var1=#{시스템}(서버명), var2=#{알림}(알림내용)
-            String systemName = extractSystemName(body, checkRunId);
+            // 템플릿 변수 추출: var1=#{시스템}(서버명/VPN명), var2=#{알림}(알림내용)
+            String systemName = extractSystemName(body, title, checkRunId);
             String alertContent = extractAlertContent(body);
             
             // 변수 값 검증
@@ -112,23 +118,44 @@ public class KakaoDeliverer implements NotificationDeliverer {
     }
     
     /**
-     * 시스템명(서버명) 추출 - 템플릿 변수 #{시스템}에 매핑
-     * checkRunId가 있으면 CheckEntity에서 정확히 가져오고, 없으면 body에서 추출
+     * 시스템명(서버명/VPN명) 추출 - 템플릿 변수 #{시스템}에 매핑
+     * checkRunId가 있으면 MonitoringRuleEntity와 ServerEntity에서 정확히 가져오고, 없으면 body나 title에서 추출
      */
-    private String extractSystemName(String body, Long checkRunId) {
+    private String extractSystemName(String body, String title, Long checkRunId) {
         // 1) checkRunId를 통해 정확한 서버명 가져오기
         if (checkRunId != null) {
             CheckRunEntity run = checkRunRepository.findById(checkRunId).orElse(null);
-            if (run != null && run.getCheckId() != null) {
-                CheckEntity check = checkRepository.findById(run.getCheckId()).orElse(null);
-                if (check != null && StringUtils.hasText(check.getTargetName())) {
-                    return check.getTargetName();
+            if (run != null && run.getMonitoringRuleId() != null) {
+                MonitoringRuleEntity rule = monitoringRuleRepository.findById(run.getMonitoringRuleId()).orElse(null);
+                if (rule != null && rule.getServerId() != null) {
+                    ServerEntity server = serverRepository.findById(rule.getServerId()).orElse(null);
+                    if (server != null && StringUtils.hasText(server.getName())) {
+                        return server.getName();
+                    }
                 }
             }
         }
         
         // 2) body에서 추출 시도
-        return extractServerNameFromBody(body);
+        String extracted = extractServerNameFromBody(body);
+        if (StringUtils.hasText(extracted)) {
+            return extracted;
+        }
+        
+        // 3) title에서 추출 시도 (VPN 상태 변경: {vpnName} 형식)
+        if (StringUtils.hasText(title)) {
+            Pattern patternTitle = Pattern.compile("VPN\\s*상태\\s*변경\\s*[:：]\\s*([^\\s]+)", Pattern.CASE_INSENSITIVE);
+            Matcher matcherTitle = patternTitle.matcher(title);
+            if (matcherTitle.find()) {
+                String vpnName = matcherTitle.group(1).trim();
+                if (vpnName.length() <= 50) {
+                    return vpnName;
+                }
+            }
+        }
+        
+        // 4) 모든 추출 실패 시 빈 문자열 반환
+        return "";
     }
     
     /**
@@ -151,8 +178,8 @@ public class KakaoDeliverer implements NotificationDeliverer {
     }
 
     /**
-     * body에서 서버명 추출
-     * body에 target=, serverName=, targetName= 등의 패턴이 있으면 추출
+     * body에서 서버명/VPN명 추출
+     * body에 target=, serverName=, targetName=, VPN명: 등의 패턴이 있으면 추출
      * 없으면 body에서 첫 번째 서버명 패턴을 찾거나, 빈 문자열 반환
      */
     private String extractServerNameFromBody(String body) {
@@ -165,7 +192,17 @@ public class KakaoDeliverer implements NotificationDeliverer {
             return matcher1.group(1).trim();
         }
 
-        // 패턴 2: [서버명] 형식
+        // 패턴 2: VPN명: {vpnName} (VPN 상태 변경 알림용)
+        Pattern patternVpn = Pattern.compile("VPN명\\s*[:：]\\s*([^\\s\\n]+)", Pattern.CASE_INSENSITIVE);
+        Matcher matcherVpn = patternVpn.matcher(body);
+        if (matcherVpn.find()) {
+            String vpnName = matcherVpn.group(1).trim();
+            if (vpnName.length() <= 50) {
+                return vpnName;
+            }
+        }
+
+        // 패턴 3: [서버명] 형식
         Pattern pattern2 = Pattern.compile("\\[([^\\]]+)\\]");
         Matcher matcher2 = pattern2.matcher(body);
         if (matcher2.find()) {
@@ -176,7 +213,7 @@ public class KakaoDeliverer implements NotificationDeliverer {
             }
         }
 
-        // 패턴 3: ${targetName}, ${serverName} 등이 치환된 경우를 찾기 어려우므로 빈 문자열 반환
+        // 패턴 4: ${targetName}, ${serverName} 등이 치환된 경우를 찾기 어려우므로 빈 문자열 반환
         // 실제로는 NotificationOutboxEntity의 checkRunId를 통해 조회하는 것이 더 정확하지만,
         // 현재 구조상 body만 받으므로 추출 로직으로 처리
         return "";

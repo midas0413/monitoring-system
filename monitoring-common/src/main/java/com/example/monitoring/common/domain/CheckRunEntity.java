@@ -11,8 +11,8 @@ public class CheckRunEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "check_id", nullable = false)
-    private Long checkId;
+    @Column(name = "monitoring_rule_id", nullable = false)
+    private Long monitoringRuleId;
 
     @Column(nullable = false)
     private Boolean success;
@@ -34,8 +34,14 @@ public class CheckRunEntity {
 
     public Long getId() { return id; }
 
-    public Long getCheckId() { return checkId; }
-    public void setCheckId(Long checkId) { this.checkId = checkId; }
+    public Long getMonitoringRuleId() { return monitoringRuleId; }
+    public void setMonitoringRuleId(Long monitoringRuleId) { this.monitoringRuleId = monitoringRuleId; }
+    
+    // 하위 호환성을 위한 메서드 (deprecated)
+    @Deprecated
+    public Long getCheckId() { return monitoringRuleId; }
+    @Deprecated
+    public void setCheckId(Long checkId) { this.monitoringRuleId = checkId; }
 
     public Boolean getSuccess() { return success; }
     public void setSuccess(Boolean success) { this.success = success; }

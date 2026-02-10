@@ -2,7 +2,7 @@ package com.example.monitoring.worker.core;
 
 import com.example.monitoring.common.domain.CheckEntity;
 import com.example.monitoring.common.domain.CheckRunEntity;
-import com.example.monitoring.common.repo.CheckRepository;
+// import com.example.monitoring.common.repo.CheckRepository;  // Deprecated
 import com.example.monitoring.common.repo.CheckRunRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -13,11 +13,14 @@ import java.time.OffsetDateTime;
 public class CheckRunWriter {
 
     private final CheckRunRepository checkRunRepository;
-    private final CheckRepository checkRepository;
+    // Deprecated: CheckRepository는 더 이상 사용되지 않음
+    // private final CheckRepository checkRepository;
 
-    public CheckRunWriter(CheckRunRepository checkRunRepository, CheckRepository checkRepository) {
+    public CheckRunWriter(CheckRunRepository checkRunRepository
+                          // CheckRepository checkRepository  // Deprecated
+    ) {
         this.checkRunRepository = checkRunRepository;
-        this.checkRepository = checkRepository;
+        // this.checkRepository = checkRepository;  // Deprecated
     }
 
     @Transactional
@@ -42,13 +45,17 @@ public class CheckRunWriter {
         check.setLockedUntil(null);
         check.setLockedBy(null);
 
-        checkRepository.save(check);
+        // Deprecated: CheckRepository는 더 이상 사용되지 않음
+        // checkRepository.save(check);
     }
 
     @Transactional
     public void unlock(CheckEntity check) {
+        // Deprecated: CheckRepository는 더 이상 사용되지 않음
+        /*
         check.setLockedUntil(null);
         check.setLockedBy(null);
         checkRepository.save(check);
+        */
     }
 }

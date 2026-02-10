@@ -1,8 +1,9 @@
 package com.example.monitoring.worker.runner;
 
-import com.example.monitoring.common.domain.CheckEntity;
+import com.example.monitoring.common.domain.MonitoringRuleEntity;
 import com.example.monitoring.worker.WorkerProperties;
-import com.example.monitoring.worker.db.CheckClaimDao;
+import com.example.monitoring.worker.db.MonitoringRuleClaimDao;
+import com.example.monitoring.worker.monitoring.MonitoringRuleExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -11,23 +12,27 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+/**
+ * 모니터링 룰 실행 루프
+ * 주기적으로 실행 대상 모니터링 룰을 선점하여 실행
+ */
 @Component
 public class WorkerLoop implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(WorkerLoop.class);
 
     private final WorkerProperties props;
-    private final CheckClaimDao checkClaimDao;
-    private final CheckRunnerRouter router;
+    private final MonitoringRuleClaimDao claimDao;
+    private final MonitoringRuleExecutorService executorService;
 
     public WorkerLoop(
             WorkerProperties props,
-            CheckClaimDao checkClaimDao,
-            CheckRunnerRouter router
+            MonitoringRuleClaimDao claimDao,
+            MonitoringRuleExecutorService executorService
     ) {
         this.props = props;
-        this.checkClaimDao = checkClaimDao;
-        this.router = router;
+        this.claimDao = claimDao;
+        this.executorService = executorService;
     }
 
     @Override
@@ -37,7 +42,7 @@ public class WorkerLoop implements ApplicationRunner {
 
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                List<CheckEntity> claimed = checkClaimDao.claimDueChecks(
+                List<MonitoringRuleEntity> claimed = claimDao.claimDueRules(
                         props.getId(),
                         props.getClaimLimit(),
                         props.getLockSeconds()
@@ -48,13 +53,14 @@ public class WorkerLoop implements ApplicationRunner {
                     continue;
                 }
 
-                for (CheckEntity check : claimed) {
+                log.debug("Claimed {} monitoring rules", claimed.size());
+
+                for (MonitoringRuleEntity rule : claimed) {
                     try {
-                        CheckRunner runner = router.get(check.getType());
-                        runner.runOne(check, props.getId(), props.getLockSeconds());
+                        executorService.executeRule(rule, props.getId());
                     } catch (Exception e) {
-                        log.error("Check run failed. checkId={}, type={}",
-                                check.getId(), check.getType(), e);
+                        log.error("Rule execution failed. ruleId={}, type={}",
+                                rule.getId(), rule.getMonitoringType(), e);
                     }
                 }
 

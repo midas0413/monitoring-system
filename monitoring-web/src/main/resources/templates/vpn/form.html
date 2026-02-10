@@ -1,0 +1,178 @@
+<div th:fragment="content">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 th:text="${form.id != null ? 'Edit VPN Connection' : 'New VPN Connection'}">VPN Connection Form</h2>
+    <a th:href="@{/vpn}" class="btn btn-secondary">Back to List</a>
+  </div>
+
+  <!-- 메시지 -->
+  <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <span th:text="${error}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
+  <!-- VPN 정보 표시 (수정 모드일 때만) -->
+  <div th:if="${form.id != null && vpnInfo != null}" class="card card-shadow mb-3">
+    <div class="card-header">
+      <h6 class="mb-0">VPN 상태 정보</h6>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <div class="mb-2">
+            <strong>현재 상태:</strong>
+            <span class="badge ms-2" 
+                  th:classappend="${vpnInfo.status.name() == 'UP'} ? 'bg-success' : 
+                                 (${vpnInfo.status.name() == 'DOWN'} ? 'bg-danger' : 'bg-secondary')"
+                  th:text="${vpnInfo.status.name()}">UNKNOWN</span>
+          </div>
+          <div class="mb-2" th:if="${vpnInfo.lastCheckedAt != null}">
+            <strong>마지막 체크 시간:</strong>
+            <span class="ms-2" th:text="${#temporals.format(vpnInfo.lastCheckedAt, 'yyyy-MM-dd HH:mm:ss')}">-</span>
+          </div>
+          <div class="mb-2" th:if="${vpnInfo.lastCheckedAt == null}">
+            <strong>마지막 체크 시간:</strong>
+            <span class="ms-2 text-muted">아직 체크되지 않음</span>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="mb-2" th:if="${vpnInfo.lastStatusChangeAt != null}">
+            <strong>상태 변경 시간:</strong>
+            <span class="ms-2" th:text="${#temporals.format(vpnInfo.lastStatusChangeAt, 'yyyy-MM-dd HH:mm:ss')}">-</span>
+          </div>
+          <div class="mb-2" th:if="${vpnInfo.lastStatusChangeAt == null}">
+            <strong>상태 변경 시간:</strong>
+            <span class="ms-2 text-muted">변경 이력 없음</span>
+          </div>
+          <div class="mb-2">
+            <strong>생성 시간:</strong>
+            <span class="ms-2" th:text="${#temporals.format(vpnInfo.createdAt, 'yyyy-MM-dd HH:mm:ss')}">-</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form th:action="${form.id != null ? '/vpn/' + form.id : '/vpn'}" 
+        th:method="${form.id != null ? 'POST' : 'POST'}" 
+        th:object="${form}">
+    <input type="hidden" th:field="*{id}" />
+
+    <div class="row">
+      <div class="col-md-6">
+        <div class="mb-3">
+          <label for="name" class="form-label">VPN Name <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="name" th:field="*{name}" required 
+                 placeholder="e.g., DEV_VPN, PROD_VPN">
+          <small class="form-text text-muted">Unique VPN connection identifier</small>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <label for="host" class="form-label mb-0">VPN TEST IP <span class="text-danger">*</span></label>
+            <button type="button" class="btn btn-sm btn-outline-info" id="testVpnConnectionBtn">
+              <i class="bi bi-check-circle"></i> 연결 테스트
+            </button>
+          </div>
+          <div id="vpnTestResult" class="alert mb-2" style="display:none;" role="alert"></div>
+          <input type="text" class="form-control" id="host" th:field="*{host}" required 
+                 placeholder="VPN 연결 시에만 접근 가능한 IP (e.g., 10.0.0.1:443 or 192.168.1.100:80)">
+          <small class="form-text text-muted">
+            <strong>중요:</strong> VPN이 연결되었을 때만 접근 가능한 내부 IP 또는 VPN 전용 IP를 입력하세요.<br>
+            Public IP를 입력하면 VPN이 연결되지 않아도 접속 테스트가 성공할 수 있습니다.<br>
+            형식: IP주소:포트 (예: 10.0.0.1:443, 192.168.1.100:80)
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6">
+        <div class="mb-3">
+          <label for="checkIntervalSec" class="form-label">체크 주기 (초) <span class="text-danger">*</span></label>
+          <input type="number" class="form-control" id="checkIntervalSec" th:field="*{checkIntervalSec}" required 
+                 min="10" step="10" placeholder="60">
+          <small class="form-text text-muted">VPN 연결 상태를 체크하는 주기 (초 단위, 최소 10초, 권장: 60초 이상)</small>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="mb-3">
+          <label class="form-label">체크 주기 안내</label>
+          <div class="alert alert-info mb-0 small">
+            <strong>권장 설정:</strong><br>
+            • 일반적인 환경: 60초 (1분)<br>
+            • 중요한 VPN: 30초<br>
+            • 덜 중요한 VPN: 120초 이상<br>
+            <strong>참고:</strong> 시스템은 10초마다 체크 주기를 확인하며, 설정된 주기가 지난 VPN만 체크합니다.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="description" class="form-label">Description</label>
+      <textarea class="form-control" id="description" th:field="*{description}" rows="3" 
+                placeholder="Optional description"></textarea>
+    </div>
+
+    <div class="mb-3">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="enabled" th:field="*{enabled}">
+        <label class="form-check-label" for="enabled">Enabled</label>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between">
+      <a th:href="@{/vpn}" class="btn btn-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+
+  <script th:inline="javascript">
+  (function(){
+    var testBtn = document.getElementById('testVpnConnectionBtn');
+    var testResult = document.getElementById('vpnTestResult');
+    
+    if (testBtn) {
+      testBtn.addEventListener('click', function() {
+        var host = document.getElementById('host').value;
+        
+        if (!host || !host.trim()) {
+          showTestResult(false, 'VPN TEST IP를 입력하세요.');
+          return;
+        }
+        
+        testBtn.disabled = true;
+        testBtn.textContent = '테스트 중...';
+        testResult.style.display = 'none';
+        
+        var formData = new FormData();
+        formData.append('host', host.trim());
+        
+        fetch('/api/checks/test/vpn-connection', {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+          showTestResult(data.success, data.output);
+        })
+        .catch(error => {
+          showTestResult(false, '테스트 중 오류가 발생했습니다: ' + error.message);
+        })
+        .finally(() => {
+          testBtn.disabled = false;
+          testBtn.innerHTML = '<i class="bi bi-check-circle"></i> 연결 테스트';
+        });
+      });
+    }
+    
+    function showTestResult(success, message) {
+      if (!testResult) return;
+      testResult.className = 'alert alert-dismissible fade show mb-2 ' + (success ? 'alert-success' : 'alert-danger');
+      testResult.innerHTML = '<span>' + message + '</span><button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+      testResult.style.display = 'block';
+    }
+  })();
+  </script>
+</div>

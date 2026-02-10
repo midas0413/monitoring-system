@@ -18,8 +18,8 @@ public class NotificationOutboxEntity {
     @Column(nullable=false, length=20)
     private NotificationChannel channel;
 
-    @Column(name="rule_id")
-    private Long ruleId;
+    @Column(name="monitoring_rule_id")
+    private Long monitoringRuleId;
 
     @Column(name="check_run_id")
     private Long checkRunId;
@@ -65,8 +65,14 @@ public class NotificationOutboxEntity {
     public NotificationChannel getChannel() { return channel; }
     public void setChannel(NotificationChannel channel) { this.channel = channel; }
 
-    public Long getRuleId() { return ruleId; }
-    public void setRuleId(Long ruleId) { this.ruleId = ruleId; }
+    public Long getMonitoringRuleId() { return monitoringRuleId; }
+    public void setMonitoringRuleId(Long monitoringRuleId) { this.monitoringRuleId = monitoringRuleId; }
+    
+    // 하위 호환성을 위한 메서드 (deprecated)
+    @Deprecated
+    public Long getRuleId() { return monitoringRuleId; }
+    @Deprecated
+    public void setRuleId(Long ruleId) { this.monitoringRuleId = ruleId; }
 
     public Long getCheckRunId() { return checkRunId; }
     public void setCheckRunId(Long checkRunId) { this.checkRunId = checkRunId; }
@@ -99,6 +105,7 @@ public class NotificationOutboxEntity {
     public void setProcessingUntil(OffsetDateTime processingUntil) { this.processingUntil = processingUntil; }
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
 
     public OffsetDateTime getSentAt() { return sentAt; }
     public void setSentAt(OffsetDateTime sentAt) { this.sentAt = sentAt; }

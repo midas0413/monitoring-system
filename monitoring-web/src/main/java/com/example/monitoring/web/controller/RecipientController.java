@@ -6,6 +6,7 @@ import com.example.monitoring.web.service.AlertRecipientService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
 
@@ -42,9 +43,15 @@ public class RecipientController {
     }
 
     @PostMapping("/new")
-    public String create(@ModelAttribute("form") AlertRecipientForm form) {
-        Long id = service.create(form);
-        return "redirect:/recipients/" + id + "/edit";
+    public String create(@ModelAttribute("form") AlertRecipientForm form, RedirectAttributes redirectAttributes) {
+        try {
+            service.create(form);
+            redirectAttributes.addFlashAttribute("message", "수신자 정보가 성공적으로 등록되었습니다.");
+            return "redirect:/recipients";
+        } catch (IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+            return "redirect:/recipients/new";
+        }
     }
 
     @GetMapping("/{id}/edit")
@@ -61,14 +68,25 @@ public class RecipientController {
     }
 
     @PostMapping("/{id}/edit")
-    public String edit(@PathVariable Long id, @ModelAttribute("form") AlertRecipientForm form) {
-        service.update(id, form);
-        return "redirect:/recipients";
+    public String edit(@PathVariable Long id, @ModelAttribute("form") AlertRecipientForm form, RedirectAttributes redirectAttributes) {
+        try {
+            service.update(id, form);
+            redirectAttributes.addFlashAttribute("message", "수신자 정보가 성공적으로 수정되었습니다.");
+            return "redirect:/recipients";
+        } catch (IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+            return "redirect:/recipients/" + id + "/edit";
+        }
     }
 
     @PostMapping("/{id}/delete")
-    public String delete(@PathVariable Long id) {
-        service.delete(id);
+    public String delete(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        try {
+            service.delete(id);
+            redirectAttributes.addFlashAttribute("message", "수신자 정보가 성공적으로 삭제되었습니다.");
+        } catch (IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
         return "redirect:/recipients";
     }
 }

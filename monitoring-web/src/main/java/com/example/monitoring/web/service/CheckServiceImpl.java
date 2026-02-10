@@ -2,7 +2,7 @@ package com.example.monitoring.web.service;
 
 import com.example.monitoring.common.domain.CheckEntity;
 import com.example.monitoring.common.domain.CheckType;
-import com.example.monitoring.common.repo.CheckRepository;
+// import com.example.monitoring.common.repo.CheckRepository;  // Deprecated
 import com.example.monitoring.web.dto.CheckForm;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,51 +10,68 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-@Service
+// @Service  // Deprecated: CheckServiceImpl은 checks 테이블이 monitoring_rules로 통합되어 더 이상 사용되지 않음
 @Transactional
 public class CheckServiceImpl implements CheckService {
 
-    private final CheckRepository repo;
+    // Deprecated: CheckRepository는 더 이상 사용되지 않음
+    // private final CheckRepository repo;
 
-    public CheckServiceImpl(CheckRepository repo) {
-        this.repo = repo;
+    public CheckServiceImpl(/* CheckRepository repo */) {
+        // this.repo = repo;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<CheckEntity> list(String q) {
+        // Deprecated: CheckRepository 사용 불가
+        throw new UnsupportedOperationException("CheckServiceImpl.list is deprecated");
+        /*
         if (!StringUtils.hasText(q)) {
             return repo.findAll().stream()
                     .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
                     .toList();
         }
         return repo.findByNameContainingIgnoreCaseOrderByIdDesc(q.trim());
+        */
     }
 
     @Override
     @Transactional(readOnly = true)
     public CheckEntity get(Long id) {
-        return repo.findById(id).orElseThrow(() -> new IllegalStateException("Check not found: " + id));
+        // Deprecated: CheckRepository 사용 불가
+        throw new UnsupportedOperationException("CheckServiceImpl.get is deprecated");
+        // return repo.findById(id).orElseThrow(() -> new IllegalStateException("Check not found: " + id));
     }
 
     @Override
     public Long create(CheckForm form) {
+        // Deprecated: CheckRepository 사용 불가
+        throw new UnsupportedOperationException("CheckServiceImpl.create is deprecated");
+        /*
         CheckEntity e = new CheckEntity();
         applyForm(e, form);
         repo.save(e);
         return e.getId();
+        */
     }
 
     @Override
     public void update(Long id, CheckForm form) {
+        // Deprecated: CheckRepository 사용 불가
+        throw new UnsupportedOperationException("CheckServiceImpl.update is deprecated");
+        /*
         CheckEntity e = get(id);
         applyForm(e, form);
         repo.save(e);
+        */
     }
 
     @Override
     public void delete(Long id) {
-        repo.deleteById(id);
+        // Deprecated: CheckRepository 사용 불가
+        throw new UnsupportedOperationException("CheckServiceImpl.delete is deprecated");
+        // repo.deleteById(id);
     }
 
     @Override

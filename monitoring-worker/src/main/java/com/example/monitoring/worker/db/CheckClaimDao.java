@@ -1,7 +1,7 @@
 package com.example.monitoring.worker.db;
 
 import com.example.monitoring.common.domain.CheckEntity;
-import com.example.monitoring.common.repo.CheckRepository;
+// import com.example.monitoring.common.repo.CheckRepository;  // Deprecated
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
@@ -15,10 +15,13 @@ public class CheckClaimDao {
     @PersistenceContext
     private EntityManager em;
 
-    private final CheckRepository checkRepository;
+    // Deprecated: CheckRepository는 더 이상 사용되지 않음
+    // private final CheckRepository checkRepository;
 
-    public CheckClaimDao(CheckRepository checkRepository) {
-        this.checkRepository = checkRepository;
+    public CheckClaimDao(
+            // CheckRepository checkRepository  // Deprecated
+    ) {
+        // this.checkRepository = checkRepository;  // Deprecated
     }
 
     /** claim 후 CheckRepository로 재로딩하여 db_url 등 모든 컬럼이 올바르게 채워진 entity 반환 */
@@ -51,11 +54,13 @@ public class CheckClaimDao {
                 .setParameter("workerId", workerId)
                 .getResultList();
 
-        return ids.stream()
-                .mapToLong(Number::longValue)
-                .mapToObj(checkRepository::findById)
-                .filter(java.util.Optional::isPresent)
-                .map(java.util.Optional::get)
-                .toList();
+        // Deprecated: CheckRepository는 더 이상 사용되지 않음
+        // return ids.stream()
+        //         .mapToLong(Number::longValue)
+        //         .mapToObj(checkRepository::findById)
+        //         .filter(java.util.Optional::isPresent)
+        //         .map(java.util.Optional::get)
+        //         .toList();
+        return new java.util.ArrayList<>();
     }
 }

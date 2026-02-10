@@ -31,6 +31,9 @@
         <a class="portal-nav-item" th:classappend="${activeMenu}=='home' ? ' active' : ''" th:href="@{/}">
           🏠 Home
         </a>
+        <a class="portal-nav-item" th:classappend="${activeMenu}=='servers' ? ' active' : ''" th:href="@{/servers}">
+          🖥️ Servers
+        </a>
         <a class="portal-nav-item" th:classappend="${activeMenu}=='rules' ? ' active' : ''" th:href="@{/rules}">
           🔔 Alert Rules
         </a>
@@ -42,6 +45,14 @@
         </a>
         <a class="portal-nav-item" th:classappend="${activeMenu}=='outbox' ? ' active' : ''" th:href="@{/outbox}">
           📤 Notification Center
+        </a>
+        <div class="portal-nav-divider"></div>
+        <div class="portal-nav-group">System Management</div>
+        <a class="portal-nav-item" th:classappend="${activeMenu}=='settings' ? ' active' : ''" th:href="@{/settings}">
+          ⚙️ Settings
+        </a>
+        <a class="portal-nav-item" th:classappend="${activeMenu}=='vpn' ? ' active' : ''" th:href="@{/vpn}">
+          🔐 VPN Connections
         </a>
       </nav>
       <div class="portal-sidebar-footer">

@@ -1,7 +1,9 @@
 package com.example.monitoring.web.controller;
 
-import com.example.monitoring.common.domain.CheckEntity;
 import com.example.monitoring.common.domain.CheckRunEntity;
+import com.example.monitoring.common.domain.ServerEntity;
+import com.example.monitoring.common.domain.ServerStatus;
+import com.example.monitoring.common.domain.VpnConnectionEntity;
 import com.example.monitoring.web.service.CheckRunService;
 import com.example.monitoring.web.service.HomeService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Home 화면 리프레시용 API
@@ -30,58 +33,54 @@ public class HomeRefreshApiController {
     }
 
     @GetMapping
-    public Map<String, Object> refresh(@RequestParam(required = false) Long checkId) {
-        Map<String, List<CheckEntity>> checksByTarget = homeService.listChecksGroupByTarget();
-
-        Map<Long, Long> notificationCountByCheck = new HashMap<>();
-        for (List<CheckEntity> checks : checksByTarget.values()) {
-            for (CheckEntity c : checks) {
-                notificationCountByCheck.put(c.getId(), homeService.countSentNotificationsByCheck(c.getId()));
-            }
+    public Map<String, Object> refresh(@RequestParam(required = false) Long ruleId) {
+        // 서버 목록
+        List<ServerEntity> servers = homeService.listAllServers();
+        
+        // 서버별 알림 건수
+        Map<Long, Long> notificationCountByServer = homeService.countNotificationsByServer();
+        
+        // 서버 상태 맵 (서버 ID -> 상태)
+        Map<Long, ServerStatus> serverStatusMap = new HashMap<>();
+        for (ServerEntity server : servers) {
+            serverStatusMap.put(server.getId(), homeService.getServerStatus(server));
         }
 
-        List<CheckRunEntity> checkRuns = checkRunService.list(checkId, null);
+        // Check Runs (모니터링 결과)
+        List<CheckRunEntity> checkRuns = checkRunService.list(ruleId, null);
         Map<Long, String> startedDisplay = checkRunService.buildStartedDisplayMap(checkRuns);
         Map<Long, String> ruleNameDisplay = checkRunService.buildRuleNameDisplayMap(checkRuns);
         Map<Long, String> serverDisplay = checkRunService.buildServerDisplayMap(checkRuns);
         
-        // 서버 상태 맵 생성 (targetName -> status)
-        // 같은 targetName의 checks 중 하나라도 UP이면 UP, 모두 DOWN이면 DOWN, 그 외 UNKNOWN
+        // 서버 상태 맵을 문자열로 변환 (기존 호환성)
         Map<String, String> serverStatusByTarget = new HashMap<>();
-        for (Map.Entry<String, List<CheckEntity>> entry : checksByTarget.entrySet()) {
-            String targetName = entry.getKey();
-            List<CheckEntity> checks = entry.getValue();
-            
-            boolean hasUp = false;
-            boolean hasDown = false;
-            
-            for (CheckEntity c : checks) {
-                if (c.getStatus() != null) {
-                    String status = c.getStatus().name();
-                    if ("UP".equals(status)) {
-                        hasUp = true;
-                    } else if ("DOWN".equals(status)) {
-                        hasDown = true;
-                    }
-                }
-            }
-            
-            if (hasUp) {
-                serverStatusByTarget.put(targetName, "UP");
-            } else if (hasDown) {
-                serverStatusByTarget.put(targetName, "DOWN");
+        for (ServerEntity server : servers) {
+            ServerStatus status = serverStatusMap.get(server.getId());
+            if (status != null) {
+                serverStatusByTarget.put(server.getName(), status.name());
             } else {
-                serverStatusByTarget.put(targetName, "UNKNOWN");
+                serverStatusByTarget.put(server.getName(), "UNKNOWN");
             }
         }
 
+        // VPN 상태 목록
+        List<VpnConnectionEntity> vpns = homeService.listAllVpns();
+        Map<Long, ServerStatus> vpnStatusMap = vpns.stream()
+                .collect(Collectors.toMap(
+                        VpnConnectionEntity::getId,
+                        vpn -> vpn.getStatus() != null ? vpn.getStatus() : ServerStatus.UNKNOWN
+                ));
+
         Map<String, Object> result = new HashMap<>();
-        result.put("notificationCountByCheck", notificationCountByCheck);
+        result.put("notificationCountByServer", notificationCountByServer);
+        result.put("serverStatusMap", serverStatusMap);
         result.put("checkRuns", checkRuns);
         result.put("startedDisplay", startedDisplay);
         result.put("ruleNameDisplay", ruleNameDisplay);
         result.put("serverDisplay", serverDisplay);
         result.put("serverStatusByTarget", serverStatusByTarget);
+        result.put("vpns", vpns);
+        result.put("vpnStatusMap", vpnStatusMap);
         return result;
     }
 }

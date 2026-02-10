@@ -1,6 +1,8 @@
 package com.example.monitoring.worker.db;
 
 import com.example.monitoring.common.domain.CheckEntity;
+import com.example.monitoring.common.domain.MonitoringRuleEntity;
+import com.example.monitoring.common.repo.ServerRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,8 +19,21 @@ public class CheckConnProvider {
     private static final int CONNECT_TIMEOUT_SEC = 10;
     private static final int QUERY_TIMEOUT_SEC = 30;
 
+    private final ServerRepository serverRepo;
+
+    public CheckConnProvider(ServerRepository serverRepo) {
+        this.serverRepo = serverRepo;
+    }
+
     public JdbcTemplate getJdbcTemplate(CheckEntity check) {
         return new JdbcTemplate(createDataSource(check));
+    }
+
+    /**
+     * MonitoringRuleEntity를 위한 JdbcTemplate 생성
+     */
+    public JdbcTemplate getJdbcTemplateForRule(MonitoringRuleEntity rule) {
+        return new JdbcTemplate(createDataSourceForRule(rule));
     }
 
     private DataSource createDataSource(CheckEntity check) {
@@ -113,5 +128,47 @@ public class CheckConnProvider {
             return "jdbc:oracle:thin:@" + host + ":" + dbPort + ":" + dbName;
         }
         return "jdbc:" + subprotocol + "://" + host + ":" + dbPort + "/" + dbName;
+    }
+
+    private DataSource createDataSourceForRule(MonitoringRuleEntity rule) {
+        String url = rule.getDbUrl();
+        if (!StringUtils.hasText(url) || !StringUtils.hasText(rule.getDbUsername())) {
+            String errorMsg = String.format("Rule DB info missing. ruleId=%d, url=%s, user=%s, dbType=%s, dbPort=%s, dbName=%s",
+                    rule.getId(),
+                    (url != null ? "set" : "null"),
+                    (rule.getDbUsername() != null ? rule.getDbUsername() : "null"),
+                    rule.getDbType(),
+                    rule.getDbPort(),
+                    rule.getDbName());
+            log.error(errorMsg);
+            throw new IllegalStateException(errorMsg);
+        }
+
+        String password = rule.getDbPassword() != null ? rule.getDbPassword() : "";
+        if (!StringUtils.hasText(password)) {
+            log.warn("Rule DB password is empty. ruleId={}, username={}. This may cause authentication failures and account lockouts.",
+                    rule.getId(), rule.getDbUsername());
+        }
+
+        String driverClassName = driverClassFor(url);
+        if (driverClassName == null) {
+            String errorMsg = String.format("Unsupported DB type or invalid URL. ruleId=%d, url=%s, dbType=%s",
+                    rule.getId(), url, rule.getDbType());
+            log.error(errorMsg);
+            throw new IllegalStateException(errorMsg);
+        }
+
+        String finalUrl = appendConnectionProps(url);
+
+        log.debug("Creating DataSource for rule. ruleId={}, url={}, username={}, driver={}",
+                rule.getId(), finalUrl, rule.getDbUsername(), driverClassName);
+
+        DriverManagerDataSource ds = new DriverManagerDataSource();
+        ds.setDriverClassName(driverClassName);
+        ds.setUrl(finalUrl);
+        ds.setUsername(rule.getDbUsername());
+        ds.setPassword(password);
+
+        return ds;
     }
 }

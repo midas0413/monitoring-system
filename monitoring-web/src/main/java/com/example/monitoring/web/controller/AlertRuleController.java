@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Set;
 
-@Controller
+// @Controller  // Deprecated: AlertRuleController는 alert_rules 테이블이 monitoring_rules로 통합되어 더 이상 사용되지 않음
 public class AlertRuleController {
 
     private final AlertRuleService ruleService;

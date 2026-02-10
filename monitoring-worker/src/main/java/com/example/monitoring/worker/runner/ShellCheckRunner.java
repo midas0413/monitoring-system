@@ -3,7 +3,7 @@ package com.example.monitoring.worker.runner;
 import com.example.monitoring.common.domain.CheckEntity;
 import com.example.monitoring.common.domain.CheckRunEntity;
 import com.example.monitoring.common.domain.CheckType;
-import com.example.monitoring.common.repo.CheckRepository;
+// import com.example.monitoring.common.repo.CheckRepository;  // Deprecated
 import com.example.monitoring.common.repo.CheckRunRepository;
 import com.example.monitoring.worker.WorkerProperties;
 import com.example.monitoring.worker.alert.AlertEvaluatorService;
@@ -25,21 +25,23 @@ public class ShellCheckRunner implements CheckRunner {
     private final WorkerProperties props;
     private final CheckSshProvider sshProvider;
     private final CheckRunRepository checkRunRepository;
-    private final CheckRepository checkRepository;
-    private final AlertEvaluatorService alertEvaluatorService;
+    // Deprecated: CheckRepository는 더 이상 사용되지 않음
+    // private final CheckRepository checkRepository;
+    // Deprecated: AlertEvaluatorService는 더 이상 사용되지 않음
+    // private final AlertEvaluatorService alertEvaluatorService;
 
     public ShellCheckRunner(
             WorkerProperties props,
             CheckSshProvider sshProvider,
-            CheckRunRepository checkRunRepository,
-            CheckRepository checkRepository,
-            AlertEvaluatorService alertEvaluatorService
+            CheckRunRepository checkRunRepository
+            // CheckRepository checkRepository,  // Deprecated
+            // AlertEvaluatorService alertEvaluatorService  // Deprecated
     ) {
         this.props = props;
         this.sshProvider = sshProvider;
         this.checkRunRepository = checkRunRepository;
-        this.checkRepository = checkRepository;
-        this.alertEvaluatorService = alertEvaluatorService;
+        // this.checkRepository = checkRepository;  // Deprecated
+        // this.alertEvaluatorService = alertEvaluatorService;  // Deprecated
     }
 
     @Override
@@ -112,14 +114,20 @@ public class ShellCheckRunner implements CheckRunner {
 
         run = checkRunRepository.save(run);
 
+        // Deprecated: AlertEvaluatorService는 더 이상 사용되지 않음
         // ✅ 2) 알림 평가 + outbox enqueue (임계치/실패 조건 등)
-        alertEvaluatorService.evaluateAndEnqueue(run);
+        // alertEvaluatorService.evaluateAndEnqueue(run);
 
         // 3) checks 갱신 + unlock + next_run_at
-        unlockAndReschedule(check, success ? "SUCCESS" : "FAIL");
+        // Deprecated: CheckRepository는 더 이상 사용되지 않음
+        // unlockAndReschedule(check, success ? "SUCCESS" : "FAIL");
+        log.warn("ShellCheckRunner.runOne is deprecated. Use MonitoringRuleExecutorService instead.");
     }
 
+    @SuppressWarnings("unused")
     private void unlockAndReschedule(CheckEntity check, String status) {
+        // Deprecated: CheckRepository는 더 이상 사용되지 않음
+        /*
         OffsetDateTime now = OffsetDateTime.now();
 
         check.setLastRunAt(now);
@@ -132,5 +140,6 @@ public class ShellCheckRunner implements CheckRunner {
         check.setNextRunAt(now.plusSeconds(interval));
 
         checkRepository.save(check);
+        */
     }
 }

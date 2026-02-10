@@ -2,8 +2,8 @@ package com.example.monitoring.worker.alert;
 
 import com.example.monitoring.common.domain.*;
 import com.example.monitoring.common.repo.AlertRuleRecipientLinkRepository;
-import com.example.monitoring.common.repo.AlertRuleRepository;
-import com.example.monitoring.common.repo.CheckRepository;
+// import com.example.monitoring.common.repo.AlertRuleRepository;  // Deprecated
+// import com.example.monitoring.common.repo.CheckRepository;  // Deprecated
 import com.example.monitoring.common.repo.NotificationOutboxRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,33 +17,38 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-@Service
+// @Service  // Deprecated: AlertEvaluatorService는 alert_rules 테이블이 monitoring_rules로 통합되어 더 이상 사용되지 않음
 public class AlertEvaluatorService {
 
     private static final Logger log = LoggerFactory.getLogger(AlertEvaluatorService.class);
 
-    private final AlertRuleRepository ruleRepo;
+    // Deprecated: AlertRuleRepository는 더 이상 사용되지 않음
+    // private final AlertRuleRepository ruleRepo;
     private final AlertRuleRecipientLinkRepository linkRepo;
     private final NotificationOutboxRepository outboxRepo;
-    private final CheckRepository checkRepository;
+    // Deprecated: CheckRepository는 더 이상 사용되지 않음
+    // private final CheckRepository checkRepository;
 
     public AlertEvaluatorService(
-            AlertRuleRepository ruleRepo,
+            // AlertRuleRepository ruleRepo,  // Deprecated
             AlertRuleRecipientLinkRepository linkRepo,
-            NotificationOutboxRepository outboxRepo,
-            CheckRepository checkRepository
+            NotificationOutboxRepository outboxRepo
+            // CheckRepository checkRepository  // Deprecated
     ) {
-        this.ruleRepo = ruleRepo;
+        // this.ruleRepo = ruleRepo;  // Deprecated
         this.linkRepo = linkRepo;
         this.outboxRepo = outboxRepo;
-        this.checkRepository = checkRepository;
+        // this.checkRepository = checkRepository;  // Deprecated
     }
 
     @Transactional
     public void evaluateAndEnqueue(CheckRunEntity run) {
-        List<AlertRuleEntity> rules = ruleRepo.findByEnabledTrue();
-        if (rules.isEmpty()) return;
-
+        // Deprecated: AlertRuleRepository 사용 불가
+        // List<AlertRuleEntity> rules = ruleRepo.findByEnabledTrue();
+        // if (rules.isEmpty()) return;
+        log.warn("AlertEvaluatorService.evaluateAndEnqueue is deprecated and not implemented");
+        // Deprecated: 아래 코드는 더 이상 실행되지 않음
+        /*
         OffsetDateTime now = OffsetDateTime.now();
 
         for (AlertRuleEntity rule : rules) {
@@ -82,11 +87,12 @@ public class AlertEvaluatorService {
                 log.info("[Rule 2] 규칙 조건 만족. 알림 큐에 추가 시작.");
             }
             
-            rule.setLastFiredAt(now);
-            ruleRepo.save(rule);
-
-            enqueue(rule, run, now);
+            // Deprecated: AlertRuleRepository 사용 불가
+            // rule.setLastFiredAt(now);
+            // ruleRepo.save(rule);
+            // enqueue(rule, run, now);
         }
+        */
     }
 
     private boolean isScopeMatch(AlertRuleEntity rule, CheckRunEntity run) {
@@ -102,6 +108,7 @@ public class AlertEvaluatorService {
         return last.plusSeconds(cd).isBefore(now);
     }
 
+    @SuppressWarnings("unused")
     private boolean evaluateRule(AlertRuleEntity rule, CheckRunEntity run) {
         String output = (run.getOutput() == null) ? "" : run.getOutput();
 
@@ -158,6 +165,7 @@ public class AlertEvaluatorService {
         }
     }
 
+    @SuppressWarnings("unused")
     private void enqueue(AlertRuleEntity rule, CheckRunEntity run, OffsetDateTime now) {
         // link와 함께 alert_recipients(수신자) JOIN FETCH 로 로드
         List<AlertRuleRecipientLinkEntity> links = linkRepo.findByRuleIdAndEnabledTrue(rule.getId());
@@ -279,6 +287,7 @@ public class AlertEvaluatorService {
         return x;
     }
 
+    @SuppressWarnings("unused")
     private String renderMessage(AlertRuleEntity rule, CheckRunEntity run) {
         String tpl = rule.getMessageTemplate();
         if (!StringUtils.hasText(tpl)) {
@@ -295,9 +304,12 @@ public class AlertEvaluatorService {
                     """;
         }
 
-        var checkOpt = run.getCheckId() != null ? checkRepository.findById(run.getCheckId()) : Optional.<CheckEntity>empty();
-        String targetName = checkOpt.map(c -> c.getTargetName() != null ? c.getTargetName() : "").orElse("");
-        String checkName = checkOpt.map(c -> c.getName() != null ? c.getName() : "").orElse("");
+        // Deprecated: CheckRepository 사용 불가
+        // var checkOpt = run.getCheckId() != null ? checkRepository.findById(run.getCheckId()) : Optional.<CheckEntity>empty();
+        // String targetName = checkOpt.map(c -> c.getTargetName() != null ? c.getTargetName() : "").orElse("");
+        // String checkName = checkOpt.map(c -> c.getName() != null ? c.getName() : "").orElse("");
+        String targetName = "";
+        String checkName = "";
         int outputLen = (run.getOutput() != null) ? run.getOutput().length() : 0;
         String threshold = (rule.getThresholdNum() != null) ? String.valueOf(rule.getThresholdNum())
                 : (rule.getThresholdLen() != null) ? String.valueOf(rule.getThresholdLen()) : "";

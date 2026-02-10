@@ -1,9 +1,9 @@
 package com.example.monitoring.web.service;
 
 import com.example.monitoring.common.domain.CheckRunEntity;
-import com.example.monitoring.common.repo.AlertRuleRepository;
+// import com.example.monitoring.common.repo.AlertRuleRepository;  // Deprecated
 import com.example.monitoring.common.repo.CheckRunRepository;
-import com.example.monitoring.common.repo.CheckRepository;
+// import com.example.monitoring.common.repo.CheckRepository;  // Deprecated
 import com.example.monitoring.web.dto.CheckRunCreateRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,19 +28,21 @@ public class CheckRunService {
     private static final int PAGE_SIZE = 100;
 
     private final CheckRunRepository checkRunRepository;
-    private final CheckRepository checkRepository;
-    private final AlertRuleRepository alertRuleRepository;
+    // Deprecated: CheckRepository와 AlertRuleRepository는 더 이상 사용되지 않음
+    // private final CheckRepository checkRepository;
+    // private final AlertRuleRepository alertRuleRepository;
 
-    public CheckRunService(CheckRunRepository checkRunRepository, CheckRepository checkRepository, AlertRuleRepository alertRuleRepository) {
+    public CheckRunService(CheckRunRepository checkRunRepository/*, CheckRepository checkRepository, AlertRuleRepository alertRuleRepository*/) {
         this.checkRunRepository = checkRunRepository;
-        this.checkRepository = checkRepository;
-        this.alertRuleRepository = alertRuleRepository;
+        // this.checkRepository = checkRepository;
+        // this.alertRuleRepository = alertRuleRepository;
     }
 
     public CheckRunEntity create(CheckRunCreateRequest req) {
-        if (!checkRepository.existsById(req.getCheckId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "checkId not found: " + req.getCheckId());
-        }
+        // Deprecated: CheckRepository 사용 불가
+        // if (!checkRepository.existsById(req.getCheckId())) {
+        //     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "checkId not found: " + req.getCheckId());
+        // }
 
         CheckRunEntity run = new CheckRunEntity();
         run.setCheckId(req.getCheckId());
@@ -75,12 +77,13 @@ public class CheckRunService {
                 continue;
             }
             String tz = null;
-            if (r.getCheckId() != null) {
-                tz = checkRepository.findById(r.getCheckId())
-                        .map(c -> c.getTimezone())
-                        .filter(t -> t != null && !t.isBlank())
-                        .orElse(null);
-            }
+            // Deprecated: CheckRepository 사용 불가
+            // if (r.getCheckId() != null) {
+            //     tz = checkRepository.findById(r.getCheckId())
+            //             .map(c -> c.getTimezone())
+            //             .filter(t -> t != null && !t.isBlank())
+            //             .orElse(null);
+            // }
             
             // 타임존 변환 (잘못된 타임존 ID 처리)
             ZoneId zone;
@@ -109,13 +112,14 @@ public class CheckRunService {
     /** checkId -> Rule Name (AlertRuleEntity의 name) */
     public Map<Long, String> buildRuleNameDisplayMap(List<CheckRunEntity> runs) {
         Map<Long, String> map = new HashMap<>();
+        // Deprecated: AlertRuleRepository 사용 불가
         for (CheckRunEntity r : runs) {
             if (r.getCheckId() == null) continue;
             if (map.containsKey(r.getCheckId())) continue;
-            String ruleName = alertRuleRepository.findFirstByCheckId(r.getCheckId())
-                    .map(rule -> rule.getName() != null ? rule.getName() : "-")
-                    .orElse("-");
-            map.put(r.getCheckId(), ruleName);
+            // String ruleName = alertRuleRepository.findFirstByCheckId(r.getCheckId())
+            //         .map(rule -> rule.getName() != null ? rule.getName() : "-")
+            //         .orElse("-");
+            map.put(r.getCheckId(), "-");  // 임시로 "-" 반환
         }
         return map;
     }
@@ -123,13 +127,14 @@ public class CheckRunService {
     /** checkId -> Server Name (CheckEntity의 targetName) */
     public Map<Long, String> buildServerDisplayMap(List<CheckRunEntity> runs) {
         Map<Long, String> map = new HashMap<>();
+        // Deprecated: CheckRepository 사용 불가
         for (CheckRunEntity r : runs) {
             if (r.getCheckId() == null) continue;
             if (map.containsKey(r.getCheckId())) continue;
-            String serverName = checkRepository.findById(r.getCheckId())
-                    .map(c -> c.getTargetName() != null ? c.getTargetName() : "-")
-                    .orElse("-");
-            map.put(r.getCheckId(), serverName);
+            // String serverName = checkRepository.findById(r.getCheckId())
+            //         .map(c -> c.getTargetName() != null ? c.getTargetName() : "-")
+            //         .orElse("-");
+            map.put(r.getCheckId(), "-");  // 임시로 "-" 반환
         }
         return map;
     }

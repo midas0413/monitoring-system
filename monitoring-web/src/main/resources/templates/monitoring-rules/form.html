@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="content">
+  <div class="container-fluid">
+    <div class="page-header mb-3">
+      <h5 th:text="${form.id != null} ? 'Edit Monitoring Rule' : 'New Monitoring Rule'">Form</h5>
+      <div class="page-header-actions">
+        <a class="btn btn-outline-secondary" th:href="@{/monitoring-rules}">Back</a>
+      </div>
+    </div>
+
+    <div class="card card-shadow">
+      <div class="card-body">
+        <form method="post" 
+              th:action="${form.id != null} ? @{/monitoring-rules/{id}(id=${form.id})} : @{/monitoring-rules/new}" 
+              th:object="${form}">
+
+          <!-- 기본 정보 -->
+          <div class="row g-3">
+            <div class="col-12"><h6 class="text-muted border-bottom pb-2">기본 정보</h6></div>
+            <div class="col-md-4">
+              <label class="form-label">Rule Name <span class="text-danger">*</span></label>
+              <input class="form-control" type="text" th:field="*{name}" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Server <span class="text-danger">*</span></label>
+              <select class="form-select" id="serverId" th:field="*{serverId}" required>
+                <option value="">-- Select Server --</option>
+                <option th:each="server : ${servers}" 
+                        th:value="${server.id}" 
+                        th:text="${server.name} + ' (' + ${server.host} + ')'">
+                </option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Monitoring Type <span class="text-danger">*</span></label>
+              <select class="form-select" id="monitoringType" th:field="*{monitoringType}" required>
+                <option value="">-- Select Type --</option>
+                <option th:each="type : ${monitoringTypes}" 
+                        th:value="${type.codeValue}" 
+                        th:text="${type.codeLabel}">
+                </option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Enabled</label>
+              <div class="d-flex gap-3 pt-2">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="enabled" id="enabledOn" th:value="true" th:field="*{enabled}">
+                  <label class="form-check-label" for="enabledOn">ON</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="enabled" id="enabledOff" th:value="false" th:field="*{enabled}">
+                  <label class="form-check-label" for="enabledOff">OFF</label>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Interval(sec)</label>
+              <input class="form-control" type="number" th:field="*{intervalSec}" required>
+            </div>
+          </div>
+
+          <!-- SSH 연결 정보는 서버 정보에서 가져오므로 제거됨 -->
+
+          <!-- DB 연결 정보 (DB 타입용) -->
+          <div class="row g-3" id="dbBlock" style="display:none;">
+            <div class="col-12"><h6 class="text-muted border-bottom pb-2">DB 연결 정보</h6></div>
+            <div class="col-md-2">
+              <label class="form-label">DB Type <span class="text-danger">*</span></label>
+              <select class="form-select" id="dbType" th:field="*{dbType}" required>
+                <option value="">-- Select --</option>
+                <option value="postgresql">PostgreSQL</option>
+                <option value="mysql">MySQL</option>
+                <option value="oracle">Oracle</option>
+                <option value="mssql">MSSQL</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">DB Port <span class="text-danger">*</span></label>
+              <input class="form-control" type="number" id="dbPort" th:field="*{dbPort}" required placeholder="5432">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">DB Name <span class="text-danger">*</span></label>
+              <input class="form-control" id="dbName" th:field="*{dbName}" required placeholder="database_name">
+              <small class="form-text text-muted" id="dbNameHelp" style="display:none;">Oracle: SID 또는 /service_name</small>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">DB Username <span class="text-danger">*</span></label>
+              <input class="form-control" id="dbUsername" th:field="*{dbUsername}" required placeholder="username">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">DB Password <span class="text-danger">*</span></label>
+              <input class="form-control" type="password" id="dbPassword" th:field="*{dbPassword}" required placeholder="password">
+              <small class="form-text text-muted">Leave blank to keep existing password</small>
+            </div>
+            <div class="col-12">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="form-label mb-0">SQL Script <span class="text-danger">*</span></label>
+                <button type="button" class="btn btn-sm btn-outline-info" id="testSqlBtn">
+                  <i class="bi bi-check-circle"></i> SQL 테스트
+                </button>
+              </div>
+              <div id="sqlTestResult" class="alert mb-2" style="display:none;" role="alert"></div>
+              <textarea class="form-control" rows="6" id="sqlScript" th:field="*{sqlScript}" required
+                        placeholder="SELECT COUNT(*) FROM table_name WHERE condition = 'value'"></textarea>
+              <small class="form-text text-muted">SQL 쿼리를 입력하세요. 결과는 1행 1열 값으로 반환됩니다. DB URL은 서버의 Host 정보를 기반으로 자동 생성됩니다.</small>
+            </div>
+          </div>
+
+          <!-- SHELL 타입 전용 -->
+          <div class="row g-3" id="shellBlock" style="display:none;">
+            <div class="col-12"><h6 class="text-muted border-bottom pb-2">Shell Script</h6></div>
+            <div class="col-12">
+              <label class="form-label">Shell Script</label>
+              <textarea class="form-control" rows="4" th:field="*{shellScript}"></textarea>
+            </div>
+          </div>
+
+          <!-- LOGS 타입 전용 -->
+          <div class="row g-3" id="logsBlock" style="display:none;">
+            <div class="col-12"><h6 class="text-muted border-bottom pb-2">Log File Settings</h6></div>
+            <div class="col-md-6">
+              <label class="form-label">Log File Path</label>
+              <input class="form-control" th:field="*{logFilePath}" placeholder="/var/log/app.log">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Include Keywords</label>
+              <input class="form-control" th:field="*{includeKeywords}" placeholder="ERROR,FAIL,CRITICAL">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Exclude Keywords</label>
+              <input class="form-control" th:field="*{excludeKeywords}" placeholder="DEBUG,INFO">
+            </div>
+          </div>
+
+          <!-- DISK_SPACE 타입 전용 -->
+          <div class="row g-3" id="diskBlock" style="display:none;">
+            <div class="col-12"><h6 class="text-muted border-bottom pb-2">Disk Space Settings</h6></div>
+            <div class="col-md-6">
+              <label class="form-label">Disk Path</label>
+              <input class="form-control" th:field="*{diskPath}" placeholder="/, /var, /home">
+            </div>
+          </div>
+
+          <!-- 알림 규칙 -->
+          <div class="row g-3">
+            <div class="col-12"><h6 class="text-muted border-bottom pb-2">알림 규칙</h6></div>
+            <div class="col-md-3">
+              <label class="form-label">Alert Operator <span class="text-danger">*</span></label>
+              <select class="form-select" th:field="*{alertOperator}" required>
+                <option value="">-- Select Operator --</option>
+                <option th:each="op : ${alertOperators}" 
+                        th:value="${op.codeValue}" 
+                        th:text="${op.codeLabel}">
+                </option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Threshold Num</label>
+              <input class="form-control" type="number" step="0.0001" th:field="*{thresholdNum}">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Threshold Len</label>
+              <input class="form-control" type="number" th:field="*{thresholdLen}">
+            </div>
+            <div class="col-md-5">
+              <label class="form-label">Pattern (regex)</label>
+              <input class="form-control" th:field="*{pattern}">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Cooldown(sec)</label>
+              <input class="form-control" type="number" th:field="*{cooldownSec}" required>
+            </div>
+            <div class="col-md-10">
+              <label class="form-label">Channels</label>
+              <div class="d-flex gap-4">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="SMS" th:field="*{channelList}">
+                  <label class="form-check-label">SMS</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="EMAIL" th:field="*{channelList}">
+                  <label class="form-check-label">EMAIL</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="KAKAO" th:field="*{channelList}">
+                  <label class="form-check-label">KAKAO</label>
+                </div>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Message Template <span class="text-danger">*</span></label>
+              <textarea class="form-control" rows="3" th:field="*{messageTemplate}" required
+                        placeholder="예: [${ruleName}] 모니터링에 알림 발생.&#10;임계값 : ${threshold}&#10;현재값 : ${outputNum}&#10;발생시각 : ${finishedAt} [${finishedAtLocal}]"></textarea>
+              <div class="form-text small text-muted mt-2">
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" 
+                        data-bs-target="#messageTemplateHelp" aria-expanded="false" aria-controls="messageTemplateHelp"
+                        id="messageTemplateHelpToggle">
+                  <i class="bi bi-chevron-down" id="messageTemplateHelpIcon"></i> 사용 가능한 변수 보기
+                </button>
+                <div class="collapse mt-2" id="messageTemplateHelp">
+                  <div class="border rounded p-3 bg-light">
+                    <strong class="d-block mb-2">📝 사용 가능한 변수 (${변수명} 또는 {변수명} 형식 사용)</strong>
+                  
+                  <div class="row">
+                    <div class="col-md-6">
+                      <strong class="text-primary">📋 Rule 정보</strong>
+                      <ul class="small mb-2">
+                        <li><code>${ruleName}</code> - Rule 이름</li>
+                        <li><code>${ruleId}</code> - Rule ID</li>
+                        <li><code>${monitoringType}</code> - 모니터링 타입 (SHELL, DB, LOGS, DISK_SPACE)</li>
+                        <li><code>${alertOperator}</code> - 알림 연산자 (RUN_FAILED, OUTPUT_NUM_GT 등)</li>
+                      </ul>
+                      
+                      <strong class="text-primary">🖥️ 서버 정보</strong>
+                      <ul class="small mb-2">
+                        <li><code>${serverId}</code> - 서버 ID</li>
+                        <li><code>${serverName}</code> - 서버명</li>
+                        <li><code>${serverHost}</code> - 서버 호스트 (IP 또는 도메인)</li>
+                        <li><code>${serverTimezone}</code> - 서버 타임존 (예: Asia/Seoul)</li>
+                      </ul>
+                      
+                      <strong class="text-primary">📊 실행 결과</strong>
+                      <ul class="small mb-2">
+                        <li><code>${success}</code> - 실행 성공 여부 (true/false)</li>
+                        <li><code>${status}</code> - 실행 상태 (SUCCESS/FAIL/UNKNOWN)</li>
+                        <li><code>${output}</code> - 출력 내용 (전체)</li>
+                        <li><code>${error}</code> - 에러 메시지 (실패 시)</li>
+                      </ul>
+                    </div>
+                    
+                    <div class="col-md-6">
+                      <strong class="text-primary">🔢 출력 값</strong>
+                      <ul class="small mb-2">
+                        <li><code>${outputNum}</code> - 출력에서 추출한 숫자 값</li>
+                        <li><code>${outputLen}</code> - 출력 길이 (문자 수)</li>
+                      </ul>
+                      
+                      <strong class="text-primary">⚙️ 임계값</strong>
+                      <ul class="small mb-2">
+                        <li><code>${threshold}</code> - 임계값 (thresholdNum 또는 thresholdLen)</li>
+                        <li><code>${thresholdNum}</code> - 숫자 임계값</li>
+                        <li><code>${thresholdLen}</code> - 길이 임계값</li>
+                        <li><code>${pattern}</code> - 패턴 (정규식 또는 포함 문자열)</li>
+                      </ul>
+                      
+                      <strong class="text-primary">⏰ 모니터링 시각</strong>
+                      <ul class="small mb-2">
+                        <li><code>${startedAt}</code> - 시작 시간 (UTC, yyyy-MM-dd HH:mm:ss)</li>
+                        <li><code>${finishedAt}</code> - 종료 시간 (UTC, yyyy-MM-dd HH:mm:ss)</li>
+                        <li><code>${startedAtLocal}</code> - 시작 시간 (현지 시각, yyyy-MM-dd HH:mm:ss)</li>
+                        <li><code>${finishedAtLocal}</code> - 종료 시간 (현지 시각, yyyy-MM-dd HH:mm:ss)</li>
+                        <li><code>${startedDate}</code> - 시작 날짜 (현지 시각, yyyy-MM-dd)</li>
+                        <li><code>${finishedDate}</code> - 종료 날짜 (현지 시각, yyyy-MM-dd)</li>
+                        <li><code>${startedTime}</code> - 시작 시간 (현지 시각, HH:mm:ss)</li>
+                        <li><code>${finishedTime}</code> - 종료 시간 (현지 시각, HH:mm:ss)</li>
+                        <li><code>${durationMs}</code> - 실행 시간 (밀리초)</li>
+                        <li><code>${duration}</code> - 실행 시간 (가독성 형식: X시간 Y분 Z초)</li>
+                      </ul>
+                    </div>
+                  </div>
+                  
+                  <div class="mt-2 pt-2 border-top">
+                    <small class="text-muted">
+                      💡 <strong>팁:</strong> 현지 시각 변수(${finishedAtLocal}, ${startedAtLocal} 등)는 서버에 설정된 타임존을 기준으로 자동 변환됩니다.
+                      예: 서버 타임존이 "Asia/Seoul"인 경우, UTC 시간이 한국 시간으로 변환되어 표시됩니다.
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Save</button>
+            <a class="btn btn-outline-secondary" th:href="@{/monitoring-rules}">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script th:inline="javascript">
+  (function(){
+    var typeSel = document.getElementById('monitoringType');
+    var dbBlock = document.getElementById('dbBlock');
+    var shellBlock = document.getElementById('shellBlock');
+    var logsBlock = document.getElementById('logsBlock');
+    var diskBlock = document.getElementById('diskBlock');
+    
+    function toggleType(){
+      var t = typeSel.value;
+      // SSH 정보는 서버에서 가져오므로 SSH 블록 제거
+      // DB는 DB 타입에서만 사용
+      dbBlock.style.display = (t === 'DB') ? 'block' : 'none';
+      // 타입별 전용 필드
+      shellBlock.style.display = (t === 'SHELL') ? 'block' : 'none';
+      logsBlock.style.display = (t === 'LOGS') ? 'block' : 'none';
+      diskBlock.style.display = (t === 'DISK_SPACE') ? 'block' : 'none';
+    }
+    
+    typeSel.addEventListener('change', toggleType);
+    toggleType(); // 초기 로드 시에도 실행
+    
+    // Oracle 선택 시 DB Name 도움말 표시
+    var dbTypeSelect = document.getElementById('dbType');
+    var dbNameHelp = document.getElementById('dbNameHelp');
+    if (dbTypeSelect && dbNameHelp) {
+      dbTypeSelect.addEventListener('change', function() {
+        if (this.value && this.value.toLowerCase() === 'oracle') {
+          dbNameHelp.style.display = 'block';
+          dbNameHelp.textContent = 'Oracle: SID (예: IRMDB) 또는 Service Name (예: /IRMDB)';
+        } else {
+          dbNameHelp.style.display = 'none';
+        }
+      });
+      // 초기 로드 시에도 체크
+      if (dbTypeSelect.value && dbTypeSelect.value.toLowerCase() === 'oracle') {
+        dbNameHelp.style.display = 'block';
+        dbNameHelp.textContent = 'Oracle: SID (예: IRMDB) 또는 Service Name (예: /IRMDB)';
+      }
+    }
+    
+    // SQL 테스트 버튼
+    var testSqlBtn = document.getElementById('testSqlBtn');
+    var sqlTestResult = document.getElementById('sqlTestResult');
+    var sqlScript = document.getElementById('sqlScript');
+    
+    if (testSqlBtn) {
+      testSqlBtn.addEventListener('click', function() {
+        // ID로 요소 찾기 (명시적으로 id 속성 추가됨)
+        var serverSelect = document.getElementById('serverId');
+        var serverId = serverSelect ? serverSelect.value : null;
+        var dbType = document.getElementById('dbType')?.value;
+        var dbPort = document.getElementById('dbPort')?.value;
+        var dbName = document.getElementById('dbName')?.value;
+        var dbUsername = document.getElementById('dbUsername')?.value;
+        var dbPassword = document.getElementById('dbPassword')?.value;
+        var sql = sqlScript ? sqlScript.value : '';
+        
+        if (!serverId || serverId === '' || serverId === '0') {
+          showSqlTestResult(false, '서버를 선택하세요.');
+          return;
+        }
+        if (!dbType || !dbPort || !dbName) {
+          showSqlTestResult(false, 'DB Type, Port, DB Name을 입력하세요.');
+          return;
+        }
+        if (!dbUsername) {
+          showSqlTestResult(false, 'DB Username을 입력하세요.');
+          return;
+        }
+        if (!sql || !sql.trim()) {
+          showSqlTestResult(false, 'SQL Script를 입력하세요.');
+          return;
+        }
+        
+        // 서버 정보 가져오기 (AJAX)
+        fetch('/api/servers/' + serverId + '/host')
+          .then(response => response.json())
+          .then(data => {
+            if (!data.host) {
+              showSqlTestResult(false, '서버의 Host 정보를 가져올 수 없습니다.');
+              return;
+            }
+            
+            testSqlBtn.disabled = true;
+            testSqlBtn.textContent = '테스트 중...';
+            sqlTestResult.style.display = 'none';
+            
+            var formData = new FormData();
+            formData.append('host', data.host);
+            formData.append('dbType', dbType);
+            formData.append('dbPort', dbPort);
+            formData.append('dbName', dbName);
+            formData.append('dbUsername', dbUsername);
+            if (dbPassword) formData.append('dbPassword', dbPassword);
+            formData.append('sql', sql);
+            
+            return fetch('/api/checks/test/sql', {
+              method: 'POST',
+              body: formData
+            });
+          })
+          .then(response => {
+            if (!response) return;
+            return response.json();
+          })
+          .then(data => {
+            if (data) {
+              showSqlTestResult(data.success, data.output);
+            }
+          })
+          .catch(error => {
+            showSqlTestResult(false, '테스트 중 오류가 발생했습니다: ' + error.message);
+          })
+          .finally(() => {
+            if (testSqlBtn) {
+              testSqlBtn.disabled = false;
+              testSqlBtn.innerHTML = '<i class="bi bi-check-circle"></i> SQL 테스트';
+            }
+          });
+      });
+    }
+    
+    function showSqlTestResult(success, message) {
+      if (!sqlTestResult) return;
+      sqlTestResult.className = 'alert alert-dismissible fade show mb-2 ' + (success ? 'alert-success' : 'alert-danger');
+      sqlTestResult.innerHTML = '<span>' + message + '</span><button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+      sqlTestResult.style.display = 'block';
+    }
+    
+    // 메시지 템플릿 도움말 collapse 아이콘 토글
+    var messageTemplateHelp = document.getElementById('messageTemplateHelp');
+    var messageTemplateHelpIcon = document.getElementById('messageTemplateHelpIcon');
+    if (messageTemplateHelp && messageTemplateHelpIcon) {
+      messageTemplateHelp.addEventListener('show.bs.collapse', function () {
+        messageTemplateHelpIcon.className = 'bi bi-chevron-up';
+      });
+      messageTemplateHelp.addEventListener('hide.bs.collapse', function () {
+        messageTemplateHelpIcon.className = 'bi bi-chevron-down';
+      });
+    }
+  })();
+  </script>
+</div>
+</body>
+</html>

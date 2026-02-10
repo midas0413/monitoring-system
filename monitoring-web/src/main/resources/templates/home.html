@@ -8,36 +8,84 @@
     <div class="page-header mb-4">
       <div>
         <h5 class="mb-1">Monitoring Dashboard</h5>
-        <div class="text-muted small">대상별 체크 상태 및 알림 현황</div>
+        <div class="text-muted small">서버별 모니터링 상태 및 알림 현황</div>
       </div>
     </div>
 
-    <!-- 1. 대상별 체크 카드 -->
-    <div class="row g-3 mb-4">
-      <div class="col-12 col-lg-6 col-xl-4" th:each="entry : ${checksByTarget}">
-        <div class="card card-shadow h-100">
+    <!-- 1. VPN 연결 상태 카드 (상단) -->
+    <div class="row g-3 mb-4" th:if="${vpns != null && !vpns.isEmpty()}">
+      <div class="col-12">
+        <h6 class="mb-2">VPN 연결 상태</h6>
+      </div>
+      <div class="col-12 col-md-6 col-lg-4" th:each="vpn : ${vpns}">
+        <div class="card card-shadow h-100" th:attr="data-vpn-id=${vpn.id}">
           <div class="card-header d-flex justify-content-between align-items-center py-2">
-            <span class="fw-bold" th:text="${entry.key}">Target</span>
-            <span class="server-status-indicator" th:attr="data-target-name=${entry.key}">
-              <span class="status-dot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: #6c757d; margin-left: 8px;"></span>
-            </span>
+            <span class="fw-bold" th:text="${vpn.name}">VPN Name</span>
+            <span class="badge rounded-pill vpn-status-badge" 
+                  th:classappend="${vpn.status == T(com.example.monitoring.common.domain.ServerStatus).UP} ? ' text-bg-success' : 
+                                  (${vpn.status == T(com.example.monitoring.common.domain.ServerStatus).DOWN} ? ' text-bg-danger' : ' text-bg-secondary')"
+                  th:text="${vpn.status}">UNKNOWN</span>
           </div>
           <div class="card-body py-2">
-            <div class="border-top pt-2">
-              <div class="small fw-semibold mb-1">Checks</div>
+            <div class="small">
+              <div class="mb-1"><strong>VPN TEST IP:</strong> <span th:text="${vpn.host}">-</span></div>
+              <div class="mb-1" th:if="${vpn.lastCheckedAt != null}">
+                <strong>마지막 확인:</strong> <span class="vpn-last-checked" th:text="${#temporals.format(vpn.lastCheckedAt, 'yyyy-MM-dd HH:mm:ss')}">-</span>
+              </div>
+              <div th:if="${vpn.lastStatusChangeAt != null}">
+                <strong>상태 변경:</strong> <span th:text="${#temporals.format(vpn.lastStatusChangeAt, 'yyyy-MM-dd HH:mm:ss')}">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 서버별 모니터링 카드 -->
+    <div class="row g-3 mb-4">
+      <div class="col-12">
+        <h6 class="mb-2">서버별 모니터링</h6>
+      </div>
+      <div class="col-12 col-md-6 col-lg-4" th:each="server : ${servers}">
+        <div class="card card-shadow h-100">
+          <div class="card-header d-flex justify-content-between align-items-center py-2">
+            <div>
+              <span class="fw-bold" th:text="${server.name}">Server Name</span>
+              <span class="badge rounded-pill ms-2" 
+                    th:classappend="${serverStatusMap != null && serverStatusMap.get(server.id) == T(com.example.monitoring.common.domain.ServerStatus).UP} ? ' text-bg-success' : 
+                                    (${serverStatusMap != null && serverStatusMap.get(server.id) == T(com.example.monitoring.common.domain.ServerStatus).DOWN} ? ' text-bg-danger' : ' text-bg-secondary')"
+                    th:text="${serverStatusMap != null && serverStatusMap.get(server.id) != null ? serverStatusMap.get(server.id) : 'UNKNOWN'}">UNKNOWN</span>
+            </div>
+          </div>
+          <div class="card-body py-2">
+            <div class="small mb-2">
+              <div class="mb-1"><strong>호스트:</strong> <span th:text="${server.host}">-</span></div>
+              <div class="mb-1"><strong>용도:</strong> <span th:text="${server.serverPurpose}">-</span></div>
+              <div><strong>타임존:</strong> <span th:text="${server.timezone}">-</span></div>
+            </div>
+            <div class="border-top pt-2 mt-2">
+              <div class="small fw-semibold mb-1">Monitoring Rules</div>
               <ul class="list-unstyled small mb-0">
-                <li class="d-flex justify-content-between align-items-center py-1 border-bottom" th:each="check : ${entry.value}">
-                  <span th:text="${check.name}">check</span>
-                  <span class="badge bg-primary notification-badge" th:attr="data-check-id=${check.id}" th:text="${'알림 ' + (notificationCountByCheck != null && notificationCountByCheck[check.id] != null ? notificationCountByCheck[check.id] : 0) + '건'}">0건</span>
+                <li class="d-flex justify-content-between align-items-center py-1 border-bottom" 
+                    th:each="rule : ${rulesByServer != null ? rulesByServer.get(server.id) : null}">
+                  <span th:text="${rule.name}">rule</span>
+                  <span class="badge bg-primary" 
+                        th:text="${notificationCountByServer != null && notificationCountByServer.get(server.id) != null ? notificationCountByServer.get(server.id) : 0} + '건'">0건</span>
                 </li>
-                <li class="text-muted py-1" th:if="${entry.value == null || entry.value.isEmpty()}">해당 데이터가 없습니다</li>
+                <li class="text-muted py-1" 
+                    th:if="${rulesByServer == null || rulesByServer.get(server.id) == null || rulesByServer.get(server.id).isEmpty()}">
+                  해당 데이터가 없습니다
+                </li>
               </ul>
             </div>
           </div>
           <div class="card-footer py-2">
-            <a class="btn btn-outline-primary btn-sm" th:href="@{/rules/new}">+ New Rule</a>
+            <a class="btn btn-outline-primary btn-sm" th:href="@{/monitoring-rules/new}">+ New Rule</a>
           </div>
         </div>
+      </div>
+      <div class="col-12" th:if="${servers == null || servers.isEmpty()}">
+        <div class="alert alert-info mb-0">등록된 서버가 없습니다. <a th:href="@{/servers/new}">서버를 등록</a>하세요.</div>
       </div>
     </div>
 
@@ -50,11 +98,11 @@
       <div class="card-body">
         <form class="row g-2 mb-3" method="get" th:action="@{/}">
           <div class="col-auto">
-            <label class="form-label col-form-label-sm mb-0">Check</label>
-            <select class="form-select form-select-sm" name="checkId" style="min-width:140px; max-width:100%">
+            <label class="form-label col-form-label-sm mb-0">Rule</label>
+            <select class="form-select form-select-sm" name="ruleId" style="min-width:200px; max-width:100%">
               <option value="">-- All --</option>
-              <option th:each="c : ${allChecks}" th:value="${c.id}" th:text="'#' + ${c.id} + ' ' + ${c.name}"
-                      th:selected="${filterCheckId != null && filterCheckId == c.id}">#1 check</option>
+              <option th:each="r : ${allRules}" th:value="${r.id}" th:text="'#' + ${r.id} + ' ' + ${r.name}"
+                      th:selected="${filterRuleId != null && filterRuleId == r.id}">#1 rule</option>
             </select>
           </div>
           <div class="col-auto d-flex align-items-end">
@@ -215,6 +263,37 @@
     tbody.innerHTML = html;
   }
   
+  function updateVpnStatus(vpns, vpnStatusMap) {
+    if (!vpns || !vpnStatusMap) return;
+    
+    vpns.forEach(function(vpn) {
+      const vpnCard = document.querySelector('[data-vpn-id="' + vpn.id + '"]');
+      if (!vpnCard) return;
+      
+      const status = vpnStatusMap[vpn.id] || 'UNKNOWN';
+      const badge = vpnCard.querySelector('.vpn-status-badge');
+      if (badge) {
+        badge.textContent = status;
+        badge.className = 'badge rounded-pill';
+        if (status === 'UP') {
+          badge.classList.add('text-bg-success');
+        } else if (status === 'DOWN') {
+          badge.classList.add('text-bg-danger');
+        } else {
+          badge.classList.add('text-bg-secondary');
+        }
+      }
+      
+      // 마지막 확인 시간 업데이트
+      if (vpn.lastCheckedAt) {
+        const lastCheckedEl = vpnCard.querySelector('.vpn-last-checked');
+        if (lastCheckedEl) {
+          lastCheckedEl.textContent = formatDateTime(vpn.lastCheckedAt);
+        }
+      }
+    });
+  }
+  
   function refreshData() {
     const url = '/api/home/refresh' + (checkId ? '?checkId=' + checkId : '');
     
@@ -234,6 +313,9 @@
         }
         if (data.checkRuns) {
           updateCheckRunsTable(data.checkRuns, data.startedDisplay || {}, data.ruleNameDisplay || {}, data.serverDisplay || {});
+        }
+        if (data.vpns && data.vpnStatusMap) {
+          updateVpnStatus(data.vpns, data.vpnStatusMap);
         }
       })
       .catch(function(error) {

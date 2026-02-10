@@ -1,0 +1,302 @@
+<div th:fragment="content">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 th:text="${form.id != null ? 'Edit Notification Setting' : 'New Notification Setting'}">Notification Setting Form</h2>
+    <a th:href="@{/settings/notification}" class="btn btn-secondary">Back to List</a>
+  </div>
+
+  <!-- 메시지 -->
+  <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <span th:text="${error}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
+  <form th:action="${form.id != null ? '/settings/notification/' + form.id : '/settings/notification/new'}" 
+        method="post" th:object="${form}">
+    <input type="hidden" th:field="*{id}" />
+
+    <div class="row">
+      <div class="col-md-6">
+        <div class="mb-3">
+          <label for="name" class="form-label">Setting Name <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="name" th:field="*{name}" required 
+                 placeholder="e.g., ALIGO_MAIN, SMTP_PRIMARY">
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="mb-3">
+          <label for="provider" class="form-label">Provider <span class="text-danger">*</span></label>
+          <select class="form-select" id="provider" th:field="*{provider}" required>
+            <option value="">-- Select Provider --</option>
+            <option value="ALIGO">ALIGO</option>
+            <option value="SMTP">SMTP</option>
+            <option value="SLACK">SLACK</option>
+            <option value="ETC">ETC</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="enabled" th:field="*{enabled}">
+        <label class="form-check-label" for="enabled">Enabled</label>
+      </div>
+    </div>
+
+    <!-- Provider별 설정 섹션 -->
+    <div id="providerSettings" class="mt-4" style="display:none;">
+      <h5 class="mb-3 border-bottom pb-2" id="providerSettingsTitle">Provider Settings</h5>
+      
+      <!-- Aligo 설정 -->
+      <div id="aligoSettings" style="display:none;">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="aligoApiKey" class="form-label">API Key <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="aligoApiKey" th:field="*{aligoApiKey}" 
+                     placeholder="Aligo API Key">
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="aligoUserId" class="form-label">User ID <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="aligoUserId" th:field="*{aligoUserId}" 
+                     placeholder="Aligo User ID">
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="aligoSender" class="form-label">Sender (발신번호) <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="aligoSender" th:field="*{aligoSender}" 
+                     placeholder="02-736-3500">
+              <small class="form-text text-muted">사이트에 등록된 발신번호</small>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="aligoSenderKey" class="form-label">Sender Key (채널 발신프로필 키) <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="aligoSenderKey" th:field="*{aligoSenderKey}" 
+                     placeholder="알림톡용 채널 발신프로필 키">
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="aligoTemplateCode" class="form-label">Template Code</label>
+              <input type="text" class="form-control" id="aligoTemplateCode" th:field="*{aligoTemplateCode}" 
+                     placeholder="알림톡 템플릿 코드">
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="aligoTestMode" class="form-label">Test Mode</label>
+              <select class="form-select" id="aligoTestMode" th:field="*{aligoTestMode}">
+                <option value="N">N (Production)</option>
+                <option value="Y">Y (Test)</option>
+              </select>
+              <small class="form-text text-muted">Y: 테스트 모드, N: 실제 전송</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SMTP 설정 -->
+      <div id="smtpSettings" style="display:none;">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="smtpHost" class="form-label">SMTP Host <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="smtpHost" th:field="*{smtpHost}" 
+                     placeholder="smtp.gmail.com">
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="smtpPort" class="form-label">SMTP Port <span class="text-danger">*</span></label>
+              <input type="number" class="form-control" id="smtpPort" th:field="*{smtpPort}" 
+                     placeholder="587">
+              <small class="form-text text-muted">일반적으로 587 (TLS) 또는 465 (SSL)</small>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="smtpUsername" class="form-label">Username <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="smtpUsername" th:field="*{smtpUsername}" 
+                     placeholder="이메일 주소">
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="smtpPassword" class="form-label">Password <span class="text-danger">*</span></label>
+              <input type="password" class="form-control" id="smtpPassword" th:field="*{smtpPassword}" 
+                     placeholder="비밀번호 또는 앱 비밀번호">
+              <small class="form-text text-muted">Gmail의 경우 앱 비밀번호 사용</small>
+            </div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label for="smtpFromEmail" class="form-label">From Email <span class="text-danger">*</span></label>
+          <input type="email" class="form-control" id="smtpFromEmail" th:field="*{smtpFromEmail}" 
+                 placeholder="sender@example.com">
+        </div>
+      </div>
+
+      <!-- Slack 설정 -->
+      <div id="slackSettings" style="display:none;">
+        <div class="mb-3">
+          <label for="slackWebhookUrl" class="form-label">Webhook URL <span class="text-danger">*</span></label>
+          <input type="url" class="form-control" id="slackWebhookUrl" 
+                 placeholder="https://hooks.slack.com/services/...">
+          <small class="form-text text-muted">Slack Incoming Webhook URL</small>
+        </div>
+        <div class="mb-3">
+          <label for="slackChannel" class="form-label">Channel</label>
+          <input type="text" class="form-control" id="slackChannel" 
+                 placeholder="#general">
+          <small class="form-text text-muted">메시지를 보낼 채널 (선택사항)</small>
+        </div>
+        <div class="mb-3">
+          <label for="slackUsername" class="form-label">Username</label>
+          <input type="text" class="form-control" id="slackUsername" 
+                 placeholder="Monitoring Bot">
+          <small class="form-text text-muted">봇 이름 (선택사항)</small>
+        </div>
+      </div>
+
+      <!-- ETC 설정 -->
+      <div id="etcSettings" style="display:none;">
+        <div class="mb-3">
+          <label for="extraConfig" class="form-label">Extra Config (JSON) <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="extraConfig" th:field="*{extraConfig}" rows="8" 
+                    placeholder='{"key1": "value1", "key2": "value2"}'></textarea>
+          <small class="form-text text-muted">JSON 형식으로 추가 설정을 입력하세요.</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="description" class="form-label">Description</label>
+      <textarea class="form-control" id="description" th:field="*{description}" rows="3"></textarea>
+    </div>
+
+    <div class="d-flex justify-content-between">
+      <a th:href="@{/settings/notification}" class="btn btn-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+
+  <script th:inline="javascript">
+  (function(){
+    var providerSel = document.getElementById('provider');
+    var providerSettings = document.getElementById('providerSettings');
+    var providerSettingsTitle = document.getElementById('providerSettingsTitle');
+    var aligoSettings = document.getElementById('aligoSettings');
+    var smtpSettings = document.getElementById('smtpSettings');
+    var slackSettings = document.getElementById('slackSettings');
+    var etcSettings = document.getElementById('etcSettings');
+    
+    function toggleProviderSettings() {
+      var provider = providerSel.value;
+      
+      // 모든 설정 섹션 숨기기
+      aligoSettings.style.display = 'none';
+      smtpSettings.style.display = 'none';
+      slackSettings.style.display = 'none';
+      etcSettings.style.display = 'none';
+      
+      // Provider가 선택되지 않았으면 전체 섹션 숨기기
+      if (!provider || provider === '') {
+        providerSettings.style.display = 'none';
+        return;
+      }
+      
+      // Provider별 설정 섹션 표시
+      providerSettings.style.display = 'block';
+      
+      var titleMap = {
+        'ALIGO': 'Aligo Settings',
+        'SMTP': 'SMTP Settings',
+        'SLACK': 'Slack Settings',
+        'ETC': 'Extra Settings'
+      };
+      providerSettingsTitle.textContent = titleMap[provider] || 'Provider Settings';
+      
+      // 선택된 Provider에 해당하는 설정만 표시
+      switch(provider) {
+        case 'ALIGO':
+          aligoSettings.style.display = 'block';
+          break;
+        case 'SMTP':
+          smtpSettings.style.display = 'block';
+          break;
+        case 'SLACK':
+          slackSettings.style.display = 'block';
+          break;
+        case 'ETC':
+          etcSettings.style.display = 'block';
+          break;
+      }
+    }
+    
+    providerSel.addEventListener('change', toggleProviderSettings);
+    
+    // 초기 로드 시에도 실행
+    toggleProviderSettings();
+    
+    // Slack과 ETC 설정을 extraConfig에 저장하는 로직
+    var form = document.querySelector('form');
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        var provider = providerSel.value;
+        var extraConfigField = document.getElementById('extraConfig');
+        
+        // SLACK 타입인 경우 Webhook URL 등을 JSON으로 변환하여 extraConfig에 저장
+        if (provider === 'SLACK') {
+          var slackWebhookUrl = document.getElementById('slackWebhookUrl').value;
+          var slackChannel = document.getElementById('slackChannel').value;
+          var slackUsername = document.getElementById('slackUsername').value;
+          
+          var slackConfig = {};
+          if (slackWebhookUrl) slackConfig.webhookUrl = slackWebhookUrl;
+          if (slackChannel) slackConfig.channel = slackChannel;
+          if (slackUsername) slackConfig.username = slackUsername;
+          
+          // hidden input으로 extraConfig에 저장
+          if (!extraConfigField) {
+            extraConfigField = document.createElement('input');
+            extraConfigField.type = 'hidden';
+            extraConfigField.id = 'extraConfig';
+            extraConfigField.name = 'extraConfig';
+            form.appendChild(extraConfigField);
+          }
+          extraConfigField.value = JSON.stringify(slackConfig);
+        }
+      });
+    }
+    
+    // 기존 값이 있으면 폼에 로드 (수정 모드)
+    var currentProvider = /*[[${form.provider}]]*/ '';
+    var currentExtraConfig = /*[[${form.extraConfig}]]*/ null;
+    
+    if (currentProvider === 'SLACK' && currentExtraConfig) {
+      try {
+        var extraConfig = JSON.parse(currentExtraConfig);
+        var slackWebhookUrlEl = document.getElementById('slackWebhookUrl');
+        var slackChannelEl = document.getElementById('slackChannel');
+        var slackUsernameEl = document.getElementById('slackUsername');
+        
+        if (slackWebhookUrlEl && extraConfig.webhookUrl) slackWebhookUrlEl.value = extraConfig.webhookUrl;
+        if (slackChannelEl && extraConfig.channel) slackChannelEl.value = extraConfig.channel;
+        if (slackUsernameEl && extraConfig.username) slackUsernameEl.value = extraConfig.username;
+      } catch(e) {
+        console.warn('Failed to parse extraConfig:', e);
+      }
+    }
+  })();
+  </script>
+</div>

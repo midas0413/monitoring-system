@@ -1,10 +1,9 @@
 package com.example.monitoring.web.controller;
 
-import com.example.monitoring.common.domain.CheckEntity;
-import com.example.monitoring.common.domain.CheckRunEntity;
+import com.example.monitoring.common.domain.*;
 import com.example.monitoring.web.service.CheckRunService;
-import com.example.monitoring.web.service.CheckService;
 import com.example.monitoring.web.service.HomeService;
+import com.example.monitoring.web.service.MonitoringRuleService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,71 +18,58 @@ public class PortalController {
 
     private final HomeService homeService;
     private final CheckRunService checkRunService;
-    private final CheckService checkService;
+    private final MonitoringRuleService monitoringRuleService;
 
-    public PortalController(HomeService homeService, CheckRunService checkRunService, CheckService checkService) {
+    public PortalController(HomeService homeService, 
+                           CheckRunService checkRunService,
+                           MonitoringRuleService monitoringRuleService) {
         this.homeService = homeService;
         this.checkRunService = checkRunService;
-        this.checkService = checkService;
+        this.monitoringRuleService = monitoringRuleService;
     }
 
     @GetMapping("/")
     public String home(
-            @RequestParam(required = false) Long checkId,
+            @RequestParam(required = false) Long ruleId,
             Model model) {
         model.addAttribute("pageTitle", "Home");
         model.addAttribute("activeMenu", "home");
         model.addAttribute("content", "home :: content");
 
-        Map<String, List<CheckEntity>> checksByTarget = homeService.listChecksGroupByTarget();
+        // VPN 목록
+        List<VpnConnectionEntity> vpns = homeService.listAllVpns();
+        model.addAttribute("vpns", vpns);
 
-        Map<Long, Long> notificationCountByCheck = new HashMap<>();
-        for (List<CheckEntity> checks : checksByTarget.values()) {
-            for (CheckEntity c : checks) {
-                notificationCountByCheck.put(c.getId(), homeService.countSentNotificationsByCheck(c.getId()));
-            }
+        // 서버 목록
+        List<ServerEntity> servers = homeService.listAllServers();
+        model.addAttribute("servers", servers);
+
+        // 서버별 룰 그룹화
+        Map<Long, List<MonitoringRuleEntity>> rulesByServer = homeService.listRulesGroupByServer();
+        model.addAttribute("rulesByServer", rulesByServer);
+
+        // 서버별 알림 건수
+        Map<Long, Long> notificationCountByServer = homeService.countNotificationsByServer();
+        model.addAttribute("notificationCountByServer", notificationCountByServer);
+
+        // 서버 상태 맵 (서버 ID -> 상태)
+        Map<Long, ServerStatus> serverStatusMap = new HashMap<>();
+        for (ServerEntity server : servers) {
+            serverStatusMap.put(server.getId(), homeService.getServerStatus(server));
         }
+        model.addAttribute("serverStatusMap", serverStatusMap);
 
-        model.addAttribute("checksByTarget", checksByTarget);
-        model.addAttribute("notificationCountByCheck", notificationCountByCheck);
-
-        List<CheckRunEntity> checkRuns = checkRunService.list(checkId, null);
+        // Check Runs (모니터링 결과)
+        List<CheckRunEntity> checkRuns = checkRunService.list(ruleId, null);
         model.addAttribute("checkRuns", checkRuns);
         model.addAttribute("startedDisplay", checkRunService.buildStartedDisplayMap(checkRuns));
         model.addAttribute("ruleNameDisplay", checkRunService.buildRuleNameDisplayMap(checkRuns));
         model.addAttribute("serverDisplay", checkRunService.buildServerDisplayMap(checkRuns));
-        model.addAttribute("filterCheckId", checkId);
-        model.addAttribute("allChecks", checkService.list(null));
-        
-        // 서버 상태 맵 생성 (targetName -> status) - 초기 로드용
-        Map<String, String> serverStatusByTarget = new HashMap<>();
-        for (Map.Entry<String, List<CheckEntity>> entry : checksByTarget.entrySet()) {
-            String targetName = entry.getKey();
-            List<CheckEntity> checks = entry.getValue();
-            
-            boolean hasUp = false;
-            boolean hasDown = false;
-            
-            for (CheckEntity c : checks) {
-                if (c.getStatus() != null) {
-                    String status = c.getStatus().name();
-                    if ("UP".equals(status)) {
-                        hasUp = true;
-                    } else if ("DOWN".equals(status)) {
-                        hasDown = true;
-                    }
-                }
-            }
-            
-            if (hasUp) {
-                serverStatusByTarget.put(targetName, "UP");
-            } else if (hasDown) {
-                serverStatusByTarget.put(targetName, "DOWN");
-            } else {
-                serverStatusByTarget.put(targetName, "UNKNOWN");
-            }
-        }
-        model.addAttribute("serverStatusByTarget", serverStatusByTarget);
+        model.addAttribute("filterRuleId", ruleId);
+
+        // 모든 룰 목록 (필터용)
+        List<MonitoringRuleEntity> allRules = monitoringRuleService.list(null);
+        model.addAttribute("allRules", allRules);
 
         return "layout";
     }

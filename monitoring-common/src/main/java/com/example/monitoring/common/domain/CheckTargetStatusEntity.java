@@ -3,8 +3,8 @@ package com.example.monitoring.common.domain;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
-@Entity
-@Table(name = "check_target_status")
+// @Entity  // Deprecated: check_target_status 테이블이 제거됨
+// @Table(name = "check_target_status")
 public class CheckTargetStatusEntity {
 
     @Id

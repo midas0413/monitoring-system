@@ -1,6 +1,6 @@
 package com.example.monitoring.web.controller;
 
-import com.example.monitoring.common.repo.AlertRuleRepository;
+// import com.example.monitoring.common.repo.AlertRuleRepository;  // Deprecated
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,10 +14,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @RequestMapping("/checks")
 public class CheckController {
 
-    private final AlertRuleRepository alertRuleRepository;
+    // Deprecated: AlertRuleRepository는 더 이상 사용되지 않음
+    // private final AlertRuleRepository alertRuleRepository;
 
-    public CheckController(AlertRuleRepository alertRuleRepository) {
-        this.alertRuleRepository = alertRuleRepository;
+    public CheckController(/* AlertRuleRepository alertRuleRepository */) {
+        // this.alertRuleRepository = alertRuleRepository;
     }
 
     @GetMapping
@@ -32,8 +33,10 @@ public class CheckController {
 
     @GetMapping("/{id}/edit")
     public String editForm(@PathVariable Long id) {
-        return alertRuleRepository.findFirstByCheckId(id)
-                .map(r -> "redirect:/rules/" + r.getId() + "/edit")
-                .orElse("redirect:/rules");
+        // Deprecated: AlertRuleRepository 사용 불가
+        // return alertRuleRepository.findFirstByCheckId(id)
+        //         .map(r -> "redirect:/rules/" + r.getId() + "/edit")
+        //         .orElse("redirect:/rules");
+        return "redirect:/rules";
     }
 }

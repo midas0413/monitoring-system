@@ -26,6 +26,10 @@ public interface NotificationOutboxRepository
 
     List<NotificationOutboxEntity> findByOrderByIdDesc(Pageable pageable);
 
-    @Query("SELECT COUNT(n) FROM NotificationOutboxEntity n WHERE n.checkRunId IN (SELECT cr.id FROM CheckRunEntity cr WHERE cr.checkId = :checkId) AND n.status = :status")
+    // Deprecated: checkId는 monitoringRuleId로 변경됨. 하위 호환성을 위해 @Query 수정
+    @Query("SELECT COUNT(n) FROM NotificationOutboxEntity n WHERE n.checkRunId IN (SELECT cr.id FROM CheckRunEntity cr WHERE cr.monitoringRuleId = :checkId) AND n.status = :status")
     long countSentByCheckId(@Param("checkId") Long checkId, @Param("status") NotificationStatus status);
+
+    @Query("SELECT COUNT(n) FROM NotificationOutboxEntity n WHERE n.monitoringRuleId = :ruleId AND n.status = :status")
+    long countSentByMonitoringRuleId(@Param("ruleId") Long ruleId, @Param("status") NotificationStatus status);
 }

@@ -1,0 +1,204 @@
+<div th:fragment="content">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 th:text="${form.id != null ? 'Edit Server' : 'New Server'}">Server Form</h2>
+    <a th:href="@{/servers}" class="btn btn-secondary">Back to List</a>
+  </div>
+
+  <!-- 메시지 -->
+  <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <span th:text="${error}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
+  <form th:action="${form.id != null ? '/servers/' + form.id : '/servers'}" 
+        th:method="${form.id != null ? 'POST' : 'POST'}" 
+        th:object="${form}">
+    <input type="hidden" th:field="*{id}" />
+
+    <div class="row">
+      <div class="col-md-6">
+        <div class="mb-3">
+          <label for="name" class="form-label">Server Name <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="name" th:field="*{name}" required 
+                 placeholder="e.g., DEV_DBMS, PROD_WEB">
+          <small class="form-text text-muted">Unique server identifier</small>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="mb-3">
+          <label for="host" class="form-label">Host <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="host" th:field="*{host}" required 
+                 placeholder="IP address or domain name">
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6">
+        <div class="mb-3">
+          <label for="timezone" class="form-label">Timezone <span class="text-danger">*</span></label>
+          <select class="form-select" id="timezone" th:field="*{timezone}" required>
+            <option value="">-- Select Timezone --</option>
+            <option th:each="tz : ${timezones}" 
+                    th:value="${tz.timezoneId}" 
+                    th:text="${tz.displayName} + ' (' + ${tz.timezoneId} + ')'">
+            </option>
+          </select>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="mb-3">
+          <label for="serverPurpose" class="form-label">Server Purpose <span class="text-danger">*</span></label>
+          <select class="form-select" id="serverPurpose" th:field="*{serverPurpose}" required>
+            <option value="">-- Select Purpose --</option>
+            <option value="WEB">WEB</option>
+            <option value="WAS">WAS</option>
+            <option value="DBMS">DBMS</option>
+            <option value="APP">APP</option>
+            <option value="ETC">ETC</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="description" class="form-label">Description</label>
+      <textarea class="form-control" id="description" th:field="*{description}" rows="3" 
+                placeholder="Optional description"></textarea>
+    </div>
+
+    <div class="mb-3">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="enabled" th:field="*{enabled}">
+        <label class="form-check-label" for="enabled">Enabled</label>
+      </div>
+    </div>
+
+    <!-- SSH 연결 정보 (SHELL, LOGS, DISK_SPACE 모니터링용) -->
+    <div class="mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="text-muted mb-0">SSH 연결 정보</h6>
+        <button type="button" class="btn btn-sm btn-outline-info" id="testSshConnectionBtn">
+          <i class="bi bi-check-circle"></i> 연결 테스트
+        </button>
+      </div>
+      <div id="sshTestResult" class="alert" style="display:none;" role="alert"></div>
+      <div class="row">
+        <div class="col-md-3">
+          <div class="mb-3">
+            <label for="sshPort" class="form-label">SSH Port</label>
+            <input type="number" class="form-control" id="sshPort" th:field="*{sshPort}" placeholder="22">
+            <small class="form-text text-muted">Default: 22</small>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="mb-3">
+            <label for="sshUsername" class="form-label">SSH Username</label>
+            <input type="text" class="form-control" id="sshUsername" th:field="*{sshUsername}" placeholder="root">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="mb-3">
+            <label for="sshPassword" class="form-label">SSH Password</label>
+            <input type="password" class="form-control" id="sshPassword" th:field="*{sshPassword}" placeholder="Password">
+            <small class="form-text text-muted">Leave blank to keep existing password</small>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="mb-3">
+            <label for="sshPrivateKeyPath" class="form-label">SSH Private Key Path</label>
+            <input type="text" class="form-control" id="sshPrivateKeyPath" th:field="*{sshPrivateKeyPath}" placeholder="/path/to/private/key">
+            <small class="form-text text-muted">Alternative to password</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VPN 연결 -->
+    <div class="mb-3">
+      <label class="form-label">VPN Connections</label>
+      <div class="border rounded p-3">
+        <div th:each="vpn : ${vpnConnections}" class="form-check">
+          <input class="form-check-input" type="checkbox" 
+                 th:id="'vpn_' + ${vpn.id}"
+                 th:name="vpnIds"
+                 th:value="${vpn.id}"
+                 th:checked="${form.vpnIds != null && form.vpnIds.contains(vpn.id)}">
+          <label class="form-check-label" th:for="'vpn_' + ${vpn.id}">
+            <span th:text="${vpn.name}"></span>
+            <small class="text-muted">(<span th:text="${vpn.host}"></span>)</small>
+          </label>
+        </div>
+        <div th:if="${vpnConnections == null || #lists.isEmpty(vpnConnections)}" class="text-muted">
+          No VPN connections available. <a th:href="@{/vpn/new}">Create VPN connection</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between">
+      <a th:href="@{/servers}" class="btn btn-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+
+  <script th:inline="javascript">
+  (function(){
+    var testBtn = document.getElementById('testSshConnectionBtn');
+    var testResult = document.getElementById('sshTestResult');
+    
+    testBtn.addEventListener('click', function() {
+      var host = document.getElementById('host').value;
+      var port = document.getElementById('sshPort').value || 22;
+      var username = document.getElementById('sshUsername').value;
+      var password = document.getElementById('sshPassword').value;
+      var privateKeyPath = document.getElementById('sshPrivateKeyPath').value;
+      
+      if (!host) {
+        showTestResult(false, 'Host를 입력하세요.');
+        return;
+      }
+      if (!username) {
+        showTestResult(false, 'SSH Username을 입력하세요.');
+        return;
+      }
+      if (!password && !privateKeyPath) {
+        showTestResult(false, 'SSH Password 또는 Private Key Path를 입력하세요.');
+        return;
+      }
+      
+      testBtn.disabled = true;
+      testBtn.textContent = '테스트 중...';
+      testResult.style.display = 'none';
+      
+      var formData = new FormData();
+      formData.append('host', host);
+      formData.append('port', port);
+      formData.append('sshUsername', username);
+      if (password) formData.append('sshPassword', password);
+      if (privateKeyPath) formData.append('sshPrivateKeyPath', privateKeyPath);
+      
+      fetch('/api/checks/test/ssh-connection', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        showTestResult(data.success, data.output);
+      })
+      .catch(error => {
+        showTestResult(false, '테스트 중 오류가 발생했습니다: ' + error.message);
+      })
+      .finally(() => {
+        testBtn.disabled = false;
+        testBtn.innerHTML = '<i class="bi bi-check-circle"></i> 연결 테스트';
+      });
+    });
+    
+    function showTestResult(success, message) {
+      testResult.className = 'alert alert-dismissible fade show ' + (success ? 'alert-success' : 'alert-danger');
+      testResult.innerHTML = '<span>' + message + '</span><button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+      testResult.style.display = 'block';
+    }
+  })();
+  </script>
+</div>

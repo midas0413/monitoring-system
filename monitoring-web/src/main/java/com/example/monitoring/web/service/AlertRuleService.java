@@ -3,8 +3,8 @@ package com.example.monitoring.web.service;
 import com.example.monitoring.common.domain.AlertRuleEntity;
 import com.example.monitoring.common.domain.AlertRuleType;
 import com.example.monitoring.common.domain.CheckEntity;
-import com.example.monitoring.common.repo.AlertRuleRepository;
-import com.example.monitoring.common.repo.CheckRepository;
+// import com.example.monitoring.common.repo.AlertRuleRepository;  // Deprecated
+// import com.example.monitoring.common.repo.CheckRepository;  // Deprecated
 import com.example.monitoring.web.dto.AlertRuleForm;
 import com.example.monitoring.web.dto.CheckForm;
 import org.springframework.stereotype.Service;
@@ -15,33 +15,41 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Service
+// @Service  // Deprecated: AlertRuleService는 alert_rules 테이블이 monitoring_rules로 통합되어 더 이상 사용되지 않음
 public class AlertRuleService {
 
-    private final AlertRuleRepository ruleRepo;
-    private final CheckRepository checkRepo;
+    // Deprecated: alert_rules와 checks 테이블이 monitoring_rules로 통합됨
+    // private final AlertRuleRepository ruleRepo;
+    // private final CheckRepository checkRepo;
     private final CheckService checkService;
 
-    public AlertRuleService(AlertRuleRepository ruleRepo, CheckRepository checkRepo, CheckService checkService) {
-        this.ruleRepo = ruleRepo;
-        this.checkRepo = checkRepo;
+    public AlertRuleService(/* AlertRuleRepository ruleRepo, CheckRepository checkRepo, */ CheckService checkService) {
+        // this.ruleRepo = ruleRepo;
+        // this.checkRepo = checkRepo;
         this.checkService = checkService;
     }
 
     @Transactional(readOnly = true)
     public List<AlertRuleEntity> list(String q) {
-        if (StringUtils.hasText(q)) return ruleRepo.findByNameContainingIgnoreCaseOrderByIdDesc(q.trim());
-        return ruleRepo.findAllByOrderByIdDesc();
+        // Deprecated: AlertRuleRepository 사용 불가
+        // if (StringUtils.hasText(q)) return ruleRepo.findByNameContainingIgnoreCaseOrderByIdDesc(q.trim());
+        // return ruleRepo.findAllByOrderByIdDesc();
+        return new java.util.ArrayList<>();
     }
 
     @Transactional(readOnly = true)
     public AlertRuleEntity get(Long id) {
-        return ruleRepo.findById(id).orElseThrow(() -> new IllegalArgumentException("Rule not found: " + id));
+        // Deprecated: AlertRuleRepository 사용 불가
+        // return ruleRepo.findById(id).orElseThrow(() -> new IllegalArgumentException("Rule not found: " + id));
+        throw new IllegalArgumentException("Rule not found: " + id);
     }
 
     /** Check 1개 + Rule 1개 동시 생성 */
     @Transactional
     public Long create(AlertRuleForm f) {
+        // Deprecated: AlertRuleRepository 사용 불가
+        throw new UnsupportedOperationException("AlertRuleService.create is deprecated");
+        /*
         CheckForm cf = toCheckForm(f);
         Long checkId = checkService.create(cf);
 
@@ -50,11 +58,15 @@ public class AlertRuleService {
         e.setCheckId(checkId);
         ruleRepo.save(e);
         return e.getId();
+        */
     }
 
     /** Check + Rule 동시 수정. checkId 없으면 Check 신규 생성 후 연결 */
     @Transactional
     public void update(Long id, AlertRuleForm f) {
+        // Deprecated: AlertRuleRepository 사용 불가
+        throw new UnsupportedOperationException("AlertRuleService.update is deprecated");
+        /*
         AlertRuleEntity rule = get(id);
         Long checkId = rule.getCheckId();
 
@@ -69,17 +81,22 @@ public class AlertRuleService {
 
         applyRule(rule, f);
         ruleRepo.save(rule);
+        */
     }
 
     /** Rule 삭제 후 연결된 Check 삭제 */
     @Transactional
     public void delete(Long id) {
+        // Deprecated: AlertRuleRepository 사용 불가
+        throw new UnsupportedOperationException("AlertRuleService.delete is deprecated");
+        /*
         AlertRuleEntity rule = get(id);
         Long checkId = rule.getCheckId();
         ruleRepo.deleteById(id);
         if (checkId != null) {
             checkRepo.deleteById(checkId);
         }
+        */
     }
 
     @Transactional(readOnly = true)
@@ -97,27 +114,28 @@ public class AlertRuleService {
         f.setCooldownSec(rule.getCooldownSec());
         f.loadFromChannelsCsv(rule.getChannels());
 
-        if (rule.getCheckId() != null) {
-            CheckEntity c = checkRepo.findById(rule.getCheckId()).orElse(null);
-            if (c != null) {
-                f.setType(c.getType() != null ? c.getType().name() : "SHELL");
-                f.setIntervalSec(c.getIntervalSec());
-                f.setTargetName(c.getTargetName());
-                f.setHost(c.getHost());
-                f.setTimezone(c.getTimezone());
-                f.setPort(c.getPort());
-                f.setSshUsername(c.getSshUsername());
-                f.setSshPassword(c.getSshPassword());
-                f.setSshPrivateKeyPath(c.getSshPrivateKeyPath());
-                f.setDbType(c.getDbType());
-                f.setDbPort(c.getDbPort());
-                f.setDbName(c.getDbName());
-                f.setDbUsername(c.getDbUsername());
-                f.setDbPassword(c.getDbPassword());
-                f.setScript(c.getScript());
-                f.setSqlText(c.getScript());
-            }
-        }
+        // Deprecated: CheckRepository 사용 불가
+        // if (rule.getCheckId() != null) {
+        //     CheckEntity c = checkRepo.findById(rule.getCheckId()).orElse(null);
+        //     if (c != null) {
+        //         f.setType(c.getType() != null ? c.getType().name() : "SHELL");
+        //         f.setIntervalSec(c.getIntervalSec());
+        //         f.setTargetName(c.getTargetName());
+        //         f.setHost(c.getHost());
+        //         f.setTimezone(c.getTimezone());
+        //         f.setPort(c.getPort());
+        //         f.setSshUsername(c.getSshUsername());
+        //         f.setSshPassword(c.getSshPassword());
+        //         f.setSshPrivateKeyPath(c.getSshPrivateKeyPath());
+        //         f.setDbType(c.getDbType());
+        //         f.setDbPort(c.getDbPort());
+        //         f.setDbName(c.getDbName());
+        //         f.setDbUsername(c.getDbUsername());
+        //         f.setDbPassword(c.getDbPassword());
+        //         f.setScript(c.getScript());
+        //         f.setSqlText(c.getScript());
+        //     }
+        // }
         return f;
     }
 
@@ -160,13 +178,14 @@ public class AlertRuleService {
     @Transactional(readOnly = true)
     public Map<Long, String> buildCheckDisplayMap(List<AlertRuleEntity> rules) {
         Map<Long, String> map = new HashMap<>();
+        // Deprecated: CheckRepository 사용 불가
         for (AlertRuleEntity r : rules) {
             if (r.getCheckId() == null) continue;
             if (map.containsKey(r.getCheckId())) continue;
-            String display = checkRepo.findById(r.getCheckId())
-                    .map(c -> "[" + c.getId() + "] " + (c.getName() != null ? c.getName() : ""))
-                    .orElse("[" + r.getCheckId() + "] -");
-            map.put(r.getCheckId(), display);
+            // String display = checkRepo.findById(r.getCheckId())
+            //         .map(c -> "[" + c.getId() + "] " + (c.getName() != null ? c.getName() : ""))
+            //         .orElse("[" + r.getCheckId() + "] -");
+            map.put(r.getCheckId(), "[" + r.getCheckId() + "] -");
         }
         return map;
     }
@@ -174,13 +193,14 @@ public class AlertRuleService {
     @Transactional(readOnly = true)
     public Map<Long, String> buildServerDisplayMap(List<AlertRuleEntity> rules) {
         Map<Long, String> map = new HashMap<>();
+        // Deprecated: CheckRepository 사용 불가
         for (AlertRuleEntity r : rules) {
             if (r.getCheckId() == null) continue;
             if (map.containsKey(r.getCheckId())) continue;
-            String display = checkRepo.findById(r.getCheckId())
-                    .map(c -> c.getTargetName() != null ? c.getTargetName() : "-")
-                    .orElse("-");
-            map.put(r.getCheckId(), display);
+            // String display = checkRepo.findById(r.getCheckId())
+            //         .map(c -> c.getTargetName() != null ? c.getTargetName() : "-")
+            //         .orElse("-");
+            map.put(r.getCheckId(), "-");
         }
         return map;
     }
@@ -188,13 +208,14 @@ public class AlertRuleService {
     @Transactional(readOnly = true)
     public Map<Long, String> buildTimezoneDisplayMap(List<AlertRuleEntity> rules) {
         Map<Long, String> map = new HashMap<>();
+        // Deprecated: CheckRepository 사용 불가
         for (AlertRuleEntity r : rules) {
             if (r.getCheckId() == null) continue;
             if (map.containsKey(r.getCheckId())) continue;
-            String display = checkRepo.findById(r.getCheckId())
-                    .map(c -> c.getTimezone() != null ? c.getTimezone() : "-")
-                    .orElse("-");
-            map.put(r.getCheckId(), display);
+            // String display = checkRepo.findById(r.getCheckId())
+            //         .map(c -> c.getTimezone() != null ? c.getTimezone() : "-")
+            //         .orElse("-");
+            map.put(r.getCheckId(), "-");
         }
         return map;
     }

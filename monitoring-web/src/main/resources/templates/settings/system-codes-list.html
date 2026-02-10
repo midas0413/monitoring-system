@@ -1,0 +1,87 @@
+<div th:fragment="content">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>System Codes</h2>
+    <a th:href="@{/settings/system-codes/new}" class="btn btn-primary">+ New System Code</a>
+  </div>
+
+  <!-- 메시지 -->
+  <div th:if="${message}" class="alert alert-success alert-dismissible fade show" role="alert">
+    <span th:text="${message}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <span th:text="${error}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
+  <!-- 필터 -->
+  <div class="row g-2 mb-3">
+    <div class="col-md-4">
+      <form method="get" th:action="@{/settings/system-codes}">
+        <select name="type" class="form-select" onchange="this.form.submit()">
+          <option value="">-- All Types --</option>
+          <option th:each="ct : ${codeTypes}" 
+                  th:value="${ct}" 
+                  th:selected="${selectedType == ct}"
+                  th:text="${ct}"></option>
+        </select>
+      </form>
+    </div>
+    <div class="col-md-6">
+      <form method="get" th:action="@{/settings/system-codes}">
+        <input type="hidden" name="type" th:value="${selectedType}">
+        <div class="input-group">
+          <input type="text" name="q" class="form-control" th:value="${q}" placeholder="Search...">
+          <button type="submit" class="btn btn-outline-secondary">Search</button>
+          <a th:href="@{/settings/system-codes}" class="btn btn-outline-secondary">Clear</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card card-shadow">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Code Type</th>
+              <th>Code Value</th>
+              <th>Code Label</th>
+              <th>Display Order</th>
+              <th>Enabled</th>
+              <th>Description</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr th:if="${items == null || #lists.isEmpty(items)}">
+              <td colspan="8" class="text-center text-muted">해당 데이터가 없습니다</td>
+            </tr>
+            <tr th:each="item : ${items}">
+              <td th:text="${item.id}"></td>
+              <td><span class="badge bg-info" th:text="${item.codeType}"></span></td>
+              <td th:text="${item.codeValue}"></td>
+              <td th:text="${item.codeLabel}"></td>
+              <td th:text="${item.displayOrder}"></td>
+              <td>
+                <span class="badge" 
+                      th:classappend="${item.enabled} ? 'bg-success' : 'bg-secondary'"
+                      th:text="${item.enabled} ? 'Enabled' : 'Disabled'"></span>
+              </td>
+              <td th:text="${item.description} ?: '-'"></td>
+              <td>
+                <a th:href="@{/settings/system-codes/{id}/edit(id=${item.id})}" class="btn btn-sm btn-outline-primary">Edit</a>
+                <form th:action="@{/settings/system-codes/{id}/delete(id=${item.id})}" method="post" style="display: inline;" 
+                      onsubmit="return confirm('Are you sure you want to delete this system code?');">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                </form>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,71 +1,144 @@
--- V1__init.sql (Check 중심: checks 등록 시 연결 정보 포함, V2/V3 통합)
+-- V1__init.sql (서버 기반 모니터링 시스템 초기 스키마)
+-- DB 초기화용: 기존 테이블 삭제 후 재생성
 
--- 1) checks (서버/연결 정보 포함, type별 SHELL은 SSH / SQL은 DB만)
-create table if not exists checks (
+-- 기존 테이블 삭제 (초기화용)
+DROP TABLE IF EXISTS notification_outbox CASCADE;
+DROP TABLE IF EXISTS alert_rule_recipient_links CASCADE;
+DROP TABLE IF EXISTS alert_recipients CASCADE;
+DROP TABLE IF EXISTS check_runs CASCADE;
+DROP TABLE IF EXISTS monitoring_rules CASCADE;
+DROP TABLE IF EXISTS server_vpn_links CASCADE;
+DROP TABLE IF EXISTS servers CASCADE;
+DROP TABLE IF EXISTS vpn_connections CASCADE;
+DROP TABLE IF EXISTS notification_settings CASCADE;
+DROP TABLE IF EXISTS system_codes CASCADE;
+DROP TABLE IF EXISTS timezone_codes CASCADE;
+
+-- 1) servers (서버 정보 관리)
+create table servers (
     id bigserial primary key,
-    type varchar(20) not null,                     -- SHELL / SQL
-    name varchar(100) not null,
-    target_name varchar(100) not null,             -- 표시용 (ex: DEV_DBMS)
-
-    host varchar(255) not null,
-    timezone varchar(50) null,                     -- 서버 타임존 정보 (ex: Asia/Seoul, America/New_York)
-
-    -- SHELL용
-    port int null,                                 -- SSH port (기본 22)
-    ssh_username varchar(100),
-    ssh_password text,
-    ssh_private_key_path text,
-
-    -- SQL용
-    db_type varchar(20),
-    db_port int,
-    db_name varchar(100),
-    db_url text,
-    db_username varchar(100),
-    db_password text,
-
-    script text not null,                          -- SHELL script 또는 SQL text
-    interval_sec int not null default 60,
+    name varchar(100) not null unique,              -- 서버명 (ex: DEV_DBMS, PROD_WEB)
+    host varchar(255) not null,                     -- 호스트 (IP 또는 도메인)
+    timezone varchar(50) not null,                 -- 타임존 (timezone_codes 참조)
+    server_purpose varchar(20) not null,           -- 서버용도: WEB, WAS, DBMS, APP, ETC
     enabled boolean not null default true,
+    description varchar(500) null,
+    
+    -- SSH 연결 정보 (SHELL, LOGS, DISK_SPACE 모니터링용)
+    ssh_port int null default 22,                  -- SSH 포트
+    ssh_username varchar(100) null,                -- SSH 사용자명
+    ssh_password text null,                        -- SSH 비밀번호
+    ssh_private_key_path text null,                -- SSH Private Key 경로
+    
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
 
+create index if not exists idx_servers_enabled on servers(enabled);
+create index if not exists idx_servers_name on servers(name);
+
+-- 2) vpn_connections (VPN 연결 정보)
+create table vpn_connections (
+    id bigserial primary key,
+    name varchar(100) not null unique,              -- VPN명 (ex: DEV_VPN, PROD_VPN)
+    host varchar(255) not null,                     -- VPN 호스트 (IP 또는 URL)
+    check_interval_sec int not null default 60,     -- VPN 상태 체크 주기 (초)
+    enabled boolean not null default true,
+    status varchar(20) not null default 'UNKNOWN', -- UP, DOWN, UNKNOWN
+    last_checked_at timestamptz null,
+    last_status_change_at timestamptz null,
+    description varchar(500) null,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_vpn_connections_enabled on vpn_connections(enabled);
+create index if not exists idx_vpn_connections_status on vpn_connections(status);
+
+-- 3) server_vpn_links (서버와 VPN 연결 관계)
+create table server_vpn_links (
+    id bigserial primary key,
+    server_id bigint not null references servers(id) on delete cascade,
+    vpn_id bigint not null references vpn_connections(id) on delete cascade,
+    enabled boolean not null default true,
+    created_at timestamptz not null default now(),
+    unique (server_id, vpn_id)
+);
+
+create index if not exists idx_server_vpn_links_server_id on server_vpn_links(server_id);
+create index if not exists idx_server_vpn_links_vpn_id on server_vpn_links(vpn_id);
+
+-- 4) monitoring_rules (모니터링 룰 - checks와 alert_rules 통합)
+create table monitoring_rules (
+    id bigserial primary key,
+    name varchar(100) not null,                     -- 룰 이름
+    server_id bigint not null references servers(id) on delete cascade,
+    
+    -- 모니터링 타입: SHELL, DB, LOGS, DISK_SPACE
+    monitoring_type varchar(20) not null,
+    
+    -- 공통 필드
+    enabled boolean not null default true,
+    interval_sec int not null default 60,
+    
+    -- SSH 공통 정보 (SHELL, LOGS, DISK_SPACE용)
+    ssh_port int null,                             -- SSH 포트 (기본 22)
+    ssh_username varchar(100) null,
+    ssh_password text null,
+    ssh_private_key_path text null,
+    
+    -- DB 타입 전용 필드
+    db_type varchar(20) null,                      -- oracle, postgresql, mysql 등
+    db_port int null,
+    db_name varchar(100) null,
+    db_url text null,
+    db_username varchar(100) null,
+    db_password text null,
+    
+    -- SHELL 타입 전용
+    shell_script text null,                        -- Shell 스크립트
+    
+    -- LOGS 타입 전용
+    log_file_path text null,                       -- 로그 파일 경로
+    include_keywords text null,                    -- 포함 단어 (쉼표 구분: ERROR, FAIL, CRITICAL)
+    exclude_keywords text null,                     -- 제외 단어 (쉼표 구분)
+    
+    -- DISK_SPACE 타입 전용
+    disk_path varchar(500) null,                   -- 디스크 경로 (ex: /, /var, /home)
+    
+    -- 알림 규칙
+    alert_operator varchar(40) not null,           -- RUN_FAILED, OUTPUT_NUM_GT, OUTPUT_NUM_LT, OUTPUT_CONTAINS, OUTPUT_NOT_CONTAINS, OUTPUT_MATCHES
+    threshold_num double precision null,            -- 숫자 임계값
+    threshold_len int null,                         -- 길이 임계값
+    pattern text null,                              -- 정규식 패턴
+    
+    -- 알림 설정
+    channels varchar(100) null,                    -- 알림 채널 (SMS,EMAIL,KAKAO)
+    message_template text not null,                 -- 메시지 템플릿
+    cooldown_sec int not null default 300,         -- 쿨다운 시간 (초)
+    
+    -- 실행 관리
     next_run_at timestamptz not null default now(),
     locked_until timestamptz null,
     locked_by varchar(100) null,
-
     last_run_at timestamptz null,
     last_status varchar(20) null,
-    last_checked_at timestamptz null,
-    last_error text null,
-    status varchar(20) not null default 'UNKNOWN',
-
-    created_at timestamptz not null default now()
+    last_fired_at timestamptz null,
+    
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
 );
 
-create index if not exists idx_checks_type on checks(type);
-create index if not exists idx_checks_enabled on checks(enabled);
-create index if not exists idx_checks_next_run_at on checks(next_run_at);
-create index if not exists idx_checks_locked_until on checks(locked_until);
-create index if not exists idx_checks_due on checks(next_run_at) where enabled = true;
-create index if not exists idx_checks_name on checks(name);
+create index if not exists idx_monitoring_rules_server_id on monitoring_rules(server_id);
+create index if not exists idx_monitoring_rules_enabled on monitoring_rules(enabled);
+create index if not exists idx_monitoring_rules_type on monitoring_rules(monitoring_type);
+create index if not exists idx_monitoring_rules_next_run_at on monitoring_rules(next_run_at);
+create index if not exists idx_monitoring_rules_due on monitoring_rules(next_run_at) where enabled = true;
 
--- 2) check_target_status (history, check별 연결 상태)
-create table if not exists check_target_status (
+-- 5) check_runs (monitoring_rule_id 참조)
+create table check_runs (
     id bigserial primary key,
-    check_id bigint not null references checks(id) on delete cascade,
-
-    status varchar(20) not null,
-    latency_ms bigint null,
-    checked_at timestamptz not null default now(),
-    error_message varchar(500) null
-);
-
-create index if not exists idx_check_target_status_check_id_checked_at
-    on check_target_status(check_id, checked_at desc);
-
--- 3) check_runs
-create table if not exists check_runs (
-    id bigserial primary key,
-    check_id bigint not null references checks(id) on delete cascade,
+    monitoring_rule_id bigint not null references monitoring_rules(id) on delete cascade,
 
     success boolean not null,
 
@@ -77,36 +150,11 @@ create table if not exists check_runs (
     error_message varchar(1000)
 );
 
-create index if not exists idx_check_runs_check_id_started_at
-    on check_runs(check_id, started_at desc);
+create index if not exists idx_check_runs_monitoring_rule_id_started_at
+    on check_runs(monitoring_rule_id, started_at desc);
 
--- 4) alert_rules (server_id 제거, check_id로 스코프)
-create table if not exists alert_rules (
-    id bigserial primary key,
-    name varchar(100) not null,
-    enabled boolean not null default true,
-
-    check_id bigint null references checks(id) on delete cascade,
-
-    rule_type varchar(40) not null,
-    threshold_num double precision null,
-    threshold_len int null,
-    pattern text null,
-
-    channels varchar(100) null,
-    message_template text not null,
-
-    cooldown_sec int not null default 300,
-    last_fired_at timestamptz null,
-
-    created_at timestamptz not null default now()
-);
-
-create index if not exists idx_alert_rules_enabled on alert_rules(enabled);
-create index if not exists idx_alert_rules_check_id on alert_rules(check_id);
-
--- 5) alert_recipients
-create table if not exists alert_recipients (
+-- 6) alert_recipients
+create table alert_recipients (
     id bigserial primary key,
     name varchar(100) not null,
     enabled boolean not null default true,
@@ -122,10 +170,10 @@ create table if not exists alert_recipients (
 
 create index if not exists idx_alert_recipients_enabled on alert_recipients(enabled);
 
--- 6) alert_rule_recipient_links
-create table if not exists alert_rule_recipient_links (
+-- 7) alert_rule_recipient_links (monitoring_rule_id 참조로 사용)
+create table alert_rule_recipient_links (
     id bigserial primary key,
-    rule_id bigint not null references alert_rules(id) on delete cascade,
+    rule_id bigint not null references monitoring_rules(id) on delete cascade,
     recipient_id bigint not null references alert_recipients(id) on delete cascade,
 
     enabled boolean not null default true,
@@ -137,14 +185,14 @@ create table if not exists alert_rule_recipient_links (
 create index if not exists idx_arrl_rule_id on alert_rule_recipient_links(rule_id);
 create index if not exists idx_arrl_enabled on alert_rule_recipient_links(enabled);
 
--- 7) notification_outbox
-create table if not exists notification_outbox (
+-- 8) notification_outbox (monitoring_rule_id 참조)
+create table notification_outbox (
     id bigserial primary key,
 
     status varchar(20) not null default 'PENDING',
     channel varchar(20) not null,
 
-    rule_id bigint null references alert_rules(id) on delete set null,
+    monitoring_rule_id bigint null references monitoring_rules(id) on delete set null,
     check_run_id bigint null references check_runs(id) on delete set null,
 
     to_addr varchar(200) not null,
@@ -165,9 +213,43 @@ create table if not exists notification_outbox (
 
 create index if not exists idx_outbox_due on notification_outbox(status, next_attempt_at, id);
 create index if not exists idx_outbox_processing_until on notification_outbox(status, processing_until);
+create index if not exists idx_outbox_monitoring_rule_id on notification_outbox(monitoring_rule_id, created_at);
 
--- 8) timezone_codes (타임존 코드 테이블)
-create table if not exists timezone_codes (
+-- 9) notification_settings (알림 설정 - 알리고 정보 등)
+create table notification_settings (
+    id bigserial primary key,
+    name varchar(100) not null unique,              -- 설정 이름 (ex: ALIGO_MAIN)
+    provider varchar(50) not null,                 -- 알림 제공자: ALIGO, SMTP, SLACK 등
+    enabled boolean not null default true,
+    
+    -- Aligo 설정
+    aligo_api_key varchar(200) null,
+    aligo_user_id varchar(100) null,
+    aligo_sender varchar(50) null,
+    aligo_sender_key varchar(200) null,
+    aligo_template_code varchar(100) null,
+    aligo_test_mode varchar(1) null default 'N',  -- Y: 테스트, N: 실제 전송
+    
+    -- SMTP 설정
+    smtp_host varchar(255) null,
+    smtp_port int null,
+    smtp_username varchar(200) null,
+    smtp_password text null,
+    smtp_from_email varchar(200) null,
+    
+    -- 기타 설정 (JSON 형식)
+    extra_config text null,
+    
+    description varchar(500) null,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_notification_settings_enabled on notification_settings(enabled);
+create index if not exists idx_notification_settings_provider on notification_settings(provider);
+
+-- 10) timezone_codes (타임존 코드 테이블)
+create table timezone_codes (
     id bigserial primary key,
     timezone_id varchar(100) not null unique,
     display_name varchar(200) not null,
@@ -181,56 +263,17 @@ create table if not exists timezone_codes (
 
 create index if not exists idx_timezone_codes_enabled on timezone_codes(enabled, display_order);
 
--- 주요 타임존 데이터 삽입
-insert into timezone_codes (timezone_id, display_name, offset_hours, offset_minutes, description, display_order) values
--- 아시아/태평양
-('Asia/Seoul', '한국 표준시 (KST)', 9, 0, '대한민국, 일본', 1),
-('Asia/Tokyo', '일본 표준시 (JST)', 9, 0, '일본', 2),
-('Asia/Shanghai', '중국 표준시 (CST)', 8, 0, '중국, 대만, 홍콩', 3),
-('Asia/Hong_Kong', '홍콩 표준시 (HKT)', 8, 0, '홍콩', 4),
-('Asia/Singapore', '싱가포르 표준시 (SGT)', 8, 0, '싱가포르, 말레이시아', 5),
-('Asia/Bangkok', '태국 표준시 (ICT)', 7, 0, '태국, 베트남', 6),
-('Asia/Jakarta', '인도네시아 서부 표준시 (WIB)', 7, 0, '인도네시아 서부', 7),
-('Asia/Manila', '필리핀 표준시 (PHT)', 8, 0, '필리핀', 8),
-('Asia/Kolkata', '인도 표준시 (IST)', 5, 30, '인도', 9),
-('Asia/Dubai', '아랍에미리트 표준시 (GST)', 4, 0, 'UAE, 오만', 10),
+-- 11) system_codes (시스템 코드 관리 - 타임존 등 확장 가능)
+create table system_codes (
+    id bigserial primary key,
+    code_type varchar(50) not null,                -- 코드 타입: SERVER_PURPOSE, MONITORING_TYPE, ALERT_OPERATOR 등
+    code_value varchar(100) not null,             -- 코드 값
+    code_label varchar(200) not null,            -- 코드 라벨 (표시명)
+    display_order int not null default 0,
+    enabled boolean not null default true,
+    description varchar(500) null,
+    created_at timestamptz not null default now(),
+    unique (code_type, code_value)
+);
 
--- 유럽
-('Europe/London', '영국 표준시 (GMT/BST)', 0, 0, '영국, 아일랜드', 20),
-('Europe/Paris', '중앙유럽 표준시 (CET/CEST)', 1, 0, '프랑스, 독일, 이탈리아, 스페인', 21),
-('Europe/Berlin', '독일 표준시 (CET/CEST)', 1, 0, '독일', 22),
-('Europe/Rome', '이탈리아 표준시 (CET/CEST)', 1, 0, '이탈리아', 23),
-('Europe/Madrid', '스페인 표준시 (CET/CEST)', 1, 0, '스페인', 24),
-('Europe/Amsterdam', '네덜란드 표준시 (CET/CEST)', 1, 0, '네덜란드', 25),
-('Europe/Stockholm', '스웨덴 표준시 (CET/CEST)', 1, 0, '스웨덴', 26),
-('Europe/Moscow', '모스크바 표준시 (MSK)', 3, 0, '러시아 서부', 27),
-('Europe/Athens', '그리스 표준시 (EET/EEST)', 2, 0, '그리스', 28),
-('Europe/Istanbul', '터키 표준시 (TRT)', 3, 0, '터키', 29),
-
--- 아메리카
-('America/New_York', '미국 동부 표준시 (EST/EDT)', -5, 0, '미국 동부', 40),
-('America/Chicago', '미국 중부 표준시 (CST/CDT)', -6, 0, '미국 중부', 41),
-('America/Denver', '미국 산지 표준시 (MST/MDT)', -7, 0, '미국 산지', 42),
-('America/Los_Angeles', '미국 태평양 표준시 (PST/PDT)', -8, 0, '미국 서부', 43),
-('America/Toronto', '캐나다 동부 표준시 (EST/EDT)', -5, 0, '캐나다 동부', 44),
-('America/Vancouver', '캐나다 태평양 표준시 (PST/PDT)', -8, 0, '캐나다 서부', 45),
-('America/Mexico_City', '멕시코 표준시 (CST)', -6, 0, '멕시코', 46),
-('America/Sao_Paulo', '브라질 표준시 (BRT)', -3, 0, '브라질', 47),
-('America/Buenos_Aires', '아르헨티나 표준시 (ART)', -3, 0, '아르헨티나', 48),
-
--- 기타
-('UTC', '협정 세계시 (UTC)', 0, 0, 'UTC', 100),
-('Australia/Sydney', '호주 동부 표준시 (AEST/AEDT)', 10, 0, '호주 동부', 60),
-('Australia/Melbourne', '호주 동부 표준시 (AEST/AEDT)', 10, 0, '호주 동부', 61),
-('Pacific/Auckland', '뉴질랜드 표준시 (NZST/NZDT)', 12, 0, '뉴질랜드', 70);
-
-
-
-
--- 시퀀스 보정
-SELECT setval('checks_id_seq', (SELECT COALESCE(MAX(id), 1) FROM checks));
-SELECT setval('check_target_status_id_seq', (SELECT COALESCE(MAX(id), 1) FROM check_target_status));
-SELECT setval('check_runs_id_seq', (SELECT COALESCE(MAX(id), 1) FROM check_runs));
-SELECT setval('alert_rules_id_seq', (SELECT COALESCE(MAX(id), 1) FROM alert_rules));
-SELECT setval('alert_recipients_id_seq', (SELECT COALESCE(MAX(id), 1) FROM alert_recipients));
-SELECT setval('alert_rule_recipient_links_id_seq', (SELECT COALESCE(MAX(id), 1) FROM alert_rule_recipient_links));
+create index if not exists idx_system_codes_type on system_codes(code_type, enabled, display_order);

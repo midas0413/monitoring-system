@@ -11,6 +11,16 @@
             </div>
         </div>
 
+        <!-- 메시지 -->
+        <div th:if="${message}" class="alert alert-success alert-dismissible fade show" role="alert">
+            <span th:text="${message}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+            <span th:text="${error}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
         <form class="row g-2 mb-3" method="get" th:action="@{/recipients}">
             <div class="col-sm-8 col-md-6">
                 <input class="form-control" name="q" placeholder="Search by name..." th:value="${q}">

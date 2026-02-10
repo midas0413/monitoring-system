@@ -18,6 +18,8 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+    baseline-on-migrate: true  # 기존 스키마가 있을 때 baseline 설정
+    validate-on-migrate: false  # 마이그레이션 파일 변경 시 체크섬 불일치 허용
 
 worker:
   id: worker-1

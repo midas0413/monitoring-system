@@ -35,4 +35,20 @@ public class CheckTestController {
             @RequestParam String sql) {
         return checkTestService.testSql(host, dbType, dbPort, dbName, dbUsername, dbPassword, sql);
     }
+
+    @PostMapping("/ssh-connection")
+    public CheckTestService.TestResult testSshConnection(
+            @RequestParam String host,
+            @RequestParam(required = false) Integer port,
+            @RequestParam String sshUsername,
+            @RequestParam(required = false) String sshPassword,
+            @RequestParam(required = false) String sshPrivateKeyPath) {
+        return checkTestService.testSshConnection(host, port, sshUsername, sshPassword, sshPrivateKeyPath);
+    }
+
+    @PostMapping("/vpn-connection")
+    public CheckTestService.TestResult testVpnConnection(
+            @RequestParam String host) {
+        return checkTestService.testVpnConnection(host);
+    }
 }

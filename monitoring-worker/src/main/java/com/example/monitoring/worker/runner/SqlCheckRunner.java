@@ -3,7 +3,7 @@ package com.example.monitoring.worker.runner;
 import com.example.monitoring.common.domain.CheckEntity;
 import com.example.monitoring.common.domain.CheckRunEntity;
 import com.example.monitoring.common.domain.CheckType;
-import com.example.monitoring.common.repo.CheckRepository;
+// import com.example.monitoring.common.repo.CheckRepository;  // Deprecated
 import com.example.monitoring.common.repo.CheckRunRepository;
 import com.example.monitoring.worker.alert.AlertEvaluatorService;
 import com.example.monitoring.worker.db.CheckConnProvider;
@@ -21,21 +21,23 @@ public class SqlCheckRunner implements CheckRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SqlCheckRunner.class);
 
-    private final CheckRepository checkRepository;
+    // Deprecated: CheckRepository는 더 이상 사용되지 않음
+    // private final CheckRepository checkRepository;
     private final CheckRunRepository checkRunRepository;
     private final CheckConnProvider checkConnProvider;
-    private final AlertEvaluatorService alertEvaluatorService;
+    // Deprecated: AlertEvaluatorService는 더 이상 사용되지 않음
+    // private final AlertEvaluatorService alertEvaluatorService;
 
     public SqlCheckRunner(
-            CheckRepository checkRepository,
+            // CheckRepository checkRepository,  // Deprecated
             CheckRunRepository checkRunRepository,
-            CheckConnProvider checkConnProvider,
-            AlertEvaluatorService alertEvaluatorService
+            CheckConnProvider checkConnProvider
+            // AlertEvaluatorService alertEvaluatorService  // Deprecated
     ) {
-        this.checkRepository = checkRepository;
+        // this.checkRepository = checkRepository;  // Deprecated
         this.checkRunRepository = checkRunRepository;
         this.checkConnProvider = checkConnProvider;
-        this.alertEvaluatorService = alertEvaluatorService;
+        // this.alertEvaluatorService = alertEvaluatorService;  // Deprecated
     }
 
     @Override
@@ -107,12 +109,18 @@ public class SqlCheckRunner implements CheckRunner {
         run.setOutput(output);
         run.setErrorMessage(errorMessage);
         checkRunRepository.save(run);
-        alertEvaluatorService.evaluateAndEnqueue(run);
+        // Deprecated: AlertEvaluatorService는 더 이상 사용되지 않음
+        // alertEvaluatorService.evaluateAndEnqueue(run);
 
-        unlockAndReschedule(check, success ? "SUCCESS" : "FAIL");
+        // Deprecated: CheckRepository는 더 이상 사용되지 않음
+        // unlockAndReschedule(check, success ? "SUCCESS" : "FAIL");
+        log.warn("SqlCheckRunner.runOne is deprecated. Use MonitoringRuleExecutorService instead.");
     }
 
+    @SuppressWarnings("unused")
     private void unlockAndReschedule(CheckEntity check, String status) {
+        // Deprecated: CheckRepository는 더 이상 사용되지 않음
+        /*
         OffsetDateTime now = OffsetDateTime.now();
 
         check.setLastRunAt(now);
@@ -125,5 +133,6 @@ public class SqlCheckRunner implements CheckRunner {
         check.setNextRunAt(now.plusSeconds(interval));
 
         checkRepository.save(check);
+        */
     }
 }

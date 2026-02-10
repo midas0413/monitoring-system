@@ -1,0 +1,76 @@
+<div th:fragment="content">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 th:text="${form.id != null ? 'Edit System Code' : 'New System Code'}">System Code Form</h2>
+    <a th:href="@{/settings/system-codes}" class="btn btn-secondary">Back to List</a>
+  </div>
+
+  <!-- 메시지 -->
+  <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <span th:text="${error}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
+  <form th:action="${form.id != null ? '/settings/system-codes/' + form.id : '/settings/system-codes/new'}" 
+        th:method="${form.id != null ? 'POST' : 'POST'}" 
+        th:object="${form}">
+    <input type="hidden" th:field="*{id}" />
+
+    <div class="row">
+      <div class="col-md-6">
+        <div class="mb-3">
+          <label for="codeType" class="form-label">Code Type <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="codeType" th:field="*{codeType}" required 
+                 list="codeTypes" placeholder="e.g., MONITORING_TYPE, ALERT_OPERATOR">
+          <datalist id="codeTypes">
+            <option th:each="ct : ${codeTypes}" th:value="${ct}"></option>
+          </datalist>
+          <small class="form-text text-muted">Code type identifier (e.g., MONITORING_TYPE, ALERT_OPERATOR)</small>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="mb-3">
+          <label for="codeValue" class="form-label">Code Value <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="codeValue" th:field="*{codeValue}" required 
+                 placeholder="e.g., SHELL, DB, RUN_FAILED">
+          <small class="form-text text-muted">Unique value within the code type</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-8">
+        <div class="mb-3">
+          <label for="codeLabel" class="form-label">Code Label <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="codeLabel" th:field="*{codeLabel}" required 
+                 placeholder="Display label">
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="mb-3">
+          <label for="displayOrder" class="form-label">Display Order <span class="text-danger">*</span></label>
+          <input type="number" class="form-control" id="displayOrder" th:field="*{displayOrder}" required 
+                 min="0" placeholder="0">
+          <small class="form-text text-muted">Order for display (lower numbers first)</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="description" class="form-label">Description</label>
+      <textarea class="form-control" id="description" th:field="*{description}" rows="3" 
+                placeholder="Optional description"></textarea>
+    </div>
+
+    <div class="mb-3">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="enabled" th:field="*{enabled}">
+        <label class="form-check-label" for="enabled">Enabled</label>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between">
+      <a th:href="@{/settings/system-codes}" class="btn btn-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</div>

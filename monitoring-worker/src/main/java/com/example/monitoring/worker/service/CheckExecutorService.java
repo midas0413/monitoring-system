@@ -2,9 +2,11 @@ package com.example.monitoring.worker.service;
 
 import com.example.monitoring.common.domain.CheckEntity;
 import com.example.monitoring.common.domain.CheckRunEntity;
-import com.example.monitoring.common.repo.CheckRepository;
+// import com.example.monitoring.common.repo.CheckRepository;  // Deprecated
 import com.example.monitoring.common.repo.CheckRunRepository;
 import jakarta.transaction.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -12,13 +14,17 @@ import java.time.OffsetDateTime;
 @Service
 public class CheckExecutorService {
 
-    private final CheckRunRepository checkRunRepository;
-    private final CheckRepository checkRepository;
+    private static final Logger log = LoggerFactory.getLogger(CheckExecutorService.class);
 
-    public CheckExecutorService(CheckRunRepository checkRunRepository,
-                                CheckRepository checkRepository) {
+    private final CheckRunRepository checkRunRepository;
+    // Deprecated: CheckRepository는 더 이상 사용되지 않음
+    // private final CheckRepository checkRepository;
+
+    public CheckExecutorService(CheckRunRepository checkRunRepository
+                                // CheckRepository checkRepository  // Deprecated
+    ) {
         this.checkRunRepository = checkRunRepository;
-        this.checkRepository = checkRepository;
+        // this.checkRepository = checkRepository;  // Deprecated
     }
 
     @Transactional
@@ -47,7 +53,9 @@ public class CheckExecutorService {
         check.setLockedBy(null);
         check.setLockedUntil(null);
 
-        checkRepository.save(check);
+        // Deprecated: CheckRepository는 더 이상 사용되지 않음
+        // checkRepository.save(check);
+        log.warn("CheckExecutorService.executeOne is deprecated. CheckRepository.save is not available.");
     }
 
     public record ExecutionResult(
