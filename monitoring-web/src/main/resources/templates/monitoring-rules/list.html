@@ -33,7 +33,7 @@
           <th>서버</th>
           <th>유형</th>
           <th>연산자</th>
-          <th>상태</th>
+          <th>적용여부</th>
           <th>주기</th>
           <th>작업</th>
         </tr>
@@ -52,8 +52,12 @@
             <span class="badge bg-secondary" th:text="${item.alertOperator}"></span>
           </td>
           <td>
-            <span th:if="${item.enabled}" class="badge bg-success">활성</span>
-            <span th:unless="${item.enabled}" class="badge bg-secondary">비활성</span>
+            <span th:if="${serverVpnDownMap != null && serverVpnDownMap.get(item.id)}" 
+                  class="badge bg-secondary" title="서버의 VPN이 다운되어 미적용">적용해제</span>
+            <span th:if="${!(serverVpnDownMap != null && serverVpnDownMap.get(item.id)) && item.enabled}" 
+                  class="badge bg-success">적용</span>
+            <span th:if="${!(serverVpnDownMap != null && serverVpnDownMap.get(item.id)) && !item.enabled}" 
+                  class="badge bg-secondary">적용해제</span>
           </td>
           <td th:text="${item.intervalSec} + ' sec'"></td>
           <td>

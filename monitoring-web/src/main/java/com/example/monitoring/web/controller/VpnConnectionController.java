@@ -6,6 +6,7 @@ import com.example.monitoring.web.dto.VpnConnectionForm;
 import com.example.monitoring.web.service.HomeService;
 import com.example.monitoring.web.service.VpnConnectionService;
 import com.example.monitoring.web.service.VpnNotificationTemplateService;
+import com.example.monitoring.web.service.VpnRecipientLinkService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -26,13 +27,16 @@ public class VpnConnectionController {
     private final VpnConnectionService vpnService;
     private final VpnNotificationTemplateService templateService;
     private final HomeService homeService;
+    private final VpnRecipientLinkService vpnRecipientLinkService;
 
     public VpnConnectionController(VpnConnectionService vpnService,
                                   VpnNotificationTemplateService templateService,
-                                  HomeService homeService) {
+                                  HomeService homeService,
+                                  VpnRecipientLinkService vpnRecipientLinkService) {
         this.vpnService = vpnService;
         this.templateService = templateService;
         this.homeService = homeService;
+        this.vpnRecipientLinkService = vpnRecipientLinkService;
     }
 
     @GetMapping
@@ -42,9 +46,11 @@ public class VpnConnectionController {
         model.addAttribute("content", "vpn/list :: content");
 
         List<VpnConnectionEntity> items = vpnService.list(q);
+        List<Long> vpnIds = items.stream().map(VpnConnectionEntity::getId).toList();
         model.addAttribute("q", q);
         model.addAttribute("items", items);
-        
+        model.addAttribute("recipientCountMap", vpnRecipientLinkService.buildRecipientCountMap(vpnIds));
+
         return "layout";
     }
 
@@ -119,6 +125,29 @@ public class VpnConnectionController {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
         }
         return "redirect:/vpn";
+    }
+
+    @GetMapping("/{id}/recipients")
+    public String recipients(@PathVariable Long id, Model model) {
+        model.addAttribute("pageTitle", "VPN 수신자 연결");
+        model.addAttribute("activeMenu", "settings");
+        model.addAttribute("content", "vpn/recipients :: content");
+
+        VpnConnectionEntity vpn = vpnService.get(id);
+        model.addAttribute("vpn", vpn);
+        model.addAttribute("recipients", vpnRecipientLinkService.listRecipients());
+        model.addAttribute("linkedIds", vpnRecipientLinkService.linkedRecipientIds(id));
+
+        return "layout";
+    }
+
+    @PostMapping("/{id}/recipients")
+    public String saveRecipients(@PathVariable Long id,
+                                 @RequestParam(value = "recipientIds", required = false) List<Long> recipientIds,
+                                 RedirectAttributes redirectAttributes) {
+        vpnRecipientLinkService.saveLinks(id, recipientIds != null ? recipientIds : List.of());
+        redirectAttributes.addFlashAttribute("message", "VPN 수신자 연결이 저장되었습니다.");
+        return "redirect:/vpn/" + id + "/recipients";
     }
 }
 

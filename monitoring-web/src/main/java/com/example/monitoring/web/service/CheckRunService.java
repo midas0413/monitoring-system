@@ -6,6 +6,7 @@ import com.example.monitoring.common.domain.ServerEntity;
 import com.example.monitoring.common.repo.CheckRunRepository;
 import com.example.monitoring.common.repo.MonitoringRuleRepository;
 import com.example.monitoring.common.repo.ServerRepository;
+import com.example.monitoring.common.repo.VpnConnectionRepository;
 import com.example.monitoring.web.dto.CheckRunCreateRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,13 +33,16 @@ public class CheckRunService {
     private final CheckRunRepository checkRunRepository;
     private final MonitoringRuleRepository monitoringRuleRepository;
     private final ServerRepository serverRepository;
+    private final VpnConnectionRepository vpnConnectionRepository;
 
     public CheckRunService(CheckRunRepository checkRunRepository,
                           MonitoringRuleRepository monitoringRuleRepository,
-                          ServerRepository serverRepository) {
+                          ServerRepository serverRepository,
+                          VpnConnectionRepository vpnConnectionRepository) {
         this.checkRunRepository = checkRunRepository;
         this.monitoringRuleRepository = monitoringRuleRepository;
         this.serverRepository = serverRepository;
+        this.vpnConnectionRepository = vpnConnectionRepository;
     }
 
     public CheckRunEntity create(CheckRunCreateRequest req) {
@@ -141,6 +145,31 @@ public class CheckRunService {
                     })
                     .orElse("-");
             map.put(ruleId, serverName);
+        }
+        return map;
+    }
+
+    /** runId -> Rule Name (VPN 알림용: "VPN 상태변경") */
+    public Map<Long, String> buildRuleNameByRunIdMap(List<CheckRunEntity> runs) {
+        Map<Long, String> map = new HashMap<>();
+        for (CheckRunEntity r : runs) {
+            if (r.getVpnId() != null) {
+                map.put(r.getId(), "VPN 상태변경");
+            }
+        }
+        return map;
+    }
+
+    /** runId -> Server Name (VPN 알림용: VPN명) */
+    public Map<Long, String> buildServerNameByRunIdMap(List<CheckRunEntity> runs) {
+        Map<Long, String> map = new HashMap<>();
+        for (CheckRunEntity r : runs) {
+            if (r.getVpnId() != null) {
+                String vpnName = vpnConnectionRepository.findById(r.getVpnId())
+                        .map(vpn -> vpn.getName() != null ? vpn.getName() : "-")
+                        .orElse("-");
+                map.put(r.getId(), vpnName);
+            }
         }
         return map;
     }

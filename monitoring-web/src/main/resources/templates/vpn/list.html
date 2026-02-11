@@ -43,7 +43,7 @@
               <th>체크 주기</th>
               <th>상태</th>
               <th>마지막 체크</th>
-              <th>활성</th>
+              <th>적용여부</th>
               <th>설명</th>
               <th>작업</th>
             </tr>
@@ -75,10 +75,14 @@
               <td>
                 <span class="badge" 
                       th:classappend="${item.enabled} ? 'bg-success' : 'bg-secondary'"
-                      th:text="${item.enabled} ? '활성' : '비활성'"></span>
+                      th:text="${item.enabled} ? '적용' : '적용해제'"></span>
               </td>
               <td th:text="${item.description} ?: '-'"></td>
               <td>
+                <a th:href="@{/vpn/{id}/recipients(id=${item.id})}" class="btn btn-sm btn-outline-info"
+                   th:title="${'수신자 ' + (recipientCountMap != null ? recipientCountMap.get(item.id) : 0) + '명 연결'}">
+                  수신자 <span th:if="${recipientCountMap != null}" class="badge bg-secondary" th:text="${recipientCountMap[item.id] != null ? recipientCountMap[item.id] : 0}">0</span>
+                </a>
                 <a th:href="@{/vpn/{id}/edit(id=${item.id})}" class="btn btn-sm btn-outline-primary">수정</a>
                 <form th:action="@{/vpn/{id}/delete(id=${item.id})}" method="post" style="display: inline;" 
                       onsubmit="return confirm('이 VPN 연결을 삭제하시겠습니까?');">

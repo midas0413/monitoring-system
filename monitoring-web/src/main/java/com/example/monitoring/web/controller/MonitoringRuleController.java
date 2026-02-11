@@ -47,6 +47,7 @@ public class MonitoringRuleController {
         model.addAttribute("q", q);
         model.addAttribute("items", items);
         model.addAttribute("serverDisplay", ruleService.buildServerDisplayMap(items));
+        model.addAttribute("serverVpnDownMap", ruleService.buildServerVpnDownMap(items));
         
         // 수신자 수 맵 생성
         List<Long> ruleIds = items.stream().map(MonitoringRuleEntity::getId).toList();

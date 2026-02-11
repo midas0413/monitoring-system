@@ -11,8 +11,11 @@ public class CheckRunEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "monitoring_rule_id", nullable = false)
+    @Column(name = "monitoring_rule_id")
     private Long monitoringRuleId;
+
+    @Column(name = "vpn_id")
+    private Long vpnId;
 
     @Column(nullable = false)
     private Boolean success;
@@ -36,6 +39,9 @@ public class CheckRunEntity {
 
     public Long getMonitoringRuleId() { return monitoringRuleId; }
     public void setMonitoringRuleId(Long monitoringRuleId) { this.monitoringRuleId = monitoringRuleId; }
+
+    public Long getVpnId() { return vpnId; }
+    public void setVpnId(Long vpnId) { this.vpnId = vpnId; }
     
     // 하위 호환성을 위한 메서드 (deprecated)
     @Deprecated

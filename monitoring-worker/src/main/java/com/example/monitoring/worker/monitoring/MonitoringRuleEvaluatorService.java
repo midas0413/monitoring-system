@@ -69,7 +69,16 @@ public class MonitoringRuleEvaluatorService {
             return;
         }
 
-        // 2. LOGS 타입인 경우 출력값 길이 체크 (직전 알림 발송 시 출력값 길이와 같으면 알림 발송하지 않음)
+        // 2. LOGS 타입에서 "No matching log entries found"인 경우 알림 제외 (매칭 없음 = 정상)
+        if (rule.getMonitoringType() == MonitoringType.LOGS) {
+            String trimmedOutput = (output != null) ? output.trim() : "";
+            if ("No matching log entries found".equals(trimmedOutput)) {
+                log.debug("Skipping notification for 'No matching log entries found': ruleId={}", rule.getId());
+                return;
+            }
+        }
+
+        // 3. LOGS 타입인 경우 출력값 길이 체크 (직전 알림 발송 시 출력값 길이와 같으면 알림 발송하지 않음)
         if (rule.getMonitoringType() == MonitoringType.LOGS) {
             int currentOutputLength = (output != null) ? output.length() : 0;
             Integer lastNotificationOutputLength = rule.getLastNotificationOutputLength();
@@ -81,14 +90,14 @@ public class MonitoringRuleEvaluatorService {
             }
         }
 
-        // 3. Cooldown 체크 (동일한 rule_id와 output이 cooldown 시간 내에 있는지 확인)
+        // 4. Cooldown 체크 (동일한 rule_id와 output이 cooldown 시간 내에 있는지 확인)
         if (!isCooldownOk(rule, output, now)) {
             log.debug("Cooldown period not passed: ruleId={}, output={}", rule.getId(), 
                     output != null ? output.substring(0, Math.min(50, output.length())) : "null");
             return;
         }
 
-        // 4. check_runs에 등록
+        // 5. check_runs에 등록
         CheckRunEntity run = new CheckRunEntity();
         run.setMonitoringRuleId(rule.getId());
         run.setSuccess(success);
@@ -101,7 +110,7 @@ public class MonitoringRuleEvaluatorService {
 
         log.info("Check run created: ruleId={}, runId={}, success={}", rule.getId(), run.getId(), success);
 
-        // 5. 알림 발송
+        // 6. 알림 발송
         rule.setLastFiredAt(now);
         // LOGS 타입인 경우 출력값 길이 저장
         if (rule.getMonitoringType() == MonitoringType.LOGS) {

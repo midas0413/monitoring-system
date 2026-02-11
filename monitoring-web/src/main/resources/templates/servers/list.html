@@ -34,7 +34,7 @@
           <th>타임존</th>
           <th>용도</th>
           <th>VPN</th>
-          <th>상태</th>
+          <th>적용여부</th>
           <th>작업</th>
         </tr>
       </thead>
@@ -51,8 +51,8 @@
           </td>
           <td th:text="${vpnDisplay.get(item.id)} ?: '-'"></td>
           <td>
-            <span th:if="${item.enabled}" class="badge bg-success">활성</span>
-            <span th:unless="${item.enabled}" class="badge bg-secondary">비활성</span>
+            <span th:if="${item.enabled}" class="badge bg-success">적용</span>
+            <span th:unless="${item.enabled}" class="badge bg-secondary">적용해제</span>
           </td>
           <td>
             <a th:href="@{/servers/{id}/edit(id=${item.id})}" class="btn btn-sm btn-outline-primary">수정</a>

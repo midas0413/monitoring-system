@@ -111,6 +111,27 @@ public class VpnCheckService {
             vpnRepo.saveAndFlush(freshVpn);
             log.debug("VPN status unchanged but updated lastCheckedAt: id={}, name={}, status={}, lastCheckedAt={}", 
                     freshVpn.getId(), freshVpn.getName(), freshVpn.getStatus(), freshVpn.getLastCheckedAt());
+            // VPN이 계속 DOWN인 경우에도 매 체크마다 룰 비활성화 적용 (수동 재활성화 방지, 워커 재시작 시 동기화)
+            if (newStatus == ServerStatus.DOWN) {
+                disableMonitoringForVpn(freshVpn.getId());
+            }
+        }
+    }
+
+    /**
+     * DB에 이미 DOWN으로 저장된 VPN에 대해 연결된 모니터링 룰 비활성화 동기화.
+     * 워커 기동 시 호출하여, 재시작 전에 DOWN이었던 VPN의 룰이 enabled로 남아 실행되는 것을 방지.
+     */
+    @Transactional
+    public void syncRulesForDownVpns() {
+        List<VpnConnectionEntity> downVpns = vpnRepo.findByEnabledTrueAndStatus(ServerStatus.DOWN.name());
+        if (downVpns.isEmpty()) {
+            log.debug("No enabled VPNs with status DOWN to sync");
+            return;
+        }
+        log.info("Syncing monitoring rules for {} VPN(s) with status DOWN (startup)", downVpns.size());
+        for (VpnConnectionEntity vpn : downVpns) {
+            disableMonitoringForVpn(vpn.getId());
         }
     }
 

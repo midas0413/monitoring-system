@@ -1,15 +1,18 @@
 package com.example.monitoring.worker.vpn;
 
 import com.example.monitoring.common.domain.AlertRecipientEntity;
+import com.example.monitoring.common.domain.CheckRunEntity;
 import com.example.monitoring.common.domain.NotificationOutboxEntity;
 import com.example.monitoring.common.domain.NotificationChannel;
 import com.example.monitoring.common.domain.NotificationStatus;
 import com.example.monitoring.common.domain.ServerStatus;
 import com.example.monitoring.common.domain.VpnConnectionEntity;
 import com.example.monitoring.common.domain.VpnNotificationTemplateEntity;
-import com.example.monitoring.common.repo.AlertRecipientRepository;
+import com.example.monitoring.common.domain.VpnRecipientLinkEntity;
+import com.example.monitoring.common.repo.CheckRunRepository;
 import com.example.monitoring.common.repo.NotificationOutboxRepository;
 import com.example.monitoring.common.repo.VpnNotificationTemplateRepository;
+import com.example.monitoring.common.repo.VpnRecipientLinkRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -32,15 +35,18 @@ public class VpnStatusChangeNotifier {
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final NotificationOutboxRepository outboxRepo;
-    private final AlertRecipientRepository recipientRepo;
     private final VpnNotificationTemplateRepository templateRepo;
+    private final VpnRecipientLinkRepository vpnRecipientLinkRepo;
+    private final CheckRunRepository checkRunRepo;
 
     public VpnStatusChangeNotifier(NotificationOutboxRepository outboxRepo,
-                                  AlertRecipientRepository recipientRepo,
-                                  VpnNotificationTemplateRepository templateRepo) {
+                                  VpnNotificationTemplateRepository templateRepo,
+                                  VpnRecipientLinkRepository vpnRecipientLinkRepo,
+                                  CheckRunRepository checkRunRepo) {
         this.outboxRepo = outboxRepo;
-        this.recipientRepo = recipientRepo;
         this.templateRepo = templateRepo;
+        this.vpnRecipientLinkRepo = vpnRecipientLinkRepo;
+        this.checkRunRepo = checkRunRepo;
     }
 
     /**
@@ -100,17 +106,30 @@ public class VpnStatusChangeNotifier {
                     vpn.getName(), oldStatus, newStatus);
         }
 
-        // 활성화된 수신자 목록 가져오기
-        List<AlertRecipientEntity> recipients = recipientRepo.findByEnabledTrue();
-        
-        if (recipients.isEmpty()) {
-            log.warn("No enabled recipients found for VPN status change notification");
+        // 1. 체크 실행 내역에 기록 (규칙명 "VPN 상태변경", 서버명 = VPN명으로 표시되도록 vpn_id만 저장)
+        CheckRunEntity checkRun = new CheckRunEntity();
+        checkRun.setMonitoringRuleId(null);
+        checkRun.setVpnId(vpn.getId());
+        checkRun.setSuccess(true);
+        checkRun.setStartedAt(now);
+        checkRun.setFinishedAt(now);
+        checkRun.setDurationMs(0L);
+        checkRun.setOutput(body);
+        checkRun.setErrorMessage(null);
+        checkRun = checkRunRepo.save(checkRun);
+        log.info("VPN status change check run created: vpnId={}, runId={}", vpn.getId(), checkRun.getId());
+
+        // 2. 해당 VPN에 연결된 수신자만 조회 (VPN별 수신자 연결)
+        List<VpnRecipientLinkEntity> links = vpnRecipientLinkRepo.findByVpnIdAndEnabledTrue(vpn.getId());
+        if (links.isEmpty()) {
+            log.warn("No enabled recipients linked for VPN. vpnId={}, name={}. VPN 알림은 연결된 수신자에게만 발송됩니다.", vpn.getId(), vpn.getName());
             return;
         }
 
-        // 각 수신자에게 알림 발송
-        for (AlertRecipientEntity recipient : recipients) {
-            if (!recipient.getEnabled()) {
+        // 3. 각 수신자에게 알림 발송 (check_run_id 연결)
+        for (VpnRecipientLinkEntity link : links) {
+            AlertRecipientEntity recipient = link.getRecipient();
+            if (recipient == null || !Boolean.TRUE.equals(recipient.getEnabled())) {
                 continue;
             }
 
@@ -128,19 +147,21 @@ public class VpnStatusChangeNotifier {
                 String toAddr = getRecipientAddress(recipient, channel);
                 if (!StringUtils.hasText(toAddr)) continue;
 
-                createNotification(toAddr, channel, title, body, now);
+                createNotification(toAddr, channel, title, body, now, checkRun.getId());
             }
         }
     }
 
     /**
-     * 알림 생성 및 큐에 추가
+     * 알림 생성 및 큐에 추가 (체크 실행 내역과 연결)
      */
-    private void createNotification(String toAddr, NotificationChannel channel, 
-                                   String title, String body, OffsetDateTime now) {
+    private void createNotification(String toAddr, NotificationChannel channel,
+                                   String title, String body, OffsetDateTime now, Long checkRunId) {
         NotificationOutboxEntity notification = new NotificationOutboxEntity();
         notification.setStatus(NotificationStatus.PENDING);
         notification.setChannel(channel);
+        notification.setMonitoringRuleId(null);
+        notification.setCheckRunId(checkRunId);
         notification.setToAddr(toAddr);
         notification.setTitle(title);
         notification.setBody(body);
@@ -150,7 +171,7 @@ public class VpnStatusChangeNotifier {
         notification.setMaxAttempt(5);
 
         outboxRepo.save(notification);
-        log.info("VPN status change notification created: to={}, channel={}, title={}", toAddr, channel, title);
+        log.info("VPN status change notification created: to={}, channel={}, checkRunId={}, title={}", toAddr, channel, checkRunId, title);
     }
 
     /**

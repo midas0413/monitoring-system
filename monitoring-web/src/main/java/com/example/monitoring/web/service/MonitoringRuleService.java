@@ -2,8 +2,13 @@ package com.example.monitoring.web.service;
 
 import com.example.monitoring.common.domain.MonitoringRuleEntity;
 import com.example.monitoring.common.domain.ServerEntity;
+import com.example.monitoring.common.domain.ServerStatus;
+import com.example.monitoring.common.domain.ServerVpnLinkEntity;
+import com.example.monitoring.common.domain.VpnConnectionEntity;
 import com.example.monitoring.common.repo.MonitoringRuleRepository;
 import com.example.monitoring.common.repo.ServerRepository;
+import com.example.monitoring.common.repo.ServerVpnLinkRepository;
+import com.example.monitoring.common.repo.VpnConnectionRepository;
 import com.example.monitoring.web.dto.MonitoringRuleForm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,10 +28,15 @@ public class MonitoringRuleService {
 
     private final MonitoringRuleRepository ruleRepo;
     private final ServerRepository serverRepo;
+    private final ServerVpnLinkRepository serverVpnLinkRepo;
+    private final VpnConnectionRepository vpnRepo;
 
-    public MonitoringRuleService(MonitoringRuleRepository ruleRepo, ServerRepository serverRepo) {
+    public MonitoringRuleService(MonitoringRuleRepository ruleRepo, ServerRepository serverRepo,
+                                 ServerVpnLinkRepository serverVpnLinkRepo, VpnConnectionRepository vpnRepo) {
         this.ruleRepo = ruleRepo;
         this.serverRepo = serverRepo;
+        this.serverVpnLinkRepo = serverVpnLinkRepo;
+        this.vpnRepo = vpnRepo;
     }
 
     @Transactional(readOnly = true)
@@ -103,6 +113,32 @@ public class MonitoringRuleService {
             } else {
                 map.put(rule.getId(), "-");
             }
+        }
+        return map;
+    }
+
+    /**
+     * 규칙별로 해당 서버에 연결된 VPN 중 DOWN인 것이 있으면 true.
+     * (DB상 enabled여도 VPN 다운이면 화면에서 "적용해제"로 표시하기 위함)
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, Boolean> buildServerVpnDownMap(List<MonitoringRuleEntity> rules) {
+        Map<Long, Boolean> map = new HashMap<>();
+        for (MonitoringRuleEntity rule : rules) {
+            if (rule.getServerId() == null) {
+                map.put(rule.getId(), false);
+                continue;
+            }
+            List<ServerVpnLinkEntity> links = serverVpnLinkRepo.findByServerIdAndEnabledTrue(rule.getServerId());
+            boolean anyVpnDown = false;
+            for (ServerVpnLinkEntity link : links) {
+                VpnConnectionEntity vpn = vpnRepo.findById(link.getVpnId()).orElse(null);
+                if (vpn != null && Boolean.TRUE.equals(vpn.getEnabled()) && vpn.getStatus() == ServerStatus.DOWN) {
+                    anyVpnDown = true;
+                    break;
+                }
+            }
+            map.put(rule.getId(), anyVpnDown);
         }
         return map;
     }

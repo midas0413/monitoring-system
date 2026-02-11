@@ -38,6 +38,8 @@ public class CheckRunPageController {
         model.addAttribute("finishedDisplay", checkRunService.buildFinishedDisplayMap(items));
         model.addAttribute("ruleNameDisplay", checkRunService.buildRuleNameDisplayMap(items));
         model.addAttribute("serverDisplay", checkRunService.buildServerDisplayMap(items));
+        model.addAttribute("ruleNameByRunId", checkRunService.buildRuleNameByRunIdMap(items));
+        model.addAttribute("serverNameByRunId", checkRunService.buildServerNameByRunIdMap(items));
         model.addAttribute("ruleId", ruleId);
         
         // 모든 룰 목록 (필터용)

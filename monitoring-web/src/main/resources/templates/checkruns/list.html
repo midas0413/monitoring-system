@@ -46,8 +46,8 @@
           <tbody>
           <tr th:each="r : ${items}">
             <td th:text="${r.id}">1</td>
-            <td th:text="${r.monitoringRuleId != null && ruleNameDisplay != null ? (ruleNameDisplay.get(r.monitoringRuleId) != null ? ruleNameDisplay.get(r.monitoringRuleId) : '-') : '-'}">-</td>
-            <td th:text="${r.monitoringRuleId != null && serverDisplay != null ? (serverDisplay.get(r.monitoringRuleId) != null ? serverDisplay.get(r.monitoringRuleId) : '-') : '-'}">-</td>
+            <td th:text="${r.vpnId != null ? (ruleNameByRunId != null ? ruleNameByRunId.get(r.id) : 'VPN 상태변경') : (r.monitoringRuleId != null && ruleNameDisplay != null ? (ruleNameDisplay.get(r.monitoringRuleId) != null ? ruleNameDisplay.get(r.monitoringRuleId) : '-') : '-')}">-</td>
+            <td th:text="${r.vpnId != null ? (serverNameByRunId != null ? serverNameByRunId.get(r.id) : '-') : (r.monitoringRuleId != null && serverDisplay != null ? (serverDisplay.get(r.monitoringRuleId) != null ? serverDisplay.get(r.monitoringRuleId) : '-') : '-')}">-</td>
             <td>
               <span class="badge rounded-pill"
                     th:classappend="${r.success} ? ' text-bg-success' : ' text-bg-danger'"
@@ -68,7 +68,7 @@
                       style="font-size: 0.75rem; vertical-align: baseline;"
                       data-bs-toggle="modal" 
                       data-bs-target="#outputModal"
-                      th:attr="data-output=${r.output}, data-error=${r.errorMessage}, data-id=${r.id}, data-rule-name=${r.monitoringRuleId != null && ruleNameDisplay != null ? (ruleNameDisplay.get(r.monitoringRuleId) != null ? ruleNameDisplay.get(r.monitoringRuleId) : '-') : '-'}">
+                      th:attr="data-output=${r.output}, data-error=${r.errorMessage}, data-id=${r.id}, data-rule-name=${r.vpnId != null ? (ruleNameByRunId != null ? ruleNameByRunId.get(r.id) : 'VPN 상태변경') : (r.monitoringRuleId != null && ruleNameDisplay != null ? ruleNameDisplay.get(r.monitoringRuleId) : '-')}">
                 <i class="bi bi-eye"></i> 보기
               </button>
             </td>
