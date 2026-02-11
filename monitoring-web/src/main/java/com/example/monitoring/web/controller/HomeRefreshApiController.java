@@ -65,10 +65,11 @@ public class HomeRefreshApiController {
 
         // VPN 상태 목록
         List<VpnConnectionEntity> vpns = homeService.listAllVpns();
-        Map<Long, ServerStatus> vpnStatusMap = vpns.stream()
+        // VPN 상태 맵을 문자열로 변환 (JavaScript에서 사용하기 위해)
+        Map<Long, String> vpnStatusMap = vpns.stream()
                 .collect(Collectors.toMap(
                         VpnConnectionEntity::getId,
-                        vpn -> vpn.getStatus() != null ? vpn.getStatus() : ServerStatus.UNKNOWN
+                        vpn -> vpn.getStatus() != null ? vpn.getStatus().name() : "UNKNOWN"
                 ));
 
         Map<String, Object> result = new HashMap<>();

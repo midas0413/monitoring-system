@@ -40,6 +40,33 @@ public class RuleRecipientLinkService {
         return ids;
     }
 
+    /**
+     * 규칙에 연결된 활성화된 수신자 수 조회
+     */
+    @Transactional(readOnly = true)
+    public int countLinkedRecipients(Long ruleId) {
+        List<AlertRuleRecipientLinkEntity> links = linkRepo.findByRuleId(ruleId);
+        int count = 0;
+        for (AlertRuleRecipientLinkEntity l : links) {
+            if (Boolean.TRUE.equals(l.getEnabled())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * 여러 규칙에 대한 수신자 수 맵 생성
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, Integer> buildRecipientCountMap(List<Long> ruleIds) {
+        Map<Long, Integer> map = new HashMap<>();
+        for (Long ruleId : ruleIds) {
+            map.put(ruleId, countLinkedRecipients(ruleId));
+        }
+        return map;
+    }
+
     @Transactional
     public void saveLinks(Long ruleId, List<Long> newRecipientIds) {
         log.info("Rule recipients 저장 시작: ruleId={}, recipientIds={}", ruleId, newRecipientIds);

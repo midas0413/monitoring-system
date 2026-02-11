@@ -58,7 +58,11 @@
           <td th:text="${item.intervalSec} + ' sec'"></td>
           <td>
             <a th:href="@{/rules/{id}/edit(id=${item.id})}" class="btn btn-sm btn-outline-primary">수정</a>
-            <a th:href="@{/rules/{id}/recipients(id=${item.id})}" class="btn btn-sm btn-outline-info">수신자</a>
+            <a th:href="@{/rules/{id}/recipients(id=${item.id})}" class="btn btn-sm btn-outline-info">
+              수신자
+              <span th:if="${recipientCountMap != null && recipientCountMap.containsKey(item.id) && recipientCountMap.get(item.id) > 0}" 
+                    class="badge bg-primary ms-1" th:text="${recipientCountMap.get(item.id)}">0</span>
+            </a>
             <form th:action="@{/rules/{id}/delete(id=${item.id})}" method="post" style="display: inline;" 
                   onsubmit="return confirm('이 규칙을 삭제하시겠습니까?');">
               <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>

@@ -25,11 +25,22 @@ services:
     container_name: monitoring-web
     ports:
       - "8080:8080"
+    env_file:
+      - .env
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/monitoring
-      SPRING_DATASOURCE_USERNAME: monitoring
-      SPRING_DATASOURCE_PASSWORD: monitoring
-      APP_SYSTEM_NAME: Monitoring Portal
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/monitoring}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-monitoring}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-monitoring}
+      APP_SYSTEM_NAME: ${APP_SYSTEM_NAME:-Monitoring Portal}
+      ALIGO_API_KEY: ${ALIGO_API_KEY:-}
+      ALIGO_USER_ID: ${ALIGO_USER_ID:-}
+      ALIGO_SENDER: ${ALIGO_SENDER:-}
+      ALIGO_SENDER_KEY: ${ALIGO_SENDER_KEY:-}
+      ALIGO_TEMPLATE_CODE: ${ALIGO_TEMPLATE_CODE:-}
+      ALIGO_TEST_MODE: ${ALIGO_TEST_MODE:-N}
+      LOGGING_LEVEL_ROOT: ${LOGGING_LEVEL_ROOT:-INFO}
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB:-INFO}
+      LOGGING_LEVEL_ORG_THYMELEAF: ${LOGGING_LEVEL_ORG_THYMELEAF:-INFO}
     depends_on:
       postgres:
         condition: service_healthy
@@ -40,25 +51,31 @@ services:
       context: .
       dockerfile: Dockerfile.worker
     container_name: monitoring-worker
+    env_file:
+      - .env
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/monitoring
-      SPRING_DATASOURCE_USERNAME: monitoring
-      SPRING_DATASOURCE_PASSWORD: monitoring
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/monitoring}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-monitoring}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-monitoring}
       # Worker 설정
-      WORKER_ID: worker-1
-      WORKER_CLAIM_LIMIT: 10
-      WORKER_LOCK_SECONDS: 30
-      # Aligo API 설정 (환경 변수로 설정)
+      WORKER_ID: ${WORKER_ID:-}
+      WORKER_CLAIM_LIMIT: ${WORKER_CLAIM_LIMIT:-10}
+      WORKER_LOCK_SECONDS: ${WORKER_LOCK_SECONDS:-30}
+      WORKER_LOOP_SLEEP_MS: ${WORKER_LOOP_SLEEP_MS:-1000}
+      # Aligo API 설정
       ALIGO_API_KEY: ${ALIGO_API_KEY:-}
       ALIGO_USER_ID: ${ALIGO_USER_ID:-}
       ALIGO_SENDER: ${ALIGO_SENDER:-}
       ALIGO_SENDER_KEY: ${ALIGO_SENDER_KEY:-}
       ALIGO_TEMPLATE_CODE: ${ALIGO_TEMPLATE_CODE:-}
+      ALIGO_TEST_MODE: ${ALIGO_TEST_MODE:-N}
       # Mail 설정
       SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-smtp.gmail.com}
       SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
       SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
       SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      # 로깅 레벨
+      LOGGING_LEVEL_ROOT: ${LOGGING_LEVEL_ROOT:-INFO}
     depends_on:
       postgres:
         condition: service_healthy

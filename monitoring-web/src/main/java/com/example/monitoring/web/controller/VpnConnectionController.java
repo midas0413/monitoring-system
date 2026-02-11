@@ -1,15 +1,23 @@
 package com.example.monitoring.web.controller;
 
+import com.example.monitoring.common.domain.ServerStatus;
 import com.example.monitoring.common.domain.VpnConnectionEntity;
 import com.example.monitoring.web.dto.VpnConnectionForm;
+import com.example.monitoring.web.service.HomeService;
 import com.example.monitoring.web.service.VpnConnectionService;
 import com.example.monitoring.web.service.VpnNotificationTemplateService;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/vpn")
@@ -17,11 +25,14 @@ public class VpnConnectionController {
 
     private final VpnConnectionService vpnService;
     private final VpnNotificationTemplateService templateService;
+    private final HomeService homeService;
 
     public VpnConnectionController(VpnConnectionService vpnService,
-                                  VpnNotificationTemplateService templateService) {
+                                  VpnNotificationTemplateService templateService,
+                                  HomeService homeService) {
         this.vpnService = vpnService;
         this.templateService = templateService;
+        this.homeService = homeService;
     }
 
     @GetMapping
@@ -108,5 +119,38 @@ public class VpnConnectionController {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
         }
         return "redirect:/vpn";
+    }
+}
+
+/**
+ * VPN 목록 리프레시용 API
+ */
+@RestController
+@RequestMapping("/api/vpn")
+class VpnRefreshApiController {
+
+    private final HomeService homeService;
+
+    public VpnRefreshApiController(HomeService homeService) {
+        this.homeService = homeService;
+    }
+
+    @GetMapping("/refresh")
+    @ResponseBody
+    public Map<String, Object> refresh() {
+        // VPN 상태 목록
+        List<VpnConnectionEntity> vpns = homeService.listAllVpns();
+        // VPN 상태 맵을 문자열로 변환 (JavaScript에서 사용하기 위해)
+        Map<Long, String> vpnStatusMap = vpns.stream()
+                .collect(Collectors.toMap(
+                        VpnConnectionEntity::getId,
+                        vpn -> vpn.getStatus() != null ? vpn.getStatus().name() : "UNKNOWN"
+                ));
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("vpns", vpns);
+        result.put("vpnStatusMap", vpnStatusMap);
+        result.put("refresh", true);
+        return result;
     }
 }

@@ -378,8 +378,34 @@
             </div>
             <div class="col-12">
               <label class="form-label">Message Template <span class="text-danger">*</span></label>
-              <textarea class="form-control" rows="3" th:field="*{messageTemplate}" required
+              <textarea class="form-control" rows="3" id="messageTemplate" th:field="*{messageTemplate}" required
                         placeholder="예: [${ruleName}] 모니터링에 알림 발생.&#10;임계값 : ${threshold}&#10;현재값 : ${outputNum}&#10;발생시각 : ${finishedAt} [${finishedAtLocal}]"></textarea>
+              <div class="mt-2">
+                <div class="row g-2 align-items-end">
+                  <div class="col-md-3">
+                    <label class="form-label small mb-1">테스트 수신자</label>
+                    <input type="text" class="form-control form-control-sm" id="testRecipient" 
+                           placeholder="010-1234-5678" value="">
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label small mb-1">채널</label>
+                    <select class="form-select form-select-sm" id="testChannel">
+                      <option value="KAKAO">카카오톡</option>
+                      <option value="SMS">SMS</option>
+                    </select>
+                  </div>
+                  <div class="col-md-2">
+                    <button type="button" class="btn btn-sm btn-outline-info w-100" id="testTemplateBtn" 
+                            th:disabled="${form.id == null}">
+                      <i class="bi bi-send"></i> 템플릿 테스트
+                    </button>
+                  </div>
+                  <div class="col-md-5">
+                    <div id="templateTestResult" class="alert mb-0" style="display:none;" role="alert"></div>
+                  </div>
+                </div>
+                <small class="form-text text-muted">규칙 저장 후 템플릿 테스트가 가능합니다.</small>
+              </div>
               <div class="form-text small text-muted mt-2">
                 <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" 
                         data-bs-target="#messageTemplateHelp" aria-expanded="false" aria-controls="messageTemplateHelp"
@@ -875,6 +901,81 @@
         "'": '&#039;'
       };
       return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+    
+    // 메시지 템플릿 테스트 버튼
+    var testTemplateBtn = document.getElementById('testTemplateBtn');
+    var templateTestResult = document.getElementById('templateTestResult');
+    var messageTemplate = document.getElementById('messageTemplate');
+    var testRecipient = document.getElementById('testRecipient');
+    var testChannel = document.getElementById('testChannel');
+    var formId = document.querySelector('input[name="id"]');
+    
+    if (testTemplateBtn) {
+      testTemplateBtn.addEventListener('click', function() {
+        var ruleId = formId ? formId.value : null;
+        var template = messageTemplate ? messageTemplate.value : '';
+        var recipient = testRecipient ? testRecipient.value.trim() : '';
+        var channel = testChannel ? testChannel.value : 'KAKAO';
+        
+        if (!ruleId || ruleId === '' || ruleId === '0') {
+          showTemplateTestResult(false, '규칙을 먼저 저장한 후 테스트할 수 있습니다.');
+          return;
+        }
+        
+        if (!template || !template.trim()) {
+          showTemplateTestResult(false, '메시지 템플릿을 입력하세요.');
+          return;
+        }
+        
+        if (!recipient) {
+          showTemplateTestResult(false, '테스트 수신자 번호를 입력하세요.');
+          return;
+        }
+        
+        // 전화번호 형식 간단 검증
+        var phoneRegex = /^[0-9-]+$/;
+        if (!phoneRegex.test(recipient)) {
+          showTemplateTestResult(false, '올바른 전화번호 형식을 입력하세요. (예: 010-1234-5678)');
+          return;
+        }
+        
+        testTemplateBtn.disabled = true;
+        testTemplateBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 테스트 중...';
+        templateTestResult.style.display = 'none';
+        
+        var formData = new FormData();
+        formData.append('template', template);
+        formData.append('recipient', recipient);
+        formData.append('channel', channel);
+        
+        fetch('/api/monitoring-rules/' + ruleId + '/test-template', {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data) {
+            showTemplateTestResult(data.success, data.message);
+          }
+        })
+        .catch(error => {
+          showTemplateTestResult(false, '테스트 중 오류가 발생했습니다: ' + error.message);
+        })
+        .finally(() => {
+          if (testTemplateBtn) {
+            testTemplateBtn.disabled = false;
+            testTemplateBtn.innerHTML = '<i class="bi bi-send"></i> 템플릿 테스트';
+          }
+        });
+      });
+    }
+    
+    function showTemplateTestResult(success, message) {
+      if (!templateTestResult) return;
+      templateTestResult.className = 'alert alert-dismissible fade show mb-0 ' + (success ? 'alert-success' : 'alert-danger');
+      templateTestResult.innerHTML = '<span>' + escapeHtml(message) + '</span><button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+      templateTestResult.style.display = 'block';
     }
     
     // 디스크 공간 테스트 버튼

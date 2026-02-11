@@ -1,7 +1,12 @@
 <div th:fragment="content">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2>VPN 연결</h2>
-    <a th:href="@{/vpn/new}" class="btn btn-primary">+ VPN 연결 등록</a>
+    <div>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshBtn" onclick="refreshVpnList()">
+        <i class="bi bi-arrow-clockwise"></i> 새로고침
+      </button>
+      <a th:href="@{/vpn/new}" class="btn btn-primary">+ VPN 연결 등록</a>
+    </div>
   </div>
 
   <!-- 메시지 -->
@@ -55,13 +60,14 @@
                 <span class="badge bg-info" th:text="${item.checkIntervalSec} + '초'"></span>
               </td>
               <td>
-                <span class="badge" 
+                <span class="badge vpn-status-badge" 
+                      th:attr="data-vpn-id=${item.id}"
                       th:classappend="${item.status.name() == 'UP'} ? 'bg-success' : 
                                      (${item.status.name() == 'DOWN'} ? 'bg-danger' : 'bg-secondary')"
                       th:text="${item.status.name()}"></span>
               </td>
               <td class="small">
-                <div th:if="${item.lastCheckedAt != null}">
+                <div class="vpn-last-checked" th:attr="data-vpn-id=${item.id}" th:if="${item.lastCheckedAt != null}">
                   <div th:text="${#temporals.format(item.lastCheckedAt, 'yyyy-MM-dd HH:mm:ss')}"></div>
                 </div>
                 <div class="text-muted" th:if="${item.lastCheckedAt == null}">아직 체크되지 않음</div>
@@ -85,4 +91,132 @@
       </div>
     </div>
   </div>
+
+  <script th:inline="javascript">
+  (function() {
+    const REFRESH_INTERVAL = 30000; // 30초
+    
+    function formatDateTime(dateTimeStr) {
+      if (!dateTimeStr) return '';
+      try {
+        const dt = new Date(dateTimeStr);
+        return dt.toLocaleString('ko-KR', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      } catch (e) {
+        return dateTimeStr;
+      }
+    }
+    
+    function updateVpnStatus(vpns, vpnStatusMap) {
+      if (!vpns || !vpnStatusMap) return;
+      
+      vpns.forEach(function(vpn) {
+        const statusBadge = document.querySelector('.vpn-status-badge[data-vpn-id="' + vpn.id + '"]');
+        if (statusBadge) {
+          const status = vpnStatusMap[vpn.id] || 'UNKNOWN';
+          statusBadge.textContent = status;
+          statusBadge.className = 'badge vpn-status-badge';
+          statusBadge.setAttribute('data-vpn-id', vpn.id);
+          if (status === 'UP') {
+            statusBadge.classList.add('bg-success');
+            statusBadge.classList.remove('bg-danger', 'bg-secondary');
+          } else if (status === 'DOWN') {
+            statusBadge.classList.add('bg-danger');
+            statusBadge.classList.remove('bg-success', 'bg-secondary');
+          } else {
+            statusBadge.classList.add('bg-secondary');
+            statusBadge.classList.remove('bg-success', 'bg-danger');
+          }
+        }
+        
+        // 마지막 확인 시간 업데이트
+        if (vpn.lastCheckedAt) {
+          const lastCheckedEl = document.querySelector('.vpn-last-checked[data-vpn-id="' + vpn.id + '"]');
+          if (lastCheckedEl) {
+            lastCheckedEl.textContent = formatDateTime(vpn.lastCheckedAt);
+          }
+        }
+      });
+    }
+    
+    function refreshVpnList() {
+      const refreshBtn = document.getElementById('refreshBtn');
+      if (refreshBtn) {
+        refreshBtn.disabled = true;
+        refreshBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 새로고침 중...';
+      }
+      
+      fetch('/api/vpn/refresh')
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('Network response was not ok: ' + response.status);
+          }
+          return response.json();
+        })
+        .then(function(data) {
+          if (data.vpns && data.vpnStatusMap) {
+            updateVpnStatus(data.vpns, data.vpnStatusMap);
+          }
+          // 페이지 전체 리로드 (더 확실한 방법)
+          if (data.refresh) {
+            window.location.reload();
+          }
+        })
+        .catch(function(error) {
+          console.error('VPN 목록 새로고침 실패:', error);
+          // 에러 발생 시에도 페이지 리로드
+          window.location.reload();
+        })
+        .finally(function() {
+          if (refreshBtn) {
+            refreshBtn.disabled = false;
+            refreshBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> 새로고침';
+          }
+        });
+    }
+    
+    // 30초 간격으로 자동 리프레시
+    setInterval(function() {
+      fetch('/api/vpn/refresh')
+        .then(function(response) {
+          if (!response.ok) return;
+          return response.json();
+        })
+        .then(function(data) {
+          if (data.vpns && data.vpnStatusMap) {
+            updateVpnStatus(data.vpns, data.vpnStatusMap);
+          }
+        })
+        .catch(function(error) {
+          console.error('VPN 목록 자동 새로고침 실패:', error);
+        });
+    }, REFRESH_INTERVAL);
+    
+    // 페이지 로드 후 5초 후 첫 리프레시
+    setTimeout(function() {
+      fetch('/api/vpn/refresh')
+        .then(function(response) {
+          if (!response.ok) return;
+          return response.json();
+        })
+        .then(function(data) {
+          if (data.vpns && data.vpnStatusMap) {
+            updateVpnStatus(data.vpns, data.vpnStatusMap);
+          }
+        })
+        .catch(function(error) {
+          console.error('VPN 목록 초기 새로고침 실패:', error);
+        });
+    }, 5000);
+    
+    // 전역 함수로 등록 (버튼 클릭용)
+    window.refreshVpnList = refreshVpnList;
+  })();
+  </script>
 </div>

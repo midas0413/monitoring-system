@@ -5,6 +5,7 @@ import com.example.monitoring.common.domain.MonitoringRuleEntity;
 import com.example.monitoring.common.domain.ServerEntity;
 import com.example.monitoring.web.dto.MonitoringRuleForm;
 import com.example.monitoring.web.dto.RuleRecipientsForm;
+import com.example.monitoring.web.service.MessageTemplateTestService;
 import com.example.monitoring.web.service.MonitoringRuleService;
 import com.example.monitoring.web.service.RuleRecipientLinkService;
 import com.example.monitoring.web.service.ServerService;
@@ -46,6 +47,11 @@ public class MonitoringRuleController {
         model.addAttribute("q", q);
         model.addAttribute("items", items);
         model.addAttribute("serverDisplay", ruleService.buildServerDisplayMap(items));
+        
+        // 수신자 수 맵 생성
+        List<Long> ruleIds = items.stream().map(MonitoringRuleEntity::getId).toList();
+        model.addAttribute("recipientCountMap", linkService.buildRecipientCountMap(ruleIds));
+        
         return "layout";
     }
 
@@ -150,4 +156,5 @@ public class MonitoringRuleController {
             return "redirect:/rules/" + id + "/recipients";
         }
     }
+
 }
