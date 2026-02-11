@@ -5,6 +5,8 @@ import com.example.monitoring.common.repo.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -63,7 +65,19 @@ public class HomeService {
 
     /** 모든 활성화된 VPN 목록 */
     public List<VpnConnectionEntity> listAllVpns() {
-        return vpnRepo.findByEnabledTrueOrderByNameAsc();
+        List<VpnConnectionEntity> vpns = vpnRepo.findByEnabledTrueOrderByNameAsc();
+        // DB에서 조회한 시간을 한국 시간(KST, UTC+9)으로 변환
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+        for (VpnConnectionEntity vpn : vpns) {
+            if (vpn.getLastCheckedAt() != null) {
+                // UTC로 저장된 시간을 한국 시간으로 변환
+                vpn.setLastCheckedAt(vpn.getLastCheckedAt().atZoneSameInstant(kstZone).toOffsetDateTime());
+            }
+            if (vpn.getLastStatusChangeAt() != null) {
+                vpn.setLastStatusChangeAt(vpn.getLastStatusChangeAt().atZoneSameInstant(kstZone).toOffsetDateTime());
+            }
+        }
+        return vpns;
     }
 
     /** 서버 연결 상태 확인 (간단한 구현 - 실제로는 체크 결과 기반) */

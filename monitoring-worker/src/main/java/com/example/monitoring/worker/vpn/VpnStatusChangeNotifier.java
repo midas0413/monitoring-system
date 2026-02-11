@@ -6,8 +6,10 @@ import com.example.monitoring.common.domain.NotificationChannel;
 import com.example.monitoring.common.domain.NotificationStatus;
 import com.example.monitoring.common.domain.ServerStatus;
 import com.example.monitoring.common.domain.VpnConnectionEntity;
+import com.example.monitoring.common.domain.VpnNotificationTemplateEntity;
 import com.example.monitoring.common.repo.AlertRecipientRepository;
 import com.example.monitoring.common.repo.NotificationOutboxRepository;
+import com.example.monitoring.common.repo.VpnNotificationTemplateRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
@@ -30,11 +33,14 @@ public class VpnStatusChangeNotifier {
 
     private final NotificationOutboxRepository outboxRepo;
     private final AlertRecipientRepository recipientRepo;
+    private final VpnNotificationTemplateRepository templateRepo;
 
     public VpnStatusChangeNotifier(NotificationOutboxRepository outboxRepo,
-                                  AlertRecipientRepository recipientRepo) {
+                                  AlertRecipientRepository recipientRepo,
+                                  VpnNotificationTemplateRepository templateRepo) {
         this.outboxRepo = outboxRepo;
         this.recipientRepo = recipientRepo;
+        this.templateRepo = templateRepo;
     }
 
     /**
@@ -45,24 +51,42 @@ public class VpnStatusChangeNotifier {
             return;
         }
 
-        OffsetDateTime now = OffsetDateTime.now();
-        String title = String.format("VPN 상태 변경: %s", vpn.getName());
-        String body = String.format(
-            "[VPN 상태 변경 알림]\n" +
-            "VPN명: %s\n" +
-            "호스트: %s\n" +
-            "이전 상태: %s\n" +
-            "현재 상태: %s\n" +
-            "변경 시간: %s",
-            vpn.getName(),
-            vpn.getHost(),
-            oldStatus,
-            newStatus,
-            now.format(DATETIME_FORMATTER)
-        );
-
-        log.info("VPN status change notification: vpn={}, {} -> {}", 
-                vpn.getName(), oldStatus, newStatus);
+        // 한국 시간(KST, UTC+9)으로 저장
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.of("+09:00"));
+        String changeTimeStr = now.format(DATETIME_FORMATTER);
+        
+        // VPN 템플릿 조회 (활성화된 템플릿 중 첫 번째 사용)
+        List<VpnNotificationTemplateEntity> templates = templateRepo.findByVpnIdAndEnabledTrueOrderByNameAsc(vpn.getId());
+        VpnNotificationTemplateEntity template = templates.isEmpty() ? null : templates.get(0);
+        
+        String title;
+        String body;
+        
+        if (template != null) {
+            // 템플릿 사용
+            title = renderTemplate(template.getTitleTemplate(), vpn, oldStatus, newStatus, changeTimeStr);
+            body = renderTemplate(template.getBodyTemplate(), vpn, oldStatus, newStatus, changeTimeStr);
+            log.info("VPN status change notification using template: vpn={}, template={}, {} -> {}", 
+                    vpn.getName(), template.getName(), oldStatus, newStatus);
+        } else {
+            // 기본 템플릿 사용
+            title = String.format("VPN 상태 변경: %s", vpn.getName());
+            body = String.format(
+                "[VPN 상태 변경 알림]\n" +
+                "VPN명: %s\n" +
+                "호스트: %s\n" +
+                "이전 상태: %s\n" +
+                "현재 상태: %s\n" +
+                "변경 시간: %s",
+                vpn.getName(),
+                vpn.getHost(),
+                oldStatus,
+                newStatus,
+                changeTimeStr
+            );
+            log.info("VPN status change notification (default template): vpn={}, {} -> {}", 
+                    vpn.getName(), oldStatus, newStatus);
+        }
 
         // 활성화된 수신자 목록 가져오기
         List<AlertRecipientEntity> recipients = recipientRepo.findByEnabledTrue();
@@ -110,9 +134,11 @@ public class VpnStatusChangeNotifier {
         notification.setBody(body);
         notification.setCreatedAt(now);
         notification.setNextAttemptAt(now);
+        notification.setAttempt(0);
+        notification.setMaxAttempt(5);
 
         outboxRepo.save(notification);
-        log.info("VPN status change notification created: to={}, channel={}", toAddr, channel);
+        log.info("VPN status change notification created: to={}, channel={}, title={}", toAddr, channel, title);
     }
 
     /**
@@ -136,5 +162,28 @@ public class VpnStatusChangeNotifier {
             case EMAIL -> recipient.getEmail();
             case KAKAO -> recipient.getKakao();
         };
+    }
+
+    /**
+     * 템플릿 변수 치환
+     * 줄바꿈 문자(\n, \r\n)는 그대로 유지하여 알림 전송 시 줄바꿈이 보존되도록 함
+     */
+    private String renderTemplate(String template, VpnConnectionEntity vpn, 
+                                 ServerStatus oldStatus, ServerStatus newStatus, 
+                                 String changeTime) {
+        if (template == null) {
+            return "";
+        }
+        // 템플릿 변수 치환 (줄바꿈 문자는 그대로 유지)
+        String result = template
+                .replace("${vpnName}", vpn.getName() != null ? vpn.getName() : "")
+                .replace("${vpnHost}", vpn.getHost() != null ? vpn.getHost() : "")
+                .replace("${oldStatus}", oldStatus != null ? oldStatus.name() : "UNKNOWN")
+                .replace("${newStatus}", newStatus != null ? newStatus.name() : "UNKNOWN")
+                .replace("${changeTime}", changeTime != null ? changeTime : "");
+        
+        // 줄바꿈 문자 보존: \r\n을 \n으로 정규화하지 않고 그대로 유지
+        // (일부 시스템에서 \r\n을 사용하더라도 Aligo API가 처리할 수 있도록)
+        return result;
     }
 }

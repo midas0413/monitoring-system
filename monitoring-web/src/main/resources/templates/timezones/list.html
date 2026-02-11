@@ -1,0 +1,75 @@
+<div th:fragment="content">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Timezone Codes</h2>
+    <a th:href="@{/settings}" class="btn btn-secondary">Back to Settings</a>
+  </div>
+
+  <!-- 메시지 -->
+  <div th:if="${message}" class="alert alert-success alert-dismissible fade show" role="alert">
+    <span th:text="${message}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <span th:text="${error}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
+  <!-- 검색 -->
+  <form class="row g-2 mb-3" method="get" th:action="@{/timezones}">
+    <div class="col-sm-8 col-md-6">
+      <input class="form-control" name="q" th:value="${q}" placeholder="Search by timezone ID, display name, or description...">
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-outline-secondary" type="submit">Search</button>
+    </div>
+    <div class="col-auto" th:if="${q != null && !#strings.isEmpty(q)}">
+      <a class="btn btn-link" th:href="@{/timezones}">Clear</a>
+    </div>
+  </form>
+
+  <div class="card card-shadow">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Timezone ID</th>
+              <th>Display Name</th>
+              <th>Offset</th>
+              <th>Display Order</th>
+              <th>Enabled</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr th:if="${items == null || #lists.isEmpty(items)}">
+              <td colspan="7" class="text-center text-muted">No timezone codes found</td>
+            </tr>
+            <tr th:each="item : ${items}">
+              <td th:text="${item.id}"></td>
+              <td><code th:text="${item.timezoneId}"></code></td>
+              <td th:text="${item.displayName}"></td>
+              <td>
+                <span th:if="${item.offsetHours != null}">
+                  <span th:text="${item.offsetHours >= 0 ? '+' : ''} + ${item.offsetHours}"></span>
+                  <span th:if="${item.offsetMinutes != null && item.offsetMinutes != 0}">
+                    :<span th:text="${#strings.padStart(#strings.toString(item.offsetMinutes), 2, '0')}"></span>
+                  </span>
+                </span>
+                <span th:if="${item.offsetHours == null}">-</span>
+              </td>
+              <td th:text="${item.displayOrder}"></td>
+              <td>
+                <span class="badge" 
+                      th:classappend="${item.enabled} ? 'bg-success' : 'bg-secondary'"
+                      th:text="${item.enabled} ? 'Enabled' : 'Disabled'"></span>
+              </td>
+              <td th:text="${item.description} ?: '-'"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

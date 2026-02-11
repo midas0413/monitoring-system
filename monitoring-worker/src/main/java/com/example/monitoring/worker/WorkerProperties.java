@@ -5,7 +5,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "worker")
 public class WorkerProperties {
 
-    private String id = "worker-1";
+    /**
+     * Worker ID (환경 변수 WORKER_ID 또는 application.yml의 worker.id로 설정 가능)
+     * 설정되지 않으면 WorkerConfig에서 자동 생성
+     */
+    private String id;
 
     private int claimLimit = 10;
     private int lockSeconds = 30;

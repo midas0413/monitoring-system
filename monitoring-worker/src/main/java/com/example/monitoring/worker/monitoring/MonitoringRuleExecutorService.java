@@ -47,6 +47,9 @@ public class MonitoringRuleExecutorService {
      * 모니터링 룰 실행
      */
     public void executeRule(MonitoringRuleEntity rule, String workerId) {
+        log.info("Executing monitoring rule: ruleId={}, name={}, type={}, serverId={}", 
+                rule.getId(), rule.getName(), rule.getMonitoringType(), rule.getServerId());
+        
         if (!Boolean.TRUE.equals(rule.getEnabled())) {
             log.warn("Rule is disabled. ruleId={}", rule.getId());
             unlockRule(rule);

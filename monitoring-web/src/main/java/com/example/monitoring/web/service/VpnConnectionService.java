@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.ZoneId;
 import java.util.List;
 
 @Service
@@ -26,22 +27,30 @@ public class VpnConnectionService {
 
     @Transactional(readOnly = true)
     public List<VpnConnectionEntity> list(String q) {
+        List<VpnConnectionEntity> vpns;
         if (StringUtils.hasText(q)) {
-            return vpnRepo.findAll().stream()
+            vpns = vpnRepo.findAll().stream()
                     .filter(vpn -> vpn.getName().toLowerCase().contains(q.toLowerCase()) ||
                                  (vpn.getHost() != null && vpn.getHost().toLowerCase().contains(q.toLowerCase())))
                     .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
                     .toList();
+        } else {
+            vpns = vpnRepo.findAll().stream()
+                    .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
+                    .toList();
         }
-        return vpnRepo.findAll().stream()
-                .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
-                .toList();
+        // DB에서 조회한 시간을 한국 시간(KST, UTC+9)으로 변환
+        convertToKst(vpns);
+        return vpns;
     }
 
     @Transactional(readOnly = true)
     public VpnConnectionEntity get(Long id) {
-        return vpnRepo.findById(id)
+        VpnConnectionEntity vpn = vpnRepo.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("VPN connection not found: " + id));
+        // DB에서 조회한 시간을 한국 시간(KST, UTC+9)으로 변환
+        convertToKst(List.of(vpn));
+        return vpn;
     }
 
     @Transactional
@@ -94,5 +103,20 @@ public class VpnConnectionService {
         entity.setCheckIntervalSec(form.getCheckIntervalSec() != null ? form.getCheckIntervalSec() : 60);
         entity.setEnabled(form.getEnabled() != null ? form.getEnabled() : true);
         entity.setDescription(StringUtils.hasText(form.getDescription()) ? form.getDescription().trim() : null);
+    }
+
+    /**
+     * VPN 엔티티의 시간 필드를 한국 시간(KST, UTC+9)으로 변환
+     */
+    private void convertToKst(List<VpnConnectionEntity> vpns) {
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+        for (VpnConnectionEntity vpn : vpns) {
+            if (vpn.getLastCheckedAt() != null) {
+                vpn.setLastCheckedAt(vpn.getLastCheckedAt().atZoneSameInstant(kstZone).toOffsetDateTime());
+            }
+            if (vpn.getLastStatusChangeAt() != null) {
+                vpn.setLastStatusChangeAt(vpn.getLastStatusChangeAt().atZoneSameInstant(kstZone).toOffsetDateTime());
+            }
+        }
     }
 }

@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 
 @Service
@@ -55,7 +57,8 @@ public class VpnCheckService {
         ServerStatus newStatus = checkConnectivity(vpn.getHost());
         ServerStatus oldStatus = vpn.getStatus();
 
-        OffsetDateTime now = OffsetDateTime.now();
+        // 한국 시간(KST, UTC+9)으로 저장
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.of("+09:00"));
         
         log.info("VPN connectivity check result: id={}, name={}, host={}, oldStatus={}, newStatus={}", 
                 vpn.getId(), vpn.getName(), vpn.getHost(), oldStatus, newStatus);

@@ -128,6 +128,93 @@
     </div>
   </form>
 
+  <!-- VPN 알림 템플릿 관리 섹션 (VPN당 하나의 템플릿만 사용) -->
+  <div class="card card-shadow mt-4">
+    <div class="card-header">
+      <h5 class="mb-0">VPN 알림 메시지 템플릿</h5>
+    </div>
+    <div class="card-body">
+      <div th:if="${form.id == null}" class="alert alert-info mb-0">
+        <strong>안내:</strong> VPN을 먼저 등록하신 후 템플릿을 추가할 수 있습니다.
+      </div>
+      <div th:if="${form.id != null}">
+        <!-- 템플릿 등록/수정 폼 -->
+        <form th:action="${template != null ? '/vpn/' + form.id + '/templates/' + template.id : '/vpn/' + form.id + '/templates'}" 
+              method="post">
+          <input type="hidden" name="vpnId" th:value="${form.id}">
+          <input type="hidden" name="id" th:value="${template != null ? template.id : ''}">
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="templateName" class="form-label">템플릿 이름 <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="templateName" name="name" 
+                       th:value="${template != null ? template.name : ''}" required
+                       placeholder="예: 기본 알림 템플릿">
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label">상태</label>
+                <div class="form-check mt-2">
+                  <input class="form-check-input" type="checkbox" id="templateEnabled" name="enabled" 
+                         th:checked="${template != null ? template.enabled : true}">
+                  <label class="form-check-label" for="templateEnabled">Enabled</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="titleTemplate" class="form-label">제목 템플릿 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="titleTemplate" name="titleTemplate" 
+                   th:value="${template != null ? template.titleTemplate : ''}" required
+                   placeholder="예: VPN 상태 변경: ${vpnName}">
+            <small class="form-text text-muted">템플릿 변수를 사용할 수 있습니다.</small>
+          </div>
+          
+          <div class="mb-3">
+            <label for="bodyTemplate" class="form-label">본문 템플릿 <span class="text-danger">*</span></label>
+            <textarea class="form-control" id="bodyTemplate" name="bodyTemplate" rows="8" required
+                      placeholder="예: [VPN 상태 변경 알림]&#10;VPN명: ${vpnName}&#10;호스트: ${vpnHost}&#10;이전 상태: ${oldStatus}&#10;현재 상태: ${newStatus}&#10;변경 시간: ${changeTime}"><th:block th:utext="${template != null ? template.bodyTemplate : ''}"></th:block></textarea>
+            <small class="form-text text-muted">템플릿 변수를 사용할 수 있습니다.</small>
+          </div>
+          
+          <div class="mb-3">
+            <label for="templateDescription" class="form-label">설명</label>
+            <textarea class="form-control" id="templateDescription" name="description" rows="2"
+                      placeholder="템플릿에 대한 설명을 입력하세요"><th:block th:utext="${template != null ? template.description : ''}"></th:block></textarea>
+          </div>
+          
+          <div class="d-flex justify-content-between">
+            <div>
+              <button type="submit" class="btn btn-primary">
+                <span th:if="${template == null}">템플릿 등록</span>
+                <span th:if="${template != null}">템플릿 수정</span>
+              </button>
+              <form th:if="${template != null}" 
+                    th:action="@{/vpn/{vpnId}/templates/{id}/delete(vpnId=${form.id}, id=${template.id})}" 
+                    method="post" style="display: inline;" 
+                    onsubmit="return confirm('템플릿을 삭제하시겠습니까?');">
+                <button type="submit" class="btn btn-outline-danger">템플릿 삭제</button>
+              </form>
+            </div>
+          </div>
+        </form>
+        
+        <div class="alert alert-info mt-3 mb-0 small">
+          <strong>템플릿 변수:</strong><br>
+          • <code>${vpnName}</code> - VPN 이름<br>
+          • <code>${vpnHost}</code> - VPN 호스트<br>
+          • <code>${oldStatus}</code> - 이전 상태 (UP/DOWN/UNKNOWN)<br>
+          • <code>${newStatus}</code> - 현재 상태 (UP/DOWN/UNKNOWN)<br>
+          • <code>${changeTime}</code> - 상태 변경 시간 (yyyy-MM-dd HH:mm:ss)
+        </div>
+      </div>
+    </div>
+  </div>
+
+
   <script th:inline="javascript">
   (function(){
     var testBtn = document.getElementById('testVpnConnectionBtn');

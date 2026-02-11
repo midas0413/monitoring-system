@@ -53,7 +53,7 @@ public class WorkerLoop implements ApplicationRunner {
                     continue;
                 }
 
-                log.debug("Claimed {} monitoring rules", claimed.size());
+                log.info("Claimed {} monitoring rules for execution", claimed.size());
 
                 for (MonitoringRuleEntity rule : claimed) {
                     try {

@@ -17,7 +17,7 @@
       <div class="col-12">
         <h6 class="mb-2">VPN 연결 상태</h6>
       </div>
-      <div class="col-12 col-md-6 col-lg-4" th:each="vpn : ${vpns}">
+      <div class="col-12 col-sm-6 col-md-4" th:each="vpn : ${vpns}">
         <div class="card card-shadow h-100" th:attr="data-vpn-id=${vpn.id}">
           <div class="card-header d-flex justify-content-between align-items-center py-2">
             <span class="fw-bold" th:text="${vpn.name}">VPN Name</span>
@@ -46,7 +46,7 @@
       <div class="col-12">
         <h6 class="mb-2">서버별 모니터링</h6>
       </div>
-      <div class="col-12 col-md-6 col-lg-4" th:each="server : ${servers}">
+      <div class="col-12 col-sm-6 col-md-4" th:each="server : ${servers}">
         <div class="card card-shadow h-100">
           <div class="card-header d-flex justify-content-between align-items-center py-2">
             <div>
@@ -296,6 +296,8 @@
   
   function refreshData() {
     const url = '/api/home/refresh' + (checkId ? '?checkId=' + checkId : '');
+    const refreshTime = new Date().toLocaleTimeString('ko-KR');
+    console.log('[' + refreshTime + '] Home 화면 리프레시 시작');
     
     fetch(url)
       .then(function(response) {
@@ -305,6 +307,7 @@
         return response.json();
       })
       .then(function(data) {
+        console.log('[' + new Date().toLocaleTimeString('ko-KR') + '] Home 화면 리프레시 완료');
         if (data.notificationCountByCheck) {
           updateNotificationCounts(data.notificationCountByCheck);
         }
@@ -319,7 +322,7 @@
         }
       })
       .catch(function(error) {
-        console.error('Refresh failed:', error);
+        console.error('[' + new Date().toLocaleTimeString('ko-KR') + '] Refresh failed:', error);
       });
   }
   
