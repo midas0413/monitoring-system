@@ -6,6 +6,11 @@ build/
 .env
 application-local.yml
 
+# Docker 이미지 파일
+monitoring-system-*.tar
+monitoring-system-*.tar.gz
+monitoring-system-*.zip
+
 ### IntelliJ IDEA ###
 .idea/
 *.iws

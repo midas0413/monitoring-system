@@ -160,20 +160,38 @@ public class KakaoDeliverer implements NotificationDeliverer {
     
     /**
      * 알림내용 추출 - 템플릿 변수 #{알림}에 매핑
-     * body를 간결하게 정리하여 반환
+     * body를 간결하게 정리하여 반환 (줄바꿈 유지)
      */
     private String extractAlertContent(String body) {
         if (!StringUtils.hasText(body)) return "";
         
-        // body가 너무 길면 앞부분만 사용 (200자 제한)
+        // body의 줄바꿈 유지 (템플릿의 줄바꿈을 그대로 전달)
         String content = body.trim();
-        if (content.length() > 200) {
-            content = content.substring(0, 197) + "...";
+        
+        // body가 너무 길면 앞부분만 사용 (1000자 제한, Aligo API 제한 고려)
+        if (content.length() > 1000) {
+            // 줄바꿈을 기준으로 잘라서 마지막 줄이 잘리지 않도록 처리
+            String[] lines = content.split("\n");
+            StringBuilder sb = new StringBuilder();
+            int totalLength = 0;
+            for (String line : lines) {
+                if (totalLength + line.length() + 1 > 1000) {
+                    break;
+                }
+                if (sb.length() > 0) {
+                    sb.append("\n");
+                    totalLength++;
+                }
+                sb.append(line);
+                totalLength += line.length();
+            }
+            if (sb.length() < content.length()) {
+                sb.append("\n...");
+            }
+            content = sb.toString();
         }
         
-        // 줄바꿈을 공백으로 변환 (템플릿 형식에 맞게)
-        content = content.replaceAll("\\s+", " ");
-        
+        // 줄바꿈은 유지 (공백으로 변환하지 않음)
         return content;
     }
 

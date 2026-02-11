@@ -33,7 +33,7 @@ public class ServerController {
 
     @GetMapping("/servers")
     public String list(@RequestParam(name = "q", required = false) String q, Model model) {
-        model.addAttribute("pageTitle", "Servers");
+        model.addAttribute("pageTitle", "서버");
         model.addAttribute("activeMenu", "servers");
         model.addAttribute("content", "servers/list :: content");
 
@@ -46,7 +46,7 @@ public class ServerController {
 
     @GetMapping("/servers/new")
     public String createForm(Model model) {
-        model.addAttribute("pageTitle", "New Server");
+        model.addAttribute("pageTitle", "서버 등록");
         model.addAttribute("activeMenu", "servers");
         model.addAttribute("content", "servers/form :: content");
 
@@ -73,7 +73,7 @@ public class ServerController {
 
     @GetMapping("/servers/{id}/edit")
     public String editForm(@PathVariable Long id, Model model) {
-        model.addAttribute("pageTitle", "Edit Server");
+        model.addAttribute("pageTitle", "서버 수정");
         model.addAttribute("activeMenu", "servers");
         model.addAttribute("content", "servers/form :: content");
 
@@ -112,11 +112,15 @@ public class ServerController {
 
     @GetMapping("/api/servers/{id}/host")
     @ResponseBody
-    public ResponseEntity<Map<String, String>> getServerHost(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> getServerHost(@PathVariable Long id) {
         try {
             ServerEntity server = serverService.get(id);
-            Map<String, String> result = new HashMap<>();
+            Map<String, Object> result = new HashMap<>();
             result.put("host", server.getHost());
+            result.put("sshPort", server.getSshPort());
+            result.put("sshUsername", server.getSshUsername());
+            result.put("sshPassword", server.getSshPassword());
+            result.put("sshPrivateKeyPath", server.getSshPrivateKeyPath());
             return ResponseEntity.ok(result);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.notFound().build();

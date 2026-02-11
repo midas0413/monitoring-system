@@ -1,7 +1,7 @@
 <div th:fragment="content">
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 th:text="${form.id != null ? 'Edit Server' : 'New Server'}">Server Form</h2>
-    <a th:href="@{/servers}" class="btn btn-secondary">Back to List</a>
+    <h2 th:text="${form.id != null ? '서버 수정' : '서버 등록'}">서버 폼</h2>
+    <a th:href="@{/servers}" class="btn btn-secondary">목록으로</a>
   </div>
 
   <!-- 메시지 -->
@@ -18,17 +18,17 @@
     <div class="row">
       <div class="col-md-6">
         <div class="mb-3">
-          <label for="name" class="form-label">Server Name <span class="text-danger">*</span></label>
+          <label for="name" class="form-label">서버명 <span class="text-danger">*</span></label>
           <input type="text" class="form-control" id="name" th:field="*{name}" required 
-                 placeholder="e.g., DEV_DBMS, PROD_WEB">
-          <small class="form-text text-muted">Unique server identifier</small>
+                 placeholder="예: DEV_DBMS, PROD_WEB">
+          <small class="form-text text-muted">고유한 서버 식별자</small>
         </div>
       </div>
       <div class="col-md-6">
         <div class="mb-3">
-          <label for="host" class="form-label">Host <span class="text-danger">*</span></label>
+          <label for="host" class="form-label">호스트 <span class="text-danger">*</span></label>
           <input type="text" class="form-control" id="host" th:field="*{host}" required 
-                 placeholder="IP address or domain name">
+                 placeholder="IP 주소 또는 도메인명">
         </div>
       </div>
     </div>
@@ -36,9 +36,9 @@
     <div class="row">
       <div class="col-md-6">
         <div class="mb-3">
-          <label for="timezone" class="form-label">Timezone <span class="text-danger">*</span></label>
+          <label for="timezone" class="form-label">타임존 <span class="text-danger">*</span></label>
           <select class="form-select" id="timezone" th:field="*{timezone}" required>
-            <option value="">-- Select Timezone --</option>
+            <option value="">-- 타임존 선택 --</option>
             <option th:each="tz : ${timezones}" 
                     th:value="${tz.timezoneId}" 
                     th:text="${tz.displayName} + ' (' + ${tz.timezoneId} + ')'">
@@ -48,9 +48,9 @@
       </div>
       <div class="col-md-6">
         <div class="mb-3">
-          <label for="serverPurpose" class="form-label">Server Purpose <span class="text-danger">*</span></label>
+          <label for="serverPurpose" class="form-label">서버 용도 <span class="text-danger">*</span></label>
           <select class="form-select" id="serverPurpose" th:field="*{serverPurpose}" required>
-            <option value="">-- Select Purpose --</option>
+            <option value="">-- 용도 선택 --</option>
             <option value="WEB">WEB</option>
             <option value="WAS">WAS</option>
             <option value="DBMS">DBMS</option>
@@ -62,15 +62,15 @@
     </div>
 
     <div class="mb-3">
-      <label for="description" class="form-label">Description</label>
+      <label for="description" class="form-label">설명</label>
       <textarea class="form-control" id="description" th:field="*{description}" rows="3" 
-                placeholder="Optional description"></textarea>
+                placeholder="선택사항"></textarea>
     </div>
 
     <div class="mb-3">
       <div class="form-check">
         <input class="form-check-input" type="checkbox" id="enabled" th:field="*{enabled}">
-        <label class="form-check-label" for="enabled">Enabled</label>
+        <label class="form-check-label" for="enabled">활성</label>
       </div>
     </div>
 
@@ -116,7 +116,7 @@
 
     <!-- VPN 연결 -->
     <div class="mb-3">
-      <label class="form-label">VPN Connections</label>
+      <label class="form-label">VPN 연결</label>
       <div class="border rounded p-3">
         <div th:each="vpn : ${vpnConnections}" class="form-check">
           <input class="form-check-input" type="checkbox" 
@@ -130,14 +130,14 @@
           </label>
         </div>
         <div th:if="${vpnConnections == null || #lists.isEmpty(vpnConnections)}" class="text-muted">
-          No VPN connections available. <a th:href="@{/vpn/new}">Create VPN connection</a>
+          사용 가능한 VPN 연결이 없습니다. <a th:href="@{/vpn/new}">VPN 연결 생성</a>
         </div>
       </div>
     </div>
 
     <div class="d-flex justify-content-between">
-      <a th:href="@{/servers}" class="btn btn-secondary">Cancel</a>
-      <button type="submit" class="btn btn-primary">Save</button>
+      <a th:href="@{/servers}" class="btn btn-secondary">취소</a>
+      <button type="submit" class="btn btn-primary">저장</button>
     </div>
   </form>
 

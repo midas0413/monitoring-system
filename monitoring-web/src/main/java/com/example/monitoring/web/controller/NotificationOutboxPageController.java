@@ -24,13 +24,14 @@ public class NotificationOutboxPageController {
     public String list(
             @RequestParam(defaultValue = "0") int page,
             Model model) {
-        model.addAttribute("pageTitle", "Notification Center");
+        model.addAttribute("pageTitle", "알림 발송 내역");
         model.addAttribute("activeMenu", "outbox");
         model.addAttribute("content", "outbox/list :: content");
 
         List<NotificationOutboxEntity> items = service.list(page);
         model.addAttribute("items", items);
         model.addAttribute("createdDisplay", service.buildCreatedDisplayMap(items));
+        model.addAttribute("ruleDisplay", service.buildRuleDisplayMap(items));
         model.addAttribute("page", page);
         model.addAttribute("hasNext", items.size() >= 100);
 

@@ -15,6 +15,7 @@
     <div class="portal-topbar-inner">
       <div class="portal-topbar-left">
         <button type="button" class="portal-hamburger" id="sidebarToggle" aria-label="메뉴 열기">☰</button>
+        <img th:src="@{/images/logo.png}" alt="CNIT Logo" class="portal-logo" style="height: 32px; margin-right: 10px; display: inline-block; vertical-align: middle;" onerror="this.style.display='none';">
         <h1 class="portal-brand" th:text="${systemName}">Monitoring Portal</h1>
       </div>
       <div class="portal-user">
@@ -29,27 +30,27 @@
     <aside class="portal-sidebar" id="sidebar">
       <nav class="portal-nav">
         <a class="portal-nav-item" th:classappend="${activeMenu}=='home' ? ' active' : ''" th:href="@{/}">
-          🏠 Home
+          🏠 홈
         </a>
         <a class="portal-nav-item" th:classappend="${activeMenu}=='servers' ? ' active' : ''" th:href="@{/servers}">
-          🖥️ Servers
+          🖥️ 서버
         </a>
         <a class="portal-nav-item" th:classappend="${activeMenu}=='rules' ? ' active' : ''" th:href="@{/rules}">
-          🔔 Alert Rules
+          🔔 알림 규칙
         </a>
         <a class="portal-nav-item" th:classappend="${activeMenu}=='recipients' ? ' active' : ''" th:href="@{/recipients}">
-          👥 Alert Recipients
+          👥 알림 수신자
         </a>
         <a class="portal-nav-item" th:classappend="${activeMenu}=='checkRuns' ? ' active' : ''" th:href="@{/check-runs}">
-          📋 Check Center
+          📋 체크 실행 내역
         </a>
         <a class="portal-nav-item" th:classappend="${activeMenu}=='outbox' ? ' active' : ''" th:href="@{/outbox}">
-          📤 Notification Center
+          📤 알림 발송 내역
         </a>
         <div class="portal-nav-divider"></div>
-        <div class="portal-nav-group">System Management</div>
+        <div class="portal-nav-group">시스템 관리</div>
         <a class="portal-nav-item" th:classappend="${activeMenu}=='settings' ? ' active' : ''" th:href="@{/settings}">
-          ⚙️ Settings
+          ⚙️ 설정
         </a>
       </nav>
       <div class="portal-sidebar-footer">

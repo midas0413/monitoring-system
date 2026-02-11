@@ -2,6 +2,7 @@
 -- DB 초기화용: 기존 테이블 삭제 후 재생성
 
 -- 기존 테이블 삭제 (초기화용)
+DROP TABLE IF EXISTS vpn_notification_templates CASCADE;
 DROP TABLE IF EXISTS notification_outbox CASCADE;
 DROP TABLE IF EXISTS alert_rule_recipient_links CASCADE;
 DROP TABLE IF EXISTS alert_recipients CASCADE;
@@ -107,7 +108,7 @@ create table monitoring_rules (
     disk_path varchar(500) null,                   -- 디스크 경로 (ex: /, /var, /home)
     
     -- 알림 규칙
-    alert_operator varchar(40) not null,           -- RUN_FAILED, OUTPUT_NUM_GT, OUTPUT_NUM_LT, OUTPUT_CONTAINS, OUTPUT_NOT_CONTAINS, OUTPUT_MATCHES
+    alert_operator varchar(40) not null,           -- RUN_FAILED, OUTPUT_NUM_GT, OUTPUT_NUM_LT, OUTPUT_LEN_GT, OUTPUT_LEN_LT, OUTPUT_CONTAINS, OUTPUT_NOT_CONTAINS, OUTPUT_MATCHES
     threshold_num double precision null,            -- 숫자 임계값
     threshold_len int null,                         -- 길이 임계값
     pattern text null,                              -- 정규식 패턴
@@ -124,6 +125,7 @@ create table monitoring_rules (
     last_run_at timestamptz null,
     last_status varchar(20) null,
     last_fired_at timestamptz null,
+    last_notification_output_length int null,        -- 직전 알림 발송 시 출력값 길이 (LOGS 타입용)
     
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
@@ -277,3 +279,27 @@ create table system_codes (
 );
 
 create index if not exists idx_system_codes_type on system_codes(code_type, enabled, display_order);
+
+-- 12) vpn_notification_templates (VPN 알림 메시지 템플릿)
+create table vpn_notification_templates (
+    id bigserial primary key,
+    vpn_id bigint not null references vpn_connections(id) on delete cascade,
+    name varchar(100) not null,                      -- 템플릿 이름
+    title_template text not null,                    -- 제목 템플릿
+    body_template text not null,                     -- 본문 템플릿
+    enabled boolean not null default true,
+    description varchar(500) null,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (vpn_id, name)
+);
+
+create index if not exists idx_vpn_templates_vpn_id on vpn_notification_templates(vpn_id);
+create index if not exists idx_vpn_templates_enabled on vpn_notification_templates(enabled);
+
+-- 템플릿 변수 설명:
+-- $${vpnName} - VPN 이름
+-- $${vpnHost} - VPN 호스트
+-- $${oldStatus} - 이전 상태 (UP/DOWN/UNKNOWN)
+-- $${newStatus} - 현재 상태 (UP/DOWN/UNKNOWN)
+-- $${changeTime} - 상태 변경 시간 (yyyy-MM-dd HH:mm:ss)

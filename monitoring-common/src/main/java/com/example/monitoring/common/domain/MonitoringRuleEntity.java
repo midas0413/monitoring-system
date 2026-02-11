@@ -120,6 +120,9 @@ public class MonitoringRuleEntity {
     @Column(name = "last_fired_at")
     private OffsetDateTime lastFiredAt;
 
+    @Column(name = "last_notification_output_length")
+    private Integer lastNotificationOutputLength;  // 직전 알림 발송 시 출력값 길이 (LOGS 타입용)
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
@@ -227,6 +230,11 @@ public class MonitoringRuleEntity {
 
     public OffsetDateTime getLastFiredAt() { return lastFiredAt; }
     public void setLastFiredAt(OffsetDateTime lastFiredAt) { this.lastFiredAt = lastFiredAt; }
+
+    public Integer getLastNotificationOutputLength() { return lastNotificationOutputLength; }
+    public void setLastNotificationOutputLength(Integer lastNotificationOutputLength) { 
+        this.lastNotificationOutputLength = lastNotificationOutputLength; 
+    }
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
 

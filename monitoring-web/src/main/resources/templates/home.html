@@ -7,7 +7,7 @@
 
     <div class="page-header mb-4">
       <div>
-        <h5 class="mb-1">Monitoring Dashboard</h5>
+        <h5 class="mb-1">모니터링 대시보드</h5>
         <div class="text-muted small">서버별 모니터링 상태 및 알림 현황</div>
       </div>
     </div>
@@ -115,10 +115,11 @@
             <thead class="table-light">
             <tr>
               <th style="width:70px">ID</th>
-              <th style="width:250px">Rule Name</th>
-              <th style="width:120px">Server명</th>
+              <th style="width:200px">Rule Name</th>
+              <th style="width:100px">Server명</th>
               <th style="width:80px">Success</th>
-              <th style="width:195px">Started</th>
+              <th style="width:160px">시작일시</th>
+              <th style="width:160px">종료일시</th>
               <th style="width:100px">Duration</th>
               <th>Output / Error</th>
             </tr>
@@ -126,8 +127,8 @@
             <tbody id="checkRunsTableBody">
             <tr th:each="r : ${checkRuns}">
               <td th:text="${r.id}">1</td>
-              <td th:text="${r.checkId != null && ruleNameDisplay != null ? (ruleNameDisplay.get(r.checkId) != null ? ruleNameDisplay.get(r.checkId) : '-') : '-'}">-</td>
-              <td th:text="${r.checkId != null && serverDisplay != null ? (serverDisplay.get(r.checkId) != null ? serverDisplay.get(r.checkId) : '-') : '-'}">-</td>
+              <td th:text="${r.monitoringRuleId != null && ruleNameDisplay != null ? (ruleNameDisplay.get(r.monitoringRuleId) != null ? ruleNameDisplay.get(r.monitoringRuleId) : '-') : '-'}">-</td>
+              <td th:text="${r.monitoringRuleId != null && serverDisplay != null ? (serverDisplay.get(r.monitoringRuleId) != null ? serverDisplay.get(r.monitoringRuleId) : '-') : '-'}">-</td>
               <td>
                 <span class="badge rounded-pill"
                       th:classappend="${r.success} ? ' text-bg-success' : ' text-bg-danger'"
@@ -135,6 +136,8 @@
               </td>
               <td th:with="disp=${startedDisplay != null ? startedDisplay.get(r.id) : null}"
                   th:text="${disp != null ? disp : (r.startedAt != null ? #temporals.format(r.startedAt, 'yyyy-MM-dd HH:mm:ss') : '-')}">-</td>
+              <td th:with="disp=${finishedDisplay != null ? finishedDisplay.get(r.id) : null}"
+                  th:text="${disp != null ? disp : (r.finishedAt != null ? #temporals.format(r.finishedAt, 'yyyy-MM-dd HH:mm:ss') : '-')}">-</td>
               <td th:text="${r.durationMs != null ? r.durationMs + ' ms' : '-'}">-</td>
               <td class="small text-break" style="max-width:300px">
                 <span th:if="${r.errorMessage}" class="text-danger" th:text="${#strings.abbreviate(r.errorMessage, 80)}">error</span>
@@ -143,7 +146,7 @@
               </td>
             </tr>
             <tr th:if="${checkRuns == null || #lists.isEmpty(checkRuns)}">
-              <td colspan="7" class="text-center text-muted py-3">해당 데이터가 없습니다</td>
+              <td colspan="8" class="text-center text-muted py-3">해당 데이터가 없습니다</td>
             </tr>
             </tbody>
           </table>

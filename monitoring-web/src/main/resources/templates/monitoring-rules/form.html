@@ -15,10 +15,14 @@
         <form method="post" 
               th:action="${form.id != null} ? @{/monitoring-rules/{id}(id=${form.id})} : @{/monitoring-rules/new}" 
               th:object="${form}">
+          <input type="hidden" th:field="*{id}" />
 
           <!-- 기본 정보 -->
-          <div class="row g-3">
-            <div class="col-12"><h6 class="text-muted border-bottom pb-2">기본 정보</h6></div>
+          <div class="row g-3 mb-4">
+            <div class="col-12">
+              <h6 class="text-primary mb-2"><i class="bi bi-info-circle"></i> 기본 정보</h6>
+              <hr class="mb-3">
+            </div>
             <div class="col-md-4">
               <label class="form-label">Rule Name <span class="text-danger">*</span></label>
               <input class="form-control" type="text" th:field="*{name}" required>
@@ -64,96 +68,270 @@
 
           <!-- SSH 연결 정보는 서버 정보에서 가져오므로 제거됨 -->
 
-          <!-- DB 연결 정보 (DB 타입용) -->
-          <div class="row g-3" id="dbBlock" style="display:none;">
-            <div class="col-12"><h6 class="text-muted border-bottom pb-2">DB 연결 정보</h6></div>
-            <div class="col-md-2">
-              <label class="form-label">DB Type <span class="text-danger">*</span></label>
-              <select class="form-select" id="dbType" th:field="*{dbType}" required>
-                <option value="">-- Select --</option>
-                <option value="postgresql">PostgreSQL</option>
-                <option value="mysql">MySQL</option>
-                <option value="oracle">Oracle</option>
-                <option value="mssql">MSSQL</option>
-              </select>
-            </div>
-            <div class="col-md-2">
-              <label class="form-label">DB Port <span class="text-danger">*</span></label>
-              <input class="form-control" type="number" id="dbPort" th:field="*{dbPort}" required placeholder="5432">
-            </div>
-            <div class="col-md-2">
-              <label class="form-label">DB Name <span class="text-danger">*</span></label>
-              <input class="form-control" id="dbName" th:field="*{dbName}" required placeholder="database_name">
-              <small class="form-text text-muted" id="dbNameHelp" style="display:none;">Oracle: SID 또는 /service_name</small>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">DB Username <span class="text-danger">*</span></label>
-              <input class="form-control" id="dbUsername" th:field="*{dbUsername}" required placeholder="username">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">DB Password <span class="text-danger">*</span></label>
-              <input class="form-control" type="password" id="dbPassword" th:field="*{dbPassword}" required placeholder="password">
-              <small class="form-text text-muted">Leave blank to keep existing password</small>
-            </div>
-            <div class="col-12">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <label class="form-label mb-0">SQL Script <span class="text-danger">*</span></label>
-                <button type="button" class="btn btn-sm btn-outline-info" id="testSqlBtn">
-                  <i class="bi bi-check-circle"></i> SQL 테스트
-                </button>
+          <!-- 모니터링 타입별 설정 -->
+          <div class="mb-4" id="monitoringSettingsBlock">
+            <h6 class="text-primary mb-2"><i class="bi bi-gear"></i> 모니터링 설정</h6>
+            <hr class="mb-3">
+            
+            <!-- DB 연결 정보 (DB 타입용) -->
+            <div id="dbBlock" style="display:none;">
+              <!-- 첫 번째 줄: DB Type, Port, DB Name -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                  <label class="form-label">DB Type <span class="text-danger">*</span></label>
+                  <select class="form-select" id="dbType" th:field="*{dbType}" required>
+                    <option value="">-- Select --</option>
+                    <option value="postgresql">PostgreSQL</option>
+                    <option value="mysql">MySQL</option>
+                    <option value="oracle">Oracle</option>
+                    <option value="mssql">MSSQL</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">DB Port <span class="text-danger">*</span></label>
+                  <input class="form-control" type="number" id="dbPort" th:field="*{dbPort}" required placeholder="5432">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">DB Name <span class="text-danger">*</span></label>
+                  <input class="form-control" id="dbName" th:field="*{dbName}" required placeholder="database_name">
+                  <small class="form-text text-muted" id="dbNameHelp" style="display:none;">Oracle: SID 또는 /service_name</small>
+                </div>
               </div>
-              <div id="sqlTestResult" class="alert mb-2" style="display:none;" role="alert"></div>
-              <textarea class="form-control" rows="6" id="sqlScript" th:field="*{sqlScript}" required
-                        placeholder="SELECT COUNT(*) FROM table_name WHERE condition = 'value'"></textarea>
-              <small class="form-text text-muted">SQL 쿼리를 입력하세요. 결과는 1행 1열 값으로 반환됩니다. DB URL은 서버의 Host 정보를 기반으로 자동 생성됩니다.</small>
+              <!-- 두 번째 줄: DB Username, DB Password -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label">DB Username <span class="text-danger">*</span></label>
+                  <input class="form-control" id="dbUsername" th:field="*{dbUsername}" required placeholder="username">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">DB Password <span class="text-danger">*</span></label>
+                  <input class="form-control" type="password" id="dbPassword" th:field="*{dbPassword}" required placeholder="password">
+                  <small class="form-text text-muted">Leave blank to keep existing password</small>
+                </div>
+              </div>
+              <!-- SQL Script -->
+              <div class="row g-3 mb-3">
+                <div class="col-12">
+                  <label class="form-label">SQL Script <span class="text-danger">*</span></label>
+                  <textarea class="form-control" rows="6" id="sqlScript" th:field="*{sqlScript}" required
+                            placeholder="SELECT COUNT(*) FROM table_name WHERE condition = 'value'"></textarea>
+                  <small class="form-text text-muted">SQL 쿼리를 입력하세요. 결과는 1행 1열 값으로 반환됩니다. DB URL은 서버의 Host 정보를 기반으로 자동 생성됩니다.</small>
+                  <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-info" id="testSqlBtn">
+                      <i class="bi bi-check-circle"></i> SQL 테스트
+                    </button>
+                  </div>
+                  <div id="sqlTestResult" class="alert mt-2 mb-0" style="display:none;" role="alert"></div>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <!-- SHELL 타입 전용 -->
-          <div class="row g-3" id="shellBlock" style="display:none;">
-            <div class="col-12"><h6 class="text-muted border-bottom pb-2">Shell Script</h6></div>
-            <div class="col-12">
-              <label class="form-label">Shell Script</label>
-              <textarea class="form-control" rows="4" th:field="*{shellScript}"></textarea>
+            <!-- SHELL 타입 전용 -->
+            <div class="row g-3" id="shellBlock" style="display:none;">
+              <div class="col-12">
+                <label class="form-label">Shell Script <span class="text-danger">*</span></label>
+                <textarea class="form-control" rows="4" id="shellScript" th:field="*{shellScript}" required></textarea>
+                <small class="form-text text-muted">서버에서 실행할 Shell 스크립트를 입력하세요.</small>
+                <div class="mt-2">
+                  <button type="button" class="btn btn-sm btn-outline-info" id="testShellBtn">
+                    <i class="bi bi-check-circle"></i> Shell 테스트
+                  </button>
+                </div>
+                <div id="shellTestResult" class="alert mt-2 mb-0" style="display:none;" role="alert"></div>
+              </div>
             </div>
-          </div>
 
-          <!-- LOGS 타입 전용 -->
-          <div class="row g-3" id="logsBlock" style="display:none;">
-            <div class="col-12"><h6 class="text-muted border-bottom pb-2">Log File Settings</h6></div>
-            <div class="col-md-6">
-              <label class="form-label">Log File Path</label>
-              <input class="form-control" th:field="*{logFilePath}" placeholder="/var/log/app.log">
+            <!-- LOGS 타입 전용 -->
+            <div class="row g-3" id="logsBlock" style="display:none;">
+              <div class="col-12 mb-2">
+                <button class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="collapse" 
+                        data-bs-target="#logsGuideCollapse" aria-expanded="false" aria-controls="logsGuideCollapse">
+                  <i class="bi bi-chevron-down" id="logsGuideIcon"></i> 로그 파일 모니터링 설정 가이드
+                </button>
+                <div class="collapse mt-2" id="logsGuideCollapse">
+                  <div class="alert alert-info">
+                    <strong><i class="bi bi-info-circle"></i> 로그 파일 모니터링 설정 가이드</strong>
+                    <ul class="mb-0 mt-2 small">
+                      <li><strong>로그 파일 경로:</strong> 모니터링할 로그 파일의 전체 경로를 입력합니다. 여러 파일을 쉼표(,)로 구분하여 입력할 수 있습니다.</li>
+                      <li><strong>예시:</strong> <code>/var/log/app.log, /var/log/error.log, /var/log/system.log</code></li>
+                      <li><strong>포함 키워드:</strong> 로그에서 찾을 키워드를 쉼표로 구분하여 입력합니다. 키워드가 포함된 라인만 검색됩니다.</li>
+                      <li><strong>예시:</strong> <code>ERROR,FAIL,CRITICAL</code> → ERROR 또는 FAIL 또는 CRITICAL이 포함된 라인 검색</li>
+                      <li><strong>제외 키워드:</strong> 제외할 키워드를 쉼표로 구분하여 입력합니다. 이 키워드가 포함된 라인은 제외됩니다.</li>
+                      <li><strong>예시:</strong> <code>DEBUG,INFO</code> → DEBUG 또는 INFO가 포함된 라인 제외</li>
+                      <li><strong>동작 방식:</strong>
+                        <ul>
+                          <li>포함 키워드가 있으면: 최근 1000줄에서 키워드 검색</li>
+                          <li>포함 키워드가 없으면: 최근 100줄 전체 조회</li>
+                          <li>제외 키워드가 있으면: 검색 결과에서 해당 키워드 제외</li>
+                        </ul>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">로그 파일 경로 <span class="text-danger">*</span></label>
+                <input class="form-control" id="logFilePath" th:field="*{logFilePath}" placeholder="/var/log/app.log, /var/log/error.log, /var/log/system.log">
+                <small class="form-text text-muted">여러 경로를 쉼표(,)로 구분하여 입력 가능합니다. 예: /var/log/app.log, /var/log/error.log</small>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">포함 키워드</label>
+                <input class="form-control" id="includeKeywords" th:field="*{includeKeywords}" placeholder="ERROR,FAIL,CRITICAL">
+                <small class="form-text text-muted">쉼표로 구분</small>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">제외 키워드</label>
+                <input class="form-control" id="excludeKeywords" th:field="*{excludeKeywords}" placeholder="DEBUG,INFO">
+                <small class="form-text text-muted">쉼표로 구분</small>
+              </div>
+              <div class="col-12">
+                <div class="mt-2">
+                  <button type="button" class="btn btn-sm btn-outline-info" id="testLogsBtn">
+                    <i class="bi bi-check-circle"></i> 로그 테스트
+                  </button>
+                </div>
+                <div id="logsTestResult" class="alert mt-2 mb-0" style="display:none;" role="alert"></div>
+              </div>
             </div>
-            <div class="col-md-3">
-              <label class="form-label">Include Keywords</label>
-              <input class="form-control" th:field="*{includeKeywords}" placeholder="ERROR,FAIL,CRITICAL">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Exclude Keywords</label>
-              <input class="form-control" th:field="*{excludeKeywords}" placeholder="DEBUG,INFO">
-            </div>
-          </div>
 
-          <!-- DISK_SPACE 타입 전용 -->
-          <div class="row g-3" id="diskBlock" style="display:none;">
-            <div class="col-12"><h6 class="text-muted border-bottom pb-2">Disk Space Settings</h6></div>
-            <div class="col-md-6">
-              <label class="form-label">Disk Path</label>
-              <input class="form-control" th:field="*{diskPath}" placeholder="/, /var, /home">
+            <!-- DISK_SPACE 타입 전용 -->
+            <div class="row g-3" id="diskBlock" style="display:none;">
+              <div class="col-12 mb-2">
+                <button class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="collapse" 
+                        data-bs-target="#diskGuideCollapse" aria-expanded="false" aria-controls="diskGuideCollapse">
+                  <i class="bi bi-chevron-down" id="diskGuideIcon"></i> 디스크 공간 모니터링 설정 가이드
+                </button>
+                <div class="collapse mt-2" id="diskGuideCollapse">
+                  <div class="alert alert-info">
+                    <strong><i class="bi bi-info-circle"></i> 디스크 공간 모니터링 설정 가이드</strong>
+                    <ul class="mb-0 mt-2 small">
+                      <li><strong>Disk Path:</strong> 모니터링할 디스크 마운트 포인트 경로를 입력합니다. <strong>비어있으면 전체 마운트 포인트를 확인합니다.</strong></li>
+                      <li><strong>예시:</strong> 
+                        <ul>
+                          <li><code>/</code> - 루트 파일시스템</li>
+                          <li><code>/var</code> - /var 마운트 포인트</li>
+                          <li><code>/home</code> - /home 마운트 포인트</li>
+                          <li><code>/data</code> - /data 마운트 포인트</li>
+                          <li><strong>비어있음</strong> - 모든 마운트 포인트 확인</li>
+                        </ul>
+                      </li>
+                      <li><strong>동작 방식:</strong>
+                        <ul>
+                          <li><strong>Disk Path가 지정된 경우:</strong> 지정한 경로의 디스크 사용률을 확인하여 임계값을 초과하면 알림을 발송합니다.</li>
+                          <li><strong>Disk Path가 비어있는 경우:</strong> 모든 마운트 포인트를 확인하고, 임계값(Threshold Num)을 넘는 것만 출력합니다. 모든 마운트 포인트가 임계값 이하이면 "모든 마운트 포인트의 사용률이 임계값 이하입니다" 메시지를 반환합니다.</li>
+                          <li><strong>임계값 설정:</strong> Alert Operator에서 <code>OUTPUT_NUM_GT</code>를 선택하고 Threshold Num에 사용률 임계값(예: 80)을 입력하면, 해당 임계값을 초과할 때 알림이 발송됩니다.</li>
+                        </ul>
+                      </li>
+                      <li><strong>출력 형식:</strong> <code>df -h</code> 명령어 결과를 기반으로 하며, 사용률(%)이 추출되어 알림 규칙 평가에 사용됩니다.</li>
+                      <li><strong>테스트 기능:</strong> "디스크 테스트" 버튼을 클릭하면 현재 서버의 디스크 사용률 정보를 확인할 수 있습니다. Disk Path가 비어있어도 전체 마운트 포인트 정보를 확인할 수 있습니다.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Disk Path</label>
+                <input class="form-control" id="diskPath" th:field="*{diskPath}" placeholder="/, /var, /home (비어있으면 전체 마운트 포인트 확인)">
+                <small class="form-text text-muted">비어있으면 전체 마운트 포인트를 확인하며, 임계값을 넘는 것만 체크합니다.</small>
+                <div class="mt-2">
+                  <button type="button" class="btn btn-sm btn-outline-info" id="testDiskSpaceBtn">
+                    <i class="bi bi-check-circle"></i> 디스크 테스트
+                  </button>
+                </div>
+                <div id="diskSpaceTestResult" class="alert mt-2 mb-0" style="display:none;" role="alert"></div>
+              </div>
             </div>
           </div>
 
           <!-- 알림 규칙 -->
-          <div class="row g-3">
-            <div class="col-12"><h6 class="text-muted border-bottom pb-2">알림 규칙</h6></div>
+          <div class="row g-3 mb-4">
+            <div class="col-12">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="text-primary mb-0"><i class="bi bi-bell"></i> 알림 규칙</h6>
+                <button class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="collapse" 
+                        data-bs-target="#alertRuleGuideCollapse" aria-expanded="false" aria-controls="alertRuleGuideCollapse">
+                  <i class="bi bi-chevron-down" id="alertRuleGuideIcon"></i> 알림 규칙 설정 가이드
+                </button>
+              </div>
+              <div class="collapse mt-2" id="alertRuleGuideCollapse">
+                <div class="alert alert-info">
+                  <strong><i class="bi bi-info-circle"></i> 알림 규칙 설정 가이드</strong>
+                  
+                  <div class="mt-3">
+                    <h6 class="fw-bold">1. Alert Operator (알림 연산자)</h6>
+                    <ul class="mb-0 small">
+                      <li><strong>RUN_FAILED</strong>: 모니터링 실행이 실패한 경우 알림 발송</li>
+                      <li><strong>OUTPUT_NUM_GT</strong>: 출력값이 숫자이고 임계값(Threshold Num)보다 큰 경우</li>
+                      <li><strong>OUTPUT_NUM_LT</strong>: 출력값이 숫자이고 임계값(Threshold Num)보다 작은 경우</li>
+                      <li><strong>OUTPUT_LEN_GT</strong>: 출력 길이가 임계값(Threshold Len)보다 큰 경우</li>
+                      <li><strong>OUTPUT_LEN_LT</strong>: 출력 길이가 임계값(Threshold Len)보다 작은 경우</li>
+                      <li><strong>OUTPUT_CONTAINS</strong>: 출력값에 Pattern에 지정한 문자열이 포함된 경우</li>
+                      <li><strong>OUTPUT_NOT_CONTAINS</strong>: 출력값에 Pattern에 지정한 문자열이 포함되지 않은 경우</li>
+                      <li><strong>OUTPUT_MATCHES</strong>: 출력값이 Pattern에 지정한 정규식과 매칭되는 경우</li>
+                    </ul>
+                  </div>
+                  
+                  <div class="mt-3">
+                    <h6 class="fw-bold">2. 항목 설명</h6>
+                    <ul class="mb-0 small">
+                      <li><strong>Threshold Num</strong>: 숫자 비교용 임계값 (OUTPUT_NUM_GT, OUTPUT_NUM_LT 사용 시 필수)</li>
+                      <li><strong>Threshold Len</strong>: 길이 비교용 임계값 (OUTPUT_LEN_GT, OUTPUT_LEN_LT 사용 시 필수)</li>
+                      <li><strong>Pattern (regex)</strong>: 문자열 포함/정규식 매칭용 패턴 (OUTPUT_CONTAINS, OUTPUT_NOT_CONTAINS, OUTPUT_MATCHES 사용 시 필수)</li>
+                      <li><strong>Cooldown(sec)</strong>: 동일한 알림이 연속으로 발송되지 않도록 하는 쿨다운 시간 (초 단위)</li>
+                      <li><strong>Channels</strong>: 알림 발송 채널 (SMS, EMAIL, KAKAO 중 선택)</li>
+                    </ul>
+                  </div>
+                  
+                  <div class="mt-3">
+                    <h6 class="fw-bold">3. Pattern (정규식) 사용법</h6>
+                    <div class="small">
+                      <p class="mb-2"><strong>OUTPUT_MATCHES 연산자 사용 시:</strong></p>
+                      <ul class="mb-3">
+                        <li>Java 정규식 문법을 사용합니다</li>
+                        <li>출력값에 패턴이 포함되면 알림이 발송됩니다</li>
+                        <li><strong>예시:</strong>
+                          <ul>
+                            <li><code>ERROR|FAIL|CRITICAL</code> - ERROR, FAIL, 또는 CRITICAL이 포함되면 알림</li>
+                            <li><code>\d{4,}</code> - 4자리 이상의 숫자가 포함되면 알림</li>
+                            <li><code>\[ERROR\].*Database.*connection.*failed</code> - "[ERROR]"로 시작하고 Database connection failed가 포함된 라인</li>
+                            <li><code>[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}</code> - 이메일 주소 형식 감지</li>
+                            <li><code>(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]</code> - HH:MM:SS 형식의 시간 감지</li>
+                          </ul>
+                        </li>
+                      </ul>
+                      <p class="mb-2"><strong>OUTPUT_CONTAINS / OUTPUT_NOT_CONTAINS 연산자 사용 시:</strong></p>
+                      <ul class="mb-0">
+                        <li>일반 문자열을 입력합니다 (정규식 아님)</li>
+                        <li><strong>예시:</strong>
+                          <ul>
+                            <li><code>Database connection failed</code> - 정확히 이 문자열이 포함되면 알림</li>
+                            <li><code>ERROR</code> - ERROR 문자열이 포함되면 알림</li>
+                          </ul>
+                        </li>
+                      </ul>
+                      <p class="mb-2 mt-3"><strong>자주 사용하는 정규식 패턴:</strong></p>
+                      <ul class="mb-0">
+                        <li><code>.*</code> - 임의의 문자 0개 이상</li>
+                        <li><code>.+</code> - 임의의 문자 1개 이상</li>
+                        <li><code>\d+</code> - 숫자 1개 이상</li>
+                        <li><code>\w+</code> - 단어 문자(영문자, 숫자, _)</li>
+                        <li><code>^</code> - 라인 시작</li>
+                        <li><code>$</code> - 라인 끝</li>
+                        <li><code>(패턴1|패턴2)</code> - OR 조건</li>
+                        <li><code>(?i)패턴</code> - 대소문자 무시</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <hr class="mb-3">
+            </div>
             <div class="col-md-3">
               <label class="form-label">Alert Operator <span class="text-danger">*</span></label>
               <select class="form-select" th:field="*{alertOperator}" required>
                 <option value="">-- Select Operator --</option>
                 <option th:each="op : ${alertOperators}" 
                         th:value="${op.codeValue}" 
-                        th:text="${op.codeLabel}">
+                        th:text="${op.codeLabel} + ' (' + ${op.codeValue} + ')'">
                 </option>
               </select>
             </div>
@@ -189,6 +367,14 @@
                   <label class="form-check-label">KAKAO</label>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Message Template -->
+          <div class="row g-3 mb-4">
+            <div class="col-12">
+              <h6 class="text-primary mb-2"><i class="bi bi-chat-text"></i> Message Template</h6>
+              <hr class="mb-3">
             </div>
             <div class="col-12">
               <label class="form-label">Message Template <span class="text-danger">*</span></label>
@@ -273,7 +459,7 @@
             </div>
           </div>
 
-          <div class="mt-4 d-flex gap-2">
+          <div class="mt-4 pt-3 border-top d-flex gap-2">
             <button class="btn btn-primary" type="submit">Save</button>
             <a class="btn btn-outline-secondary" th:href="@{/monitoring-rules}">Cancel</a>
           </div>
@@ -294,15 +480,113 @@
       var t = typeSel.value;
       // SSH 정보는 서버에서 가져오므로 SSH 블록 제거
       // DB는 DB 타입에서만 사용
-      dbBlock.style.display = (t === 'DB') ? 'block' : 'none';
+      var isDb = (t === 'DB');
+      dbBlock.style.display = isDb ? 'block' : 'none';
       // 타입별 전용 필드
       shellBlock.style.display = (t === 'SHELL') ? 'block' : 'none';
       logsBlock.style.display = (t === 'LOGS') ? 'block' : 'none';
       diskBlock.style.display = (t === 'DISK_SPACE') ? 'block' : 'none';
+      
+      // DB 타입 전용 필드의 required 속성 동적 관리
+      var dbFields = ['dbType', 'dbPort', 'dbName', 'dbUsername', 'dbPassword', 'sqlScript'];
+      dbFields.forEach(function(fieldId) {
+        var field = document.getElementById(fieldId);
+        if (field) {
+          if (isDb) {
+            field.setAttribute('required', 'required');
+          } else {
+            field.removeAttribute('required');
+          }
+        }
+      });
+      
+      // LOGS 타입 전용 필드의 required 속성 동적 관리
+      var logFilePath = document.getElementById('logFilePath');
+      if (logFilePath) {
+        if (t === 'LOGS') {
+          logFilePath.setAttribute('required', 'required');
+        } else {
+          logFilePath.removeAttribute('required');
+        }
+      }
+      
+      // SHELL 타입 전용 필드의 required 속성 동적 관리
+      var shellScript = document.getElementById('shellScript');
+      if (shellScript) {
+        if (t === 'SHELL') {
+          shellScript.setAttribute('required', 'required');
+        } else {
+          shellScript.removeAttribute('required');
+        }
+      }
     }
     
     typeSel.addEventListener('change', toggleType);
     toggleType(); // 초기 로드 시에도 실행
+    
+    // Form submit 전 validation 체크
+    var form = document.querySelector('form');
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        var monitoringType = typeSel.value;
+        
+        // 모니터링 타입이 선택되지 않았으면 막기
+        if (!monitoringType) {
+          e.preventDefault();
+          alert('모니터링 타입을 선택해주세요.');
+          typeSel.focus();
+          return false;
+        }
+        
+        // DB 타입인 경우 DB 필드 검증
+        if (monitoringType === 'DB') {
+          var dbType = document.getElementById('dbType')?.value;
+          var dbPort = document.getElementById('dbPort')?.value;
+          var dbName = document.getElementById('dbName')?.value;
+          var dbUsername = document.getElementById('dbUsername')?.value;
+          var sqlScript = document.getElementById('sqlScript')?.value;
+          
+          if (!dbType || !dbPort || !dbName || !dbUsername || !sqlScript) {
+            e.preventDefault();
+            alert('DB 연결 정보를 모두 입력해주세요.');
+            return false;
+          }
+        }
+        
+        // LOGS 타입인 경우 로그 파일 경로 검증
+        if (monitoringType === 'LOGS') {
+          var logFilePath = document.getElementById('logFilePath')?.value;
+          if (!logFilePath || !logFilePath.trim()) {
+            e.preventDefault();
+            alert('로그 파일 경로를 입력해주세요.');
+            document.getElementById('logFilePath')?.focus();
+            return false;
+          }
+        }
+        
+        // SHELL 타입인 경우 Shell Script 검증
+        if (monitoringType === 'SHELL') {
+          var shellScript = document.getElementById('shellScript')?.value;
+          if (!shellScript || !shellScript.trim()) {
+            e.preventDefault();
+            alert('Shell Script를 입력해주세요.');
+            document.getElementById('shellScript')?.focus();
+            return false;
+          }
+        }
+        
+        // Alert Operator 검증
+        var alertOperator = document.querySelector('[name="alertOperator"]')?.value;
+        if (!alertOperator) {
+          e.preventDefault();
+          alert('알림 연산자를 선택해주세요.');
+          document.querySelector('[name="alertOperator"]')?.focus();
+          return false;
+        }
+        
+        return true;
+      });
+    }
     
     // Oracle 선택 시 DB Name 도움말 표시
     var dbTypeSelect = document.getElementById('dbType');
@@ -412,6 +696,82 @@
       sqlTestResult.style.display = 'block';
     }
     
+    // Shell Script 테스트 버튼
+    var testShellBtn = document.getElementById('testShellBtn');
+    var shellTestResult = document.getElementById('shellTestResult');
+    var shellScript = document.getElementById('shellScript');
+    
+    if (testShellBtn) {
+      testShellBtn.addEventListener('click', function() {
+        var serverSelect = document.getElementById('serverId');
+        var serverId = serverSelect ? serverSelect.value : null;
+        var script = shellScript ? shellScript.value : '';
+        
+        if (!serverId || serverId === '' || serverId === '0') {
+          showShellTestResult(false, '서버를 선택하세요.');
+          return;
+        }
+        if (!script || !script.trim()) {
+          showShellTestResult(false, 'Shell Script를 입력하세요.');
+          return;
+        }
+        
+        // 서버 정보 가져오기 (AJAX)
+        fetch('/api/servers/' + serverId + '/host')
+          .then(response => response.json())
+          .then(data => {
+            if (!data.host) {
+              showShellTestResult(false, '서버의 Host 정보를 가져올 수 없습니다.');
+              return;
+            }
+            
+            testShellBtn.disabled = true;
+            testShellBtn.textContent = '테스트 중...';
+            shellTestResult.style.display = 'none';
+            
+            var formData = new FormData();
+            formData.append('host', data.host);
+            formData.append('port', data.sshPort || 22);
+            formData.append('sshUsername', data.sshUsername || '');
+            if (data.sshPassword) formData.append('sshPassword', data.sshPassword);
+            if (data.sshPrivateKeyPath) formData.append('sshPrivateKeyPath', data.sshPrivateKeyPath);
+            formData.append('script', script.trim());
+            
+            return fetch('/api/checks/test/shell', {
+              method: 'POST',
+              body: formData
+            });
+          })
+          .then(response => {
+            if (!response) return;
+            return response.json();
+          })
+          .then(data => {
+            if (data) {
+              showShellTestResult(data.success, data.output);
+            }
+          })
+          .catch(error => {
+            showShellTestResult(false, '테스트 중 오류가 발생했습니다: ' + error.message);
+          })
+          .finally(() => {
+            if (testShellBtn) {
+              testShellBtn.disabled = false;
+              testShellBtn.innerHTML = '<i class="bi bi-check-circle"></i> Shell 테스트';
+            }
+          });
+      });
+    }
+    
+    function showShellTestResult(success, message) {
+      if (!shellTestResult) return;
+      shellTestResult.className = 'alert alert-dismissible fade show mt-2 mb-0 ' + (success ? 'alert-success' : 'alert-danger');
+      var messageHtml = '<pre style="white-space: pre-wrap; word-wrap: break-word; margin: 0; font-size: 0.875rem;">' + 
+                        escapeHtml(message) + '</pre>';
+      shellTestResult.innerHTML = messageHtml + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+      shellTestResult.style.display = 'block';
+    }
+    
     // 메시지 템플릿 도움말 collapse 아이콘 토글
     var messageTemplateHelp = document.getElementById('messageTemplateHelp');
     var messageTemplateHelpIcon = document.getElementById('messageTemplateHelpIcon');
@@ -421,6 +781,211 @@
       });
       messageTemplateHelp.addEventListener('hide.bs.collapse', function () {
         messageTemplateHelpIcon.className = 'bi bi-chevron-down';
+      });
+    }
+    
+    // 로그 파일 테스트 버튼
+    var testLogsBtn = document.getElementById('testLogsBtn');
+    var logsTestResult = document.getElementById('logsTestResult');
+    var logFilePath = document.getElementById('logFilePath');
+    var includeKeywords = document.getElementById('includeKeywords');
+    var excludeKeywords = document.getElementById('excludeKeywords');
+    
+    if (testLogsBtn) {
+      testLogsBtn.addEventListener('click', function() {
+        var serverSelect = document.getElementById('serverId');
+        var serverId = serverSelect ? serverSelect.value : null;
+        var logPath = logFilePath ? logFilePath.value : '';
+        var include = includeKeywords ? includeKeywords.value : '';
+        var exclude = excludeKeywords ? excludeKeywords.value : '';
+        
+        if (!serverId || serverId === '' || serverId === '0') {
+          showLogsTestResult(false, '서버를 선택하세요.');
+          return;
+        }
+        if (!logPath || !logPath.trim()) {
+          showLogsTestResult(false, '로그 파일 경로를 입력하세요.');
+          return;
+        }
+        
+        // 서버 정보 가져오기 (AJAX)
+        fetch('/api/servers/' + serverId + '/host')
+          .then(response => response.json())
+          .then(data => {
+            if (!data.host) {
+              showLogsTestResult(false, '서버의 Host 정보를 가져올 수 없습니다.');
+              return;
+            }
+            
+            testLogsBtn.disabled = true;
+            testLogsBtn.textContent = '테스트 중...';
+            logsTestResult.style.display = 'none';
+            
+            var formData = new FormData();
+            formData.append('host', data.host);
+            formData.append('port', data.sshPort || 22);
+            formData.append('sshUsername', data.sshUsername || '');
+            if (data.sshPassword) formData.append('sshPassword', data.sshPassword);
+            if (data.sshPrivateKeyPath) formData.append('sshPrivateKeyPath', data.sshPrivateKeyPath);
+            formData.append('logFilePath', logPath);
+            if (include) formData.append('includeKeywords', include);
+            if (exclude) formData.append('excludeKeywords', exclude);
+            
+            return fetch('/api/checks/test/logs', {
+              method: 'POST',
+              body: formData
+            });
+          })
+          .then(response => {
+            if (!response) return;
+            return response.json();
+          })
+          .then(data => {
+            if (data) {
+              showLogsTestResult(data.success, data.output);
+            }
+          })
+          .catch(error => {
+            showLogsTestResult(false, '테스트 중 오류가 발생했습니다: ' + error.message);
+          })
+          .finally(() => {
+            if (testLogsBtn) {
+              testLogsBtn.disabled = false;
+              testLogsBtn.innerHTML = '<i class="bi bi-check-circle"></i> 로그 테스트';
+            }
+          });
+      });
+    }
+    
+    function showLogsTestResult(success, message) {
+      if (!logsTestResult) return;
+      logsTestResult.className = 'alert alert-dismissible fade show mb-2 ' + (success ? 'alert-success' : 'alert-danger');
+      var messageHtml = '<pre style="white-space: pre-wrap; word-wrap: break-word; margin: 0; font-size: 0.875rem;">' + 
+                        escapeHtml(message) + '</pre>';
+      logsTestResult.innerHTML = messageHtml + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+      logsTestResult.style.display = 'block';
+    }
+    
+    function escapeHtml(text) {
+      var map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+    
+    // 디스크 공간 테스트 버튼
+    var testDiskSpaceBtn = document.getElementById('testDiskSpaceBtn');
+    var diskSpaceTestResult = document.getElementById('diskSpaceTestResult');
+    var diskPath = document.getElementById('diskPath');
+    
+    if (testDiskSpaceBtn) {
+      testDiskSpaceBtn.addEventListener('click', function() {
+        var serverSelect = document.getElementById('serverId');
+        var serverId = serverSelect ? serverSelect.value : null;
+        var diskPathValue = diskPath ? diskPath.value : '';
+        
+        if (!serverId || serverId === '' || serverId === '0') {
+          showDiskSpaceTestResult(false, '서버를 선택하세요.');
+          return;
+        }
+        // diskPath는 선택 입력이므로 비어있어도 테스트 가능 (전체 마운트 포인트 확인)
+        
+        // 서버 정보 가져오기 (AJAX)
+        fetch('/api/servers/' + serverId + '/host')
+          .then(response => response.json())
+          .then(data => {
+            if (!data.host) {
+              showDiskSpaceTestResult(false, '서버의 Host 정보를 가져올 수 없습니다.');
+              return;
+            }
+            
+            testDiskSpaceBtn.disabled = true;
+            testDiskSpaceBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 테스트 중...';
+            diskSpaceTestResult.style.display = 'none';
+            
+            var formData = new FormData();
+            formData.append('host', data.host);
+            formData.append('port', data.sshPort || 22);
+            formData.append('sshUsername', data.sshUsername || '');
+            if (data.sshPassword) formData.append('sshPassword', data.sshPassword);
+            if (data.sshPrivateKeyPath) formData.append('sshPrivateKeyPath', data.sshPrivateKeyPath);
+            // diskPath는 선택 입력이므로 비어있어도 전송 (전체 마운트 포인트 확인)
+            if (diskPathValue && diskPathValue.trim()) {
+              formData.append('diskPath', diskPathValue.trim());
+            }
+            
+            return fetch('/api/checks/test/disk-space', {
+              method: 'POST',
+              body: formData
+            });
+          })
+          .then(response => {
+            if (!response) return;
+            return response.json();
+          })
+          .then(data => {
+            if (data) {
+              showDiskSpaceTestResult(data.success, data.output);
+            }
+          })
+          .catch(error => {
+            showDiskSpaceTestResult(false, '테스트 중 오류가 발생했습니다: ' + error.message);
+          })
+          .finally(() => {
+            if (testDiskSpaceBtn) {
+              testDiskSpaceBtn.disabled = false;
+              testDiskSpaceBtn.innerHTML = '<i class="bi bi-check-circle"></i> 디스크 테스트';
+            }
+          });
+      });
+    }
+    
+    function showDiskSpaceTestResult(success, message) {
+      if (!diskSpaceTestResult) return;
+      diskSpaceTestResult.className = 'alert alert-dismissible fade show mb-2 ' + (success ? 'alert-success' : 'alert-danger');
+      var messageHtml = '<pre style="white-space: pre-wrap; word-wrap: break-word; margin: 0; font-size: 0.875rem;">' + 
+                        escapeHtml(message) + '</pre>';
+      diskSpaceTestResult.innerHTML = messageHtml + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+      diskSpaceTestResult.style.display = 'block';
+    }
+    
+    // 로그 파일 가이드 collapse 아이콘 토글
+    var logsGuideCollapse = document.getElementById('logsGuideCollapse');
+    var logsGuideIcon = document.getElementById('logsGuideIcon');
+    if (logsGuideCollapse && logsGuideIcon) {
+      logsGuideCollapse.addEventListener('show.bs.collapse', function () {
+        logsGuideIcon.className = 'bi bi-chevron-up';
+      });
+      logsGuideCollapse.addEventListener('hide.bs.collapse', function () {
+        logsGuideIcon.className = 'bi bi-chevron-down';
+      });
+    }
+    
+    // 디스크 공간 가이드 collapse 아이콘 토글
+    var diskGuideCollapse = document.getElementById('diskGuideCollapse');
+    var diskGuideIcon = document.getElementById('diskGuideIcon');
+    if (diskGuideCollapse && diskGuideIcon) {
+      diskGuideCollapse.addEventListener('show.bs.collapse', function () {
+        diskGuideIcon.className = 'bi bi-chevron-up';
+      });
+      diskGuideCollapse.addEventListener('hide.bs.collapse', function () {
+        diskGuideIcon.className = 'bi bi-chevron-down';
+      });
+    }
+    
+    // 알림 규칙 가이드 collapse 아이콘 토글
+    var alertRuleGuideCollapse = document.getElementById('alertRuleGuideCollapse');
+    var alertRuleGuideIcon = document.getElementById('alertRuleGuideIcon');
+    if (alertRuleGuideCollapse && alertRuleGuideIcon) {
+      alertRuleGuideCollapse.addEventListener('show.bs.collapse', function () {
+        alertRuleGuideIcon.className = 'bi bi-chevron-up';
+      });
+      alertRuleGuideCollapse.addEventListener('hide.bs.collapse', function () {
+        alertRuleGuideIcon.className = 'bi bi-chevron-down';
       });
     }
   })();

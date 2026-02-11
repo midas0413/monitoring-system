@@ -1,9 +1,11 @@
 package com.example.monitoring.web.service;
 
 import com.example.monitoring.common.domain.CheckRunEntity;
-// import com.example.monitoring.common.repo.AlertRuleRepository;  // Deprecated
+import com.example.monitoring.common.domain.MonitoringRuleEntity;
+import com.example.monitoring.common.domain.ServerEntity;
 import com.example.monitoring.common.repo.CheckRunRepository;
-// import com.example.monitoring.common.repo.CheckRepository;  // Deprecated
+import com.example.monitoring.common.repo.MonitoringRuleRepository;
+import com.example.monitoring.common.repo.ServerRepository;
 import com.example.monitoring.web.dto.CheckRunCreateRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,14 +30,15 @@ public class CheckRunService {
     private static final int PAGE_SIZE = 100;
 
     private final CheckRunRepository checkRunRepository;
-    // Deprecated: CheckRepository와 AlertRuleRepository는 더 이상 사용되지 않음
-    // private final CheckRepository checkRepository;
-    // private final AlertRuleRepository alertRuleRepository;
+    private final MonitoringRuleRepository monitoringRuleRepository;
+    private final ServerRepository serverRepository;
 
-    public CheckRunService(CheckRunRepository checkRunRepository/*, CheckRepository checkRepository, AlertRuleRepository alertRuleRepository*/) {
+    public CheckRunService(CheckRunRepository checkRunRepository,
+                          MonitoringRuleRepository monitoringRuleRepository,
+                          ServerRepository serverRepository) {
         this.checkRunRepository = checkRunRepository;
-        // this.checkRepository = checkRepository;
-        // this.alertRuleRepository = alertRuleRepository;
+        this.monitoringRuleRepository = monitoringRuleRepository;
+        this.serverRepository = serverRepository;
     }
 
     public CheckRunEntity create(CheckRunCreateRequest req) {
@@ -60,81 +63,84 @@ public class CheckRunService {
                 .orElseThrow(() -> new IllegalArgumentException("CheckRun not found: " + id));
     }
 
-    public List<CheckRunEntity> list(Long checkId, Long ignoredServerId) {
-        if (checkId != null) {
-            return checkRunRepository.findTop100ByCheckIdOrderByStartedAtDesc(checkId);
+    public List<CheckRunEntity> list(Long ruleId, Long ignoredServerId) {
+        if (ruleId != null) {
+            return checkRunRepository.findTop100ByMonitoringRuleIdOrderByStartedAtDesc(ruleId);
         }
         return checkRunRepository.findAllByOrderByStartedAtDesc(PageRequest.of(0, PAGE_SIZE));
     }
 
-    /** runId -> 서버 타임존 기준 Started 포맷 문자열 */
+    /** runId -> 한국 시간(KST) 기준 Started 포맷 문자열 */
     public Map<Long, String> buildStartedDisplayMap(List<CheckRunEntity> runs) {
         Map<Long, String> map = new HashMap<>();
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        ZoneId koreaZone = ZoneId.of("Asia/Seoul");
+        
         for (CheckRunEntity r : runs) {
             if (r.getStartedAt() == null) {
                 map.put(r.getId(), "-");
                 continue;
             }
-            String tz = null;
-            // Deprecated: CheckRepository 사용 불가
-            // if (r.getCheckId() != null) {
-            //     tz = checkRepository.findById(r.getCheckId())
-            //             .map(c -> c.getTimezone())
-            //             .filter(t -> t != null && !t.isBlank())
-            //             .orElse(null);
-            // }
             
-            // 타임존 변환 (잘못된 타임존 ID 처리)
-            ZoneId zone;
-            try {
-                if (tz != null) {
-                    // 잘못된 타임존 ID 수정 (예: Europe/Scopje -> Europe/Skopje)
-                    if ("Europe/Scopje".equals(tz)) {
-                        tz = "Europe/Skopje";
-                    }
-                    zone = ZoneId.of(tz);
-                } else {
-                    zone = ZoneId.systemDefault();
-                }
-            } catch (Exception e) {
-                // 잘못된 타임존 ID인 경우 시스템 기본 타임존 사용
-                log.warn("잘못된 타임존 ID: {}. 시스템 기본 타임존 사용. checkId={}", tz, r.getCheckId());
-                zone = ZoneId.systemDefault();
-            }
-            
-            String formatted = r.getStartedAt().atZoneSameInstant(zone).format(fmt);
+            // 한국 시간으로 변환
+            String formatted = r.getStartedAt().atZoneSameInstant(koreaZone).format(fmt);
             map.put(r.getId(), formatted);
         }
         return map;
     }
 
-    /** checkId -> Rule Name (AlertRuleEntity의 name) */
-    public Map<Long, String> buildRuleNameDisplayMap(List<CheckRunEntity> runs) {
+    /** runId -> 한국 시간(KST) 기준 Finished 포맷 문자열 */
+    public Map<Long, String> buildFinishedDisplayMap(List<CheckRunEntity> runs) {
         Map<Long, String> map = new HashMap<>();
-        // Deprecated: AlertRuleRepository 사용 불가
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        ZoneId koreaZone = ZoneId.of("Asia/Seoul");
+        
         for (CheckRunEntity r : runs) {
-            if (r.getCheckId() == null) continue;
-            if (map.containsKey(r.getCheckId())) continue;
-            // String ruleName = alertRuleRepository.findFirstByCheckId(r.getCheckId())
-            //         .map(rule -> rule.getName() != null ? rule.getName() : "-")
-            //         .orElse("-");
-            map.put(r.getCheckId(), "-");  // 임시로 "-" 반환
+            if (r.getFinishedAt() == null) {
+                map.put(r.getId(), "-");
+                continue;
+            }
+            
+            // 한국 시간으로 변환
+            String formatted = r.getFinishedAt().atZoneSameInstant(koreaZone).format(fmt);
+            map.put(r.getId(), formatted);
         }
         return map;
     }
 
-    /** checkId -> Server Name (CheckEntity의 targetName) */
+    /** monitoringRuleId -> Rule Name */
+    public Map<Long, String> buildRuleNameDisplayMap(List<CheckRunEntity> runs) {
+        Map<Long, String> map = new HashMap<>();
+        for (CheckRunEntity r : runs) {
+            Long ruleId = r.getMonitoringRuleId();
+            if (ruleId == null) continue;
+            if (map.containsKey(ruleId)) continue;
+            
+            String ruleName = monitoringRuleRepository.findById(ruleId)
+                    .map(rule -> rule.getName() != null ? rule.getName() : "-")
+                    .orElse("-");
+            map.put(ruleId, ruleName);
+        }
+        return map;
+    }
+
+    /** monitoringRuleId -> Server Name */
     public Map<Long, String> buildServerDisplayMap(List<CheckRunEntity> runs) {
         Map<Long, String> map = new HashMap<>();
-        // Deprecated: CheckRepository 사용 불가
         for (CheckRunEntity r : runs) {
-            if (r.getCheckId() == null) continue;
-            if (map.containsKey(r.getCheckId())) continue;
-            // String serverName = checkRepository.findById(r.getCheckId())
-            //         .map(c -> c.getTargetName() != null ? c.getTargetName() : "-")
-            //         .orElse("-");
-            map.put(r.getCheckId(), "-");  // 임시로 "-" 반환
+            Long ruleId = r.getMonitoringRuleId();
+            if (ruleId == null) continue;
+            if (map.containsKey(ruleId)) continue;
+            
+            String serverName = monitoringRuleRepository.findById(ruleId)
+                    .map(rule -> {
+                        if (rule.getServerId() == null) return "-";
+                        return serverRepository.findById(rule.getServerId())
+                                .map(server -> server.getName() != null ? server.getName() : "-")
+                                .orElse("-");
+                    })
+                    .orElse("-");
+            map.put(ruleId, serverName);
         }
         return map;
     }

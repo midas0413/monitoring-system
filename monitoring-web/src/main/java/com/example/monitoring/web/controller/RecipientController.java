@@ -23,7 +23,7 @@ public class RecipientController {
     @GetMapping
     public String list(@RequestParam(name = "q", required = false) String q, Model model) {
         List<AlertRecipientEntity> items = service.list(q);
-        model.addAttribute("pageTitle", "Alert Recipients");
+        model.addAttribute("pageTitle", "알림 수신자");
         model.addAttribute("activeMenu", "recipients");
         model.addAttribute("content", "recipients/list :: content");
         model.addAttribute("q", q);
@@ -34,7 +34,7 @@ public class RecipientController {
     @GetMapping("/new")
     public String createForm(Model model) {
         AlertRecipientForm f = new AlertRecipientForm();
-        model.addAttribute("pageTitle", "New Recipient");
+        model.addAttribute("pageTitle", "수신자 등록");
         model.addAttribute("activeMenu", "recipients");
         model.addAttribute("content", "recipients/form :: content");
         model.addAttribute("form", f);
@@ -59,7 +59,7 @@ public class RecipientController {
         AlertRecipientEntity e = service.get(id);
         AlertRecipientForm f = service.toForm(e);
 
-        model.addAttribute("pageTitle", "Edit Recipient");
+        model.addAttribute("pageTitle", "수신자 수정");
         model.addAttribute("activeMenu", "recipients");
         model.addAttribute("content", "recipients/form :: content");
         model.addAttribute("id", id);

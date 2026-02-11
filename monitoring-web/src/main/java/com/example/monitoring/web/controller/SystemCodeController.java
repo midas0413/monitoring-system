@@ -24,7 +24,7 @@ public class SystemCodeController {
     public String list(@RequestParam(name = "type", required = false) String type,
                        @RequestParam(name = "q", required = false) String q,
                        Model model) {
-        model.addAttribute("pageTitle", "System Codes");
+        model.addAttribute("pageTitle", "시스템 코드");
         model.addAttribute("activeMenu", "settings");
         model.addAttribute("content", "settings/system-codes-list :: content");
 
@@ -67,7 +67,7 @@ public class SystemCodeController {
 
     @GetMapping("/new")
     public String createForm(@RequestParam(name = "type", required = false) String type, Model model) {
-        model.addAttribute("pageTitle", "New System Code");
+        model.addAttribute("pageTitle", "시스템 코드 등록");
         model.addAttribute("activeMenu", "settings");
         model.addAttribute("content", "settings/system-codes-form :: content");
 
@@ -102,7 +102,7 @@ public class SystemCodeController {
 
     @GetMapping("/{id}/edit")
     public String editForm(@PathVariable Long id, Model model) {
-        model.addAttribute("pageTitle", "Edit System Code");
+        model.addAttribute("pageTitle", "시스템 코드 수정");
         model.addAttribute("activeMenu", "settings");
         model.addAttribute("content", "settings/system-codes-form :: content");
 

@@ -26,7 +26,7 @@ public class VpnConnectionController {
 
     @GetMapping
     public String list(@RequestParam(name = "q", required = false) String q, Model model) {
-        model.addAttribute("pageTitle", "VPN Connections");
+        model.addAttribute("pageTitle", "VPN 연결");
         model.addAttribute("activeMenu", "settings");
         model.addAttribute("content", "vpn/list :: content");
 
@@ -39,7 +39,7 @@ public class VpnConnectionController {
 
     @GetMapping("/new")
     public String createForm(Model model) {
-        model.addAttribute("pageTitle", "New VPN Connection");
+        model.addAttribute("pageTitle", "VPN 연결 등록");
         model.addAttribute("activeMenu", "settings");
         model.addAttribute("content", "vpn/form :: content");
 
@@ -66,7 +66,7 @@ public class VpnConnectionController {
 
     @GetMapping("/{id}/edit")
     public String editForm(@PathVariable Long id, Model model) {
-        model.addAttribute("pageTitle", "Edit VPN Connection");
+        model.addAttribute("pageTitle", "VPN 연결 수정");
         model.addAttribute("activeMenu", "settings");
         model.addAttribute("content", "vpn/form :: content");
 

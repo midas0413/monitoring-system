@@ -11,7 +11,7 @@ public class SettingsController {
 
     @GetMapping
     public String index(Model model) {
-        model.addAttribute("pageTitle", "System Settings");
+        model.addAttribute("pageTitle", "시스템 설정");
         model.addAttribute("activeMenu", "settings");
         model.addAttribute("content", "settings/index :: content");
         return "layout";

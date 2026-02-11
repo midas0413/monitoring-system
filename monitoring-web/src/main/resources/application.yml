@@ -6,18 +6,19 @@ server:
     include-stacktrace: always
 
 app:
-  system-name: Monitoring Portal
+  system-name: ${APP_SYSTEM_NAME:Monitoring Portal}
 
 logging:
   level:
-    org.springframework.web: DEBUG
-    org.thymeleaf: DEBUG
+    root: ${LOGGING_LEVEL_ROOT:INFO}
+    org.springframework.web: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB:INFO}
+    org.thymeleaf: ${LOGGING_LEVEL_ORG_THYMELEAF:INFO}
 
 spring:
   datasource:
-    url: jdbc:postgresql://172.22.1.113:5432/monitoring
-    username: monitoring
-    password: monitoring
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://172.22.1.113:5432/monitoring}
+    username: ${SPRING_DATASOURCE_USERNAME:monitoring}
+    password: ${SPRING_DATASOURCE_PASSWORD:monitoring}
   jpa:
     hibernate:
       ddl-auto: validate

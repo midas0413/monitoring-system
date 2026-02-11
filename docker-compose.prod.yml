@@ -1,0 +1,22 @@
+version: '3.8'
+
+# 프로덕션 환경용 docker-compose 설정
+# 사용법: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  web:
+    environment:
+      # 프로덕션 환경 변수 오버라이드
+      SPRING_PROFILES_ACTIVE: prod
+      LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: INFO
+      LOGGING_LEVEL_ORG_THYMELEAF: INFO
+    # 프로덕션에서는 포트를 외부에 노출하지 않거나 리버스 프록시 사용
+    # ports:
+    #   - "8080:8080"
+
+  worker:
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      LOGGING_LEVEL_ROOT: INFO
+    # 프로덕션에서 여러 worker 실행: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale worker=2

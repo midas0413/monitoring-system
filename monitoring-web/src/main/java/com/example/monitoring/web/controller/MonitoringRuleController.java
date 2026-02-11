@@ -38,7 +38,7 @@ public class MonitoringRuleController {
 
     @GetMapping
     public String list(@RequestParam(name = "q", required = false) String q, Model model) {
-        model.addAttribute("pageTitle", "Alert Rules");
+        model.addAttribute("pageTitle", "알림 규칙");
         model.addAttribute("activeMenu", "rules");
         model.addAttribute("content", "monitoring-rules/list :: content");
 
@@ -51,7 +51,7 @@ public class MonitoringRuleController {
 
     @GetMapping("/new")
     public String createForm(Model model) {
-        model.addAttribute("pageTitle", "New Alert Rule");
+        model.addAttribute("pageTitle", "알림 규칙 등록");
         model.addAttribute("activeMenu", "rules");
         model.addAttribute("content", "monitoring-rules/form :: content");
 
@@ -82,7 +82,7 @@ public class MonitoringRuleController {
 
     @GetMapping("/{id}/edit")
     public String editForm(@PathVariable Long id, Model model) {
-        model.addAttribute("pageTitle", "Edit Alert Rule");
+        model.addAttribute("pageTitle", "알림 규칙 수정");
         model.addAttribute("activeMenu", "rules");
         model.addAttribute("content", "monitoring-rules/form :: content");
 
@@ -122,7 +122,7 @@ public class MonitoringRuleController {
 
     @GetMapping("/{id}/recipients")
     public String recipients(@PathVariable Long id, Model model) {
-        model.addAttribute("pageTitle", "Rule Recipients");
+        model.addAttribute("pageTitle", "규칙 수신자");
         model.addAttribute("activeMenu", "rules");
         model.addAttribute("content", "monitoring-rules/recipients :: content");
 

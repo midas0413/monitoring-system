@@ -82,9 +82,15 @@ public class AligoClient {
             
             // message_1에 실제 치환된 값 전달 (템플릿 형식과 정확히 일치해야 함)
             // 템플릿의 개행 문자를 \n으로 표현 (템플릿과 동일하게)
-            // 첫 번째 줄: #{시스템} 모니터링에 알림이 발생했습니다.
-            // 두 번째 줄: 알림내용 : #{알림}
-            String message1 = String.format("%s 모니터링에 알림이 발생했습니다.\n알림내용 : %s", systemInfo, alertInfo);
+            // alertInfo에 줄바꿈이 포함되어 있으면 그대로 유지
+            String message1;
+            if (StringUtils.hasText(alertInfo) && alertInfo.contains("\n")) {
+                // alertInfo에 줄바꿈이 있으면 그대로 사용 (템플릿의 줄바꿈 유지)
+                message1 = String.format("%s 모니터링에 알림이 발생했습니다.\n알림내용 :\n%s", systemInfo, alertInfo);
+            } else {
+                // 줄바꿈이 없으면 기존 형식 사용
+                message1 = String.format("%s 모니터링에 알림이 발생했습니다.\n알림내용 : %s", systemInfo, alertInfo);
+            }
             params.add("message_1", truncate(message1, 1000));
             
             // 템플릿에 채널추가 버튼이 있는 경우 button_1 파라미터 추가

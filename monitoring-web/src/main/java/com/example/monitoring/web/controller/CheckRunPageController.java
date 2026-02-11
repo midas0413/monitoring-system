@@ -2,7 +2,7 @@ package com.example.monitoring.web.controller;
 
 import com.example.monitoring.common.domain.CheckRunEntity;
 import com.example.monitoring.web.service.CheckRunService;
-// import com.example.monitoring.web.service.CheckService;  // Deprecated
+import com.example.monitoring.web.service.MonitoringRuleService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,31 +16,33 @@ import java.util.List;
 public class CheckRunPageController {
 
     private final CheckRunService checkRunService;
-    // Deprecated: CheckService는 더 이상 사용되지 않음
-    // private final CheckService checkService;
+    private final MonitoringRuleService monitoringRuleService;
 
-    public CheckRunPageController(CheckRunService checkRunService/*, CheckService checkService*/) {
+    public CheckRunPageController(CheckRunService checkRunService,
+                                  MonitoringRuleService monitoringRuleService) {
         this.checkRunService = checkRunService;
-        // this.checkService = checkService;
+        this.monitoringRuleService = monitoringRuleService;
     }
 
     @GetMapping
     public String list(
-            @RequestParam(required = false) Long checkId,
+            @RequestParam(required = false) Long ruleId,
             Model model) {
-        model.addAttribute("pageTitle", "Check Results");
+        model.addAttribute("pageTitle", "체크 실행 내역");
         model.addAttribute("activeMenu", "checkRuns");
         model.addAttribute("content", "checkruns/list :: content");
 
-        List<CheckRunEntity> items = checkRunService.list(checkId, null);
+        List<CheckRunEntity> items = checkRunService.list(ruleId, null);
         model.addAttribute("items", items);
         model.addAttribute("startedDisplay", checkRunService.buildStartedDisplayMap(items));
+        model.addAttribute("finishedDisplay", checkRunService.buildFinishedDisplayMap(items));
         model.addAttribute("ruleNameDisplay", checkRunService.buildRuleNameDisplayMap(items));
         model.addAttribute("serverDisplay", checkRunService.buildServerDisplayMap(items));
-        model.addAttribute("checkId", checkId);
-        // Deprecated: CheckService 사용 불가
-        // model.addAttribute("checks", checkService.list(null));
-        model.addAttribute("checks", new java.util.ArrayList<>());
+        model.addAttribute("ruleId", ruleId);
+        
+        // 모든 룰 목록 (필터용)
+        List<com.example.monitoring.common.domain.MonitoringRuleEntity> allRules = monitoringRuleService.list(null);
+        model.addAttribute("allRules", allRules);
 
         return "layout";
     }

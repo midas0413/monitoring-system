@@ -10,9 +10,9 @@ spring:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
   datasource:
-    url: jdbc:postgresql://172.22.1.113:5432/monitoring
-    username: monitoring
-    password: monitoring
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://172.22.1.113:5432/monitoring}
+    username: ${SPRING_DATASOURCE_USERNAME:monitoring}
+    password: ${SPRING_DATASOURCE_PASSWORD:monitoring}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -22,11 +22,10 @@ spring:
     validate-on-migrate: false  # 마이그레이션 파일 변경 시 체크섬 불일치 허용
 
 worker:
-  # id: worker-1  # 설정하지 않으면 자동 생성 (호스트명-UUID 형식)
-  # 환경 변수 WORKER_ID로도 설정 가능
-  claim-limit: 10
-  lock-seconds: 30
-  loop-sleep-ms: 1000
+  id: ${WORKER_ID:}  # 설정하지 않으면 자동 생성 (호스트명-UUID 형식)
+  claim-limit: ${WORKER_CLAIM_LIMIT:10}
+  lock-seconds: ${WORKER_LOCK_SECONDS:30}
+  loop-sleep-ms: ${WORKER_LOOP_SLEEP_MS:1000}
 
   sql-timeout-ms: 3000
   ssh-connect-timeout-ms: 5000

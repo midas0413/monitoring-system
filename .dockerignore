@@ -1,0 +1,64 @@
+# Build artifacts
+build/
+out/
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+
+# Gradle
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation (분석 문서)
+*.md
+!README.md
+
+# SQL 유틸리티 파일
+export_monitoring_rules_insert.sql
+
+# Docker 이미지 파일
+monitoring-system-*.tar
+monitoring-system-*.tar.gz
+monitoring-system-*.zip
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+Dockerfile.web
+Dockerfile.worker
+docker-compose.yml
+docker-compose.prod.yml
+.dockerignore
+
+# Environment
+.env
+application-local.yml
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~

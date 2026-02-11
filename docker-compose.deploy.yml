@@ -1,0 +1,76 @@
+version: '3.8'
+
+# 배포용 docker-compose 설정
+# 이미 빌드된 이미지를 사용합니다
+# 사용법: docker-compose -f docker-compose.deploy.yml up -d
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: monitoring-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-monitoring}
+      POSTGRES_USER: ${POSTGRES_USER:-monitoring}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-monitoring}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-monitoring}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: monitoring-system-web:latest  # 로드된 이미지 사용
+    container_name: monitoring-web
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-monitoring}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-monitoring}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-monitoring}
+      APP_SYSTEM_NAME: ${APP_SYSTEM_NAME:-Monitoring Portal}
+      LOGGING_LEVEL_ROOT: ${LOGGING_LEVEL_ROOT:-INFO}
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB:-INFO}
+      LOGGING_LEVEL_ORG_THYMELEAF: ${LOGGING_LEVEL_ORG_THYMELEAF:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    image: monitoring-system-worker:latest  # 로드된 이미지 사용
+    container_name: monitoring-worker
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-monitoring}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-monitoring}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-monitoring}
+      # Worker 설정
+      WORKER_ID: ${WORKER_ID:-}
+      WORKER_CLAIM_LIMIT: ${WORKER_CLAIM_LIMIT:-10}
+      WORKER_LOCK_SECONDS: ${WORKER_LOCK_SECONDS:-30}
+      WORKER_LOOP_SLEEP_MS: ${WORKER_LOOP_SLEEP_MS:-1000}
+      # Aligo API 설정
+      ALIGO_API_KEY: ${ALIGO_API_KEY:-}
+      ALIGO_USER_ID: ${ALIGO_USER_ID:-}
+      ALIGO_SENDER: ${ALIGO_SENDER:-}
+      ALIGO_SENDER_KEY: ${ALIGO_SENDER_KEY:-}
+      ALIGO_TEMPLATE_CODE: ${ALIGO_TEMPLATE_CODE:-}
+      ALIGO_TEST_MODE: ${ALIGO_TEST_MODE:-N}
+      # Mail 설정
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-smtp.gmail.com}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      # Logging
+      LOGGING_LEVEL_ROOT: ${LOGGING_LEVEL_ROOT:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    # 여러 worker 실행: docker-compose -f docker-compose.deploy.yml up -d --scale worker=2
+
+volumes:
+  postgres_data:

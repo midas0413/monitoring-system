@@ -65,9 +65,11 @@ insert into system_codes (code_type, code_value, code_label, display_order, desc
 ('ALERT_OPERATOR', 'RUN_FAILED', '실행 실패', 1, '모니터링 실행이 실패한 경우'),
 ('ALERT_OPERATOR', 'OUTPUT_NUM_GT', '출력값 > 임계값', 2, '출력값이 임계값보다 큰 경우'),
 ('ALERT_OPERATOR', 'OUTPUT_NUM_LT', '출력값 < 임계값', 3, '출력값이 임계값보다 작은 경우'),
-('ALERT_OPERATOR', 'OUTPUT_CONTAINS', '출력값 포함', 4, '출력값에 특정 문자열이 포함된 경우'),
-('ALERT_OPERATOR', 'OUTPUT_NOT_CONTAINS', '출력값 미포함', 5, '출력값에 특정 문자열이 포함되지 않은 경우'),
-('ALERT_OPERATOR', 'OUTPUT_MATCHES', '출력값 정규식 매칭', 6, '출력값이 정규식과 매칭되는 경우');
+('ALERT_OPERATOR', 'OUTPUT_LEN_GT', '출력 길이 > 임계값', 4, '출력 길이가 임계값보다 큰 경우'),
+('ALERT_OPERATOR', 'OUTPUT_LEN_LT', '출력 길이 < 임계값', 5, '출력 길이가 임계값보다 작은 경우'),
+('ALERT_OPERATOR', 'OUTPUT_CONTAINS', '출력값 포함', 6, '출력값에 특정 문자열이 포함된 경우'),
+('ALERT_OPERATOR', 'OUTPUT_NOT_CONTAINS', '출력값 미포함', 7, '출력값에 특정 문자열이 포함되지 않은 경우'),
+('ALERT_OPERATOR', 'OUTPUT_MATCHES', '출력값 정규식 매칭', 8, '출력값이 정규식과 매칭되는 경우');
 
 -- 시퀀스 보정
 SELECT setval('servers_id_seq', (SELECT COALESCE(MAX(id), 1) FROM servers));

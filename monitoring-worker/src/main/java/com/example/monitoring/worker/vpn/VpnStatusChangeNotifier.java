@@ -47,7 +47,19 @@ public class VpnStatusChangeNotifier {
      * VPN 상태 변경 알림 발송
      */
     public void notifyStatusChange(VpnConnectionEntity vpn, ServerStatus oldStatus, ServerStatus newStatus) {
+        // 유효성 검사
         if (oldStatus == newStatus) {
+            log.debug("Skipping notification: status unchanged. vpn={}, status={}", vpn.getName(), oldStatus);
+            return;
+        }
+        
+        if (oldStatus == null) {
+            log.warn("Skipping notification: oldStatus is null. vpn={}, newStatus={}", vpn.getName(), newStatus);
+            return;
+        }
+        
+        if (newStatus == null) {
+            log.warn("Skipping notification: newStatus is null. vpn={}, oldStatus={}", vpn.getName(), oldStatus);
             return;
         }
 
@@ -70,7 +82,7 @@ public class VpnStatusChangeNotifier {
                     vpn.getName(), template.getName(), oldStatus, newStatus);
         } else {
             // 기본 템플릿 사용
-            title = String.format("VPN 상태 변경: %s", vpn.getName());
+            title = String.format("VPN 상태 변경: %s", vpn.getName() != null ? vpn.getName() : "Unknown");
             body = String.format(
                 "[VPN 상태 변경 알림]\n" +
                 "VPN명: %s\n" +
@@ -78,10 +90,10 @@ public class VpnStatusChangeNotifier {
                 "이전 상태: %s\n" +
                 "현재 상태: %s\n" +
                 "변경 시간: %s",
-                vpn.getName(),
-                vpn.getHost(),
-                oldStatus,
-                newStatus,
+                vpn.getName() != null ? vpn.getName() : "Unknown",
+                vpn.getHost() != null ? vpn.getHost() : "Unknown",
+                oldStatus != null ? oldStatus.name() : "UNKNOWN",
+                newStatus != null ? newStatus.name() : "UNKNOWN",
                 changeTimeStr
             );
             log.info("VPN status change notification (default template): vpn={}, {} -> {}", 
@@ -174,13 +186,21 @@ public class VpnStatusChangeNotifier {
         if (template == null) {
             return "";
         }
+        
+        // 변수 값 검증 및 안전한 기본값 설정
+        String vpnName = (vpn != null && vpn.getName() != null) ? vpn.getName() : "알수없음";
+        String vpnHost = (vpn != null && vpn.getHost() != null) ? vpn.getHost() : "알수없음";
+        String oldStatusStr = (oldStatus != null) ? oldStatus.name() : "알수없음";
+        String newStatusStr = (newStatus != null) ? newStatus.name() : "알수없음";
+        String changeTimeStr = (changeTime != null && !changeTime.isEmpty()) ? changeTime : "알수없음";
+        
         // 템플릿 변수 치환 (줄바꿈 문자는 그대로 유지)
         String result = template
-                .replace("${vpnName}", vpn.getName() != null ? vpn.getName() : "")
-                .replace("${vpnHost}", vpn.getHost() != null ? vpn.getHost() : "")
-                .replace("${oldStatus}", oldStatus != null ? oldStatus.name() : "UNKNOWN")
-                .replace("${newStatus}", newStatus != null ? newStatus.name() : "UNKNOWN")
-                .replace("${changeTime}", changeTime != null ? changeTime : "");
+                .replace("${vpnName}", vpnName)
+                .replace("${vpnHost}", vpnHost)
+                .replace("${oldStatus}", oldStatusStr)
+                .replace("${newStatus}", newStatusStr)
+                .replace("${changeTime}", changeTimeStr);
         
         // 줄바꿈 문자 보존: \r\n을 \n으로 정규화하지 않고 그대로 유지
         // (일부 시스템에서 \r\n을 사용하더라도 Aligo API가 처리할 수 있도록)

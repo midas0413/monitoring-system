@@ -10,7 +10,7 @@
         <div class="text-muted small">Rule: <strong th:text="${rule.name}">rule</strong> (ID=<span th:text="${rule.id}">1</span>)</div>
       </div>
       <div class="page-header-actions d-flex gap-2">
-        <a class="btn btn-outline-secondary" th:href="@{/monitoring-rules/{id}/edit(id=${rule.id})}">Back</a>
+        <a class="btn btn-outline-secondary" th:href="@{/monitoring-rules}">Back</a>
         <a class="btn btn-primary" th:href="@{/recipients/new}">+ New Recipient</a>
       </div>
     </div>

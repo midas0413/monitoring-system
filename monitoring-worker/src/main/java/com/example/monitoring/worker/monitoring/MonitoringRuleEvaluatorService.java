@@ -69,14 +69,26 @@ public class MonitoringRuleEvaluatorService {
             return;
         }
 
-        // 2. Cooldown 체크 (동일한 rule_id와 output이 cooldown 시간 내에 있는지 확인)
+        // 2. LOGS 타입인 경우 출력값 길이 체크 (직전 알림 발송 시 출력값 길이와 같으면 알림 발송하지 않음)
+        if (rule.getMonitoringType() == MonitoringType.LOGS) {
+            int currentOutputLength = (output != null) ? output.length() : 0;
+            Integer lastNotificationOutputLength = rule.getLastNotificationOutputLength();
+            
+            if (lastNotificationOutputLength != null && currentOutputLength == lastNotificationOutputLength) {
+                log.debug("Output length same as last notification: ruleId={}, length={}", 
+                        rule.getId(), currentOutputLength);
+                return;
+            }
+        }
+
+        // 3. Cooldown 체크 (동일한 rule_id와 output이 cooldown 시간 내에 있는지 확인)
         if (!isCooldownOk(rule, output, now)) {
             log.debug("Cooldown period not passed: ruleId={}, output={}", rule.getId(), 
                     output != null ? output.substring(0, Math.min(50, output.length())) : "null");
             return;
         }
 
-        // 3. check_runs에 등록
+        // 4. check_runs에 등록
         CheckRunEntity run = new CheckRunEntity();
         run.setMonitoringRuleId(rule.getId());
         run.setSuccess(success);
@@ -89,8 +101,13 @@ public class MonitoringRuleEvaluatorService {
 
         log.info("Check run created: ruleId={}, runId={}, success={}", rule.getId(), run.getId(), success);
 
-        // 4. 알림 발송
+        // 5. 알림 발송
         rule.setLastFiredAt(now);
+        // LOGS 타입인 경우 출력값 길이 저장
+        if (rule.getMonitoringType() == MonitoringType.LOGS) {
+            int currentOutputLength = (output != null) ? output.length() : 0;
+            rule.setLastNotificationOutputLength(currentOutputLength);
+        }
         ruleRepo.save(rule);
 
         enqueueNotifications(rule, run, now);
@@ -113,6 +130,16 @@ public class MonitoringRuleEvaluatorService {
                 Double th = rule.getThresholdNum();
                 Double val = extractOutputNum(outputStr);
                 yield (th != null && val != null && val < th);
+            }
+            case OUTPUT_LEN_GT -> {
+                Integer th = rule.getThresholdLen();
+                int len = outputStr.length();
+                yield (th != null && len > th);
+            }
+            case OUTPUT_LEN_LT -> {
+                Integer th = rule.getThresholdLen();
+                int len = outputStr.length();
+                yield (th != null && len < th);
             }
             case OUTPUT_CONTAINS -> {
                 String p = rule.getPattern();
@@ -266,14 +293,18 @@ public class MonitoringRuleEvaluatorService {
         String status = run.getSuccess() != null ? (run.getSuccess() ? "SUCCESS" : "FAIL") : "UNKNOWN";
 
         // 시간 포맷팅
-        String startedAtStr = formatDateTime(run.getStartedAt(), serverZoneId);
-        String finishedAtStr = formatDateTime(run.getFinishedAt(), serverZoneId);
+        // ${startedAt}, ${finishedAt}는 한국 시간(KST)으로 표시
+        ZoneId koreaZone = ZoneId.of("Asia/Seoul");
+        String startedAtStr = formatDateTime(run.getStartedAt(), koreaZone);
+        String finishedAtStr = formatDateTime(run.getFinishedAt(), koreaZone);
+        // ${startedAtLocal}, ${finishedAtLocal}는 서버 현지 시간으로 표시
         String startedAtLocalStr = formatDateTimeLocal(run.getStartedAt(), serverZoneId);
         String finishedAtLocalStr = formatDateTimeLocal(run.getFinishedAt(), serverZoneId);
-        String startedDateStr = formatDate(run.getStartedAt(), serverZoneId);
-        String finishedDateStr = formatDate(run.getFinishedAt(), serverZoneId);
-        String startedTimeStr = formatTime(run.getStartedAt(), serverZoneId);
-        String finishedTimeStr = formatTime(run.getFinishedAt(), serverZoneId);
+        // 날짜/시간도 한국 시간으로 표시
+        String startedDateStr = formatDate(run.getStartedAt(), koreaZone);
+        String finishedDateStr = formatDate(run.getFinishedAt(), koreaZone);
+        String startedTimeStr = formatTime(run.getStartedAt(), koreaZone);
+        String finishedTimeStr = formatTime(run.getFinishedAt(), koreaZone);
         String durationStr = formatDuration(run.getDurationMs());
 
         // 변수 치환 (${var} 형식)
@@ -414,7 +445,28 @@ public class MonitoringRuleEvaluatorService {
             return null;
         }
         try {
-            // 숫자 추출 시도
+            // 디스크 공간 모니터링의 경우: "53%" 형식의 사용률을 추출
+            // 정규식으로 "숫자%" 패턴을 찾아 가장 높은 값을 반환
+            java.util.regex.Pattern percentPattern = java.util.regex.Pattern.compile("(\\d+(?:\\.\\d+)?)%");
+            java.util.regex.Matcher matcher = percentPattern.matcher(output);
+            Double maxPercent = null;
+            while (matcher.find()) {
+                try {
+                    Double percent = Double.parseDouble(matcher.group(1));
+                    if (maxPercent == null || percent > maxPercent) {
+                        maxPercent = percent;
+                    }
+                } catch (NumberFormatException e) {
+                    // 무시하고 계속
+                }
+            }
+            
+            // 사용률(%)이 발견되면 반환
+            if (maxPercent != null) {
+                return maxPercent;
+            }
+            
+            // 사용률이 없으면 일반 숫자 추출 시도
             String cleaned = output.trim().replaceAll("[^0-9.-]", "");
             if (cleaned.isEmpty()) {
                 return null;

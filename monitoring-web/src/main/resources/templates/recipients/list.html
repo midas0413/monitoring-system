@@ -5,9 +5,9 @@
     <div class="container-fluid">
 
         <div class="page-header mb-3">
-            <h5>Recipients</h5>
+            <h5>알림 수신자</h5>
             <div class="page-header-actions">
-              <a class="btn btn-primary" th:href="@{/recipients/new}">+ New</a>
+              <a class="btn btn-primary" th:href="@{/recipients/new}">+ 등록</a>
             </div>
         </div>
 
@@ -23,13 +23,13 @@
 
         <form class="row g-2 mb-3" method="get" th:action="@{/recipients}">
             <div class="col-sm-8 col-md-6">
-                <input class="form-control" name="q" placeholder="Search by name..." th:value="${q}">
+                <input class="form-control" name="q" placeholder="이름으로 검색..." th:value="${q}">
             </div>
             <div class="col-auto">
-                <button class="btn btn-outline-secondary" type="submit">Search</button>
+                <button class="btn btn-outline-secondary" type="submit">검색</button>
             </div>
             <div class="col-auto" th:if="${q != null && !#strings.isEmpty(q)}">
-                <a class="btn btn-link" th:href="@{/recipients}">Clear</a>
+                <a class="btn btn-link" th:href="@{/recipients}">초기화</a>
             </div>
         </form>
 
@@ -39,12 +39,12 @@
                     <thead class="table-light">
                     <tr>
                         <th style="width:90px;">ID</th>
-                        <th>Name</th>
-                        <th style="width:120px;">Enabled</th>
-                        <th style="width:180px;">Channels</th>
-                        <th>Phone</th>
-                        <th>Email</th>
-                        <th>Kakao</th>
+                        <th>이름</th>
+                        <th style="width:120px;">상태</th>
+                        <th style="width:180px;">채널</th>
+                        <th>전화번호</th>
+                        <th>이메일</th>
+                        <th>카카오톡</th>
                         <th style="width:170px;"></th>
                     </tr>
                     </thead>
@@ -63,11 +63,11 @@
                         <td th:text="${r.kakao}">channel</td>
                         <td class="text-end">
                             <a class="btn btn-sm btn-outline-primary"
-                               th:href="@{/recipients/{id}/edit(id=${r.id})}">Edit</a>
+                               th:href="@{/recipients/{id}/edit(id=${r.id})}">수정</a>
                             <form class="d-inline" method="post"
                                   th:action="@{/recipients/{id}/delete(id=${r.id})}"
-                                  onsubmit="return confirm('Delete this recipient?');">
-                                <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                                  onsubmit="return confirm('이 수신자를 삭제하시겠습니까?');">
+                                <button class="btn btn-sm btn-outline-danger" type="submit">삭제</button>
                             </form>
                         </td>
                     </tr>

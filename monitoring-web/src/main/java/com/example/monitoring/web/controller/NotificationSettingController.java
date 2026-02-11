@@ -21,7 +21,7 @@ public class NotificationSettingController {
 
     @GetMapping
     public String list(@RequestParam(name = "q", required = false) String q, Model model) {
-        model.addAttribute("pageTitle", "Notification Settings");
+        model.addAttribute("pageTitle", "알림 설정");
         model.addAttribute("activeMenu", "settings");
         model.addAttribute("content", "settings/notification-list :: content");
 
@@ -33,7 +33,7 @@ public class NotificationSettingController {
 
     @GetMapping("/new")
     public String createForm(Model model) {
-        model.addAttribute("pageTitle", "New Notification Setting");
+        model.addAttribute("pageTitle", "알림 설정 등록");
         model.addAttribute("activeMenu", "settings");
         model.addAttribute("content", "settings/notification-form :: content");
 
@@ -57,7 +57,7 @@ public class NotificationSettingController {
 
     @GetMapping("/{id}/edit")
     public String editForm(@PathVariable Long id, Model model) {
-        model.addAttribute("pageTitle", "Edit Notification Setting");
+        model.addAttribute("pageTitle", "알림 설정 수정");
         model.addAttribute("activeMenu", "settings");
         model.addAttribute("content", "settings/notification-form :: content");
 

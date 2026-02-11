@@ -1,7 +1,7 @@
 <div th:fragment="content">
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>VPN Connections</h2>
-    <a th:href="@{/vpn/new}" class="btn btn-primary">+ New VPN Connection</a>
+    <h2>VPN 연결</h2>
+    <a th:href="@{/vpn/new}" class="btn btn-primary">+ VPN 연결 등록</a>
   </div>
 
   <!-- 메시지 -->
@@ -16,13 +16,13 @@
 
   <form class="row g-2 mb-3" method="get" th:action="@{/vpn}">
     <div class="col-sm-8 col-md-6">
-      <input class="form-control" name="q" th:value="${q}" placeholder="Search by name or host...">
+      <input class="form-control" name="q" th:value="${q}" placeholder="VPN명 또는 호스트로 검색...">
     </div>
     <div class="col-auto">
-      <button class="btn btn-outline-secondary" type="submit">Search</button>
+      <button class="btn btn-outline-secondary" type="submit">검색</button>
     </div>
     <div class="col-auto" th:if="${q != null && !#strings.isEmpty(q)}">
-      <a class="btn btn-link" th:href="@{/vpn}">Clear</a>
+      <a class="btn btn-link" th:href="@{/vpn}">초기화</a>
     </div>
   </form>
 
@@ -33,19 +33,19 @@
           <thead>
             <tr>
               <th>ID</th>
-              <th>Name</th>
+              <th>VPN명</th>
               <th>VPN TEST IP</th>
               <th>체크 주기</th>
-              <th>Status</th>
+              <th>상태</th>
               <th>마지막 체크</th>
-              <th>Enabled</th>
-              <th>Description</th>
-              <th>Actions</th>
+              <th>활성</th>
+              <th>설명</th>
+              <th>작업</th>
             </tr>
           </thead>
           <tbody>
             <tr th:if="${items == null || #lists.isEmpty(items)}">
-              <td colspan="9" class="text-center text-muted">No VPN connections found</td>
+              <td colspan="9" class="text-center text-muted">VPN 연결이 없습니다</td>
             </tr>
             <tr th:each="item : ${items}">
               <td th:text="${item.id}"></td>
@@ -69,14 +69,14 @@
               <td>
                 <span class="badge" 
                       th:classappend="${item.enabled} ? 'bg-success' : 'bg-secondary'"
-                      th:text="${item.enabled} ? 'Enabled' : 'Disabled'"></span>
+                      th:text="${item.enabled} ? '활성' : '비활성'"></span>
               </td>
               <td th:text="${item.description} ?: '-'"></td>
               <td>
-                <a th:href="@{/vpn/{id}/edit(id=${item.id})}" class="btn btn-sm btn-outline-primary">Edit</a>
+                <a th:href="@{/vpn/{id}/edit(id=${item.id})}" class="btn btn-sm btn-outline-primary">수정</a>
                 <form th:action="@{/vpn/{id}/delete(id=${item.id})}" method="post" style="display: inline;" 
-                      onsubmit="return confirm('Are you sure you want to delete this VPN connection?');">
-                  <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                      onsubmit="return confirm('이 VPN 연결을 삭제하시겠습니까?');">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
                 </form>
               </td>
             </tr>

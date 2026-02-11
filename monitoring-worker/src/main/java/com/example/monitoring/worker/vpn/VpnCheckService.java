@@ -54,52 +54,63 @@ public class VpnCheckService {
         log.info("Checking VPN status: id={}, name={}, host={}, currentStatus={}", 
                 vpn.getId(), vpn.getName(), vpn.getHost(), vpn.getStatus());
 
-        ServerStatus newStatus = checkConnectivity(vpn.getHost());
-        ServerStatus oldStatus = vpn.getStatus();
+        // DB에서 최신 상태 다시 조회 (detached entity 방지 및 동시성 문제 해결)
+        VpnConnectionEntity freshVpn = vpnRepo.findById(vpn.getId()).orElse(null);
+        if (freshVpn == null) {
+            log.warn("VPN not found: id={}", vpn.getId());
+            return;
+        }
+
+        ServerStatus newStatus = checkConnectivity(freshVpn.getHost());
+        ServerStatus oldStatus = freshVpn.getStatus();
 
         // 한국 시간(KST, UTC+9)으로 저장
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.of("+09:00"));
         
         log.info("VPN connectivity check result: id={}, name={}, host={}, oldStatus={}, newStatus={}", 
-                vpn.getId(), vpn.getName(), vpn.getHost(), oldStatus, newStatus);
+                freshVpn.getId(), freshVpn.getName(), freshVpn.getHost(), oldStatus, newStatus);
 
         // 항상 lastCheckedAt 업데이트
-        vpn.setLastCheckedAt(now);
+        freshVpn.setLastCheckedAt(now);
 
         // 상태 변경 감지 (null인 경우도 변경으로 간주)
         if (oldStatus != newStatus || oldStatus == null) {
             log.info("VPN status changed: id={}, name={}, {} -> {}", 
-                    vpn.getId(), vpn.getName(), oldStatus, newStatus);
+                    freshVpn.getId(), freshVpn.getName(), oldStatus, newStatus);
             
-            vpn.setStatus(newStatus);
+            freshVpn.setStatus(newStatus);
             if (oldStatus != null && oldStatus != newStatus) {
-                vpn.setLastStatusChangeAt(now);
+                freshVpn.setLastStatusChangeAt(now);
             }
             
-            // 명시적으로 저장 및 플러시
-            vpnRepo.saveAndFlush(vpn);
+            // 명시적으로 저장 및 플러시 (다른 트랜잭션에서 중복 체크 방지)
+            vpnRepo.saveAndFlush(freshVpn);
             log.info("VPN status saved: id={}, name={}, status={}, lastCheckedAt={}, lastStatusChangeAt={}", 
-                    vpn.getId(), vpn.getName(), vpn.getStatus(), vpn.getLastCheckedAt(), vpn.getLastStatusChangeAt());
+                    freshVpn.getId(), freshVpn.getName(), freshVpn.getStatus(), freshVpn.getLastCheckedAt(), freshVpn.getLastStatusChangeAt());
 
-            // 상태 변경 알림 (null이 아닌 경우에만)
-            if (oldStatus != null) {
-                notifier.notifyStatusChange(vpn, oldStatus, newStatus);
+            // 상태 변경 알림 (oldStatus가 null이 아니고 실제로 변경된 경우에만)
+            if (oldStatus != null && oldStatus != newStatus) {
+                // 최신 엔티티를 사용하여 알림 발송
+                notifier.notifyStatusChange(freshVpn, oldStatus, newStatus);
+            } else if (oldStatus == null) {
+                log.info("Skipping notification for initial status: vpn={}, newStatus={}", 
+                        freshVpn.getName(), newStatus);
             }
 
             // VPN Down 시 해당 서버의 모니터링 룰 비활성화
             if (newStatus == ServerStatus.DOWN) {
-                disableMonitoringForVpn(vpn.getId());
+                disableMonitoringForVpn(freshVpn.getId());
             } 
             // VPN Up 시 모니터링 룰 재활성화
             else if (newStatus == ServerStatus.UP && oldStatus == ServerStatus.DOWN) {
-                enableMonitoringForVpn(vpn.getId());
+                enableMonitoringForVpn(freshVpn.getId());
             }
         } else {
             // 상태가 변경되지 않아도 lastCheckedAt 업데이트를 위해 저장
-            vpn.setStatus(newStatus); // 현재 상태 명시적으로 설정
-            vpnRepo.saveAndFlush(vpn);
+            freshVpn.setStatus(newStatus); // 현재 상태 명시적으로 설정
+            vpnRepo.saveAndFlush(freshVpn);
             log.debug("VPN status unchanged but updated lastCheckedAt: id={}, name={}, status={}, lastCheckedAt={}", 
-                    vpn.getId(), vpn.getName(), vpn.getStatus(), vpn.getLastCheckedAt());
+                    freshVpn.getId(), freshVpn.getName(), freshVpn.getStatus(), freshVpn.getLastCheckedAt());
         }
     }
 

@@ -5,26 +5,26 @@
   <div class="container-fluid">
 
     <div class="page-header mb-3">
-      <h5>Check Results</h5>
+      <h5>체크 실행 내역</h5>
       <div class="page-header-actions">
-        <a class="btn btn-outline-secondary" th:href="@{/}">← Home</a>
+        <a class="btn btn-outline-secondary" th:href="@{/}">← 홈</a>
       </div>
     </div>
 
     <form class="row g-2 mb-3" method="get" th:action="@{/check-runs}">
       <div class="col-auto">
-        <label class="form-label col-form-label-sm">Check</label>
-        <select class="form-select form-select-sm" name="checkId" style="min-width:160px; max-width:100%">
-          <option value="">-- All --</option>
-          <option th:each="c : ${checks}" th:value="${c.id}" th:text="'#' + ${c.id} + ' ' + ${c.name}"
-                  th:selected="${checkId != null && checkId == c.id}">#1 check</option>
+        <label class="form-label col-form-label-sm">체크</label>
+        <select class="form-select form-select-sm" name="ruleId" style="min-width:160px; max-width:100%">
+          <option value="">-- 전체 --</option>
+          <option th:each="r : ${allRules}" th:value="${r.id}" th:text="'#' + ${r.id} + ' ' + ${r.name}"
+                  th:selected="${ruleId != null && ruleId == r.id}">#1 rule</option>
         </select>
       </div>
       <div class="col-auto d-flex align-items-end">
-        <button class="btn btn-outline-secondary btn-sm" type="submit">Search</button>
+        <button class="btn btn-outline-secondary btn-sm" type="submit">검색</button>
       </div>
-      <div class="col-auto d-flex align-items-end" th:if="${checkId != null}">
-        <a class="btn btn-link btn-sm" th:href="@{/check-runs}">Clear</a>
+      <div class="col-auto d-flex align-items-end" th:if="${ruleId != null}">
+        <a class="btn btn-link btn-sm" th:href="@{/check-runs}">초기화</a>
       </div>
     </form>
 
@@ -34,19 +34,20 @@
           <thead class="table-light">
           <tr>
             <th style="width:70px">ID</th>
-            <th style="width:250px">Rule Name</th>
-            <th style="width:120px">Server명</th>
-            <th style="width:80px">Success</th>
-            <th style="width:195px">Started</th>
-            <th style="width:100px">Duration</th>
-            <th>Output / Error</th>
+            <th style="width:250px">규칙명</th>
+            <th style="width:120px">서버명</th>
+            <th style="width:80px">성공</th>
+            <th style="width:180px">시작일시</th>
+            <th style="width:180px">종료일시</th>
+            <th style="width:100px">소요시간</th>
+            <th>출력 / 오류</th>
           </tr>
           </thead>
           <tbody>
           <tr th:each="r : ${items}">
             <td th:text="${r.id}">1</td>
-            <td th:text="${r.checkId != null && ruleNameDisplay != null ? (ruleNameDisplay.get(r.checkId) != null ? ruleNameDisplay.get(r.checkId) : '-') : '-'}">-</td>
-            <td th:text="${r.checkId != null && serverDisplay != null ? (serverDisplay.get(r.checkId) != null ? serverDisplay.get(r.checkId) : '-') : '-'}">-</td>
+            <td th:text="${r.monitoringRuleId != null && ruleNameDisplay != null ? (ruleNameDisplay.get(r.monitoringRuleId) != null ? ruleNameDisplay.get(r.monitoringRuleId) : '-') : '-'}">-</td>
+            <td th:text="${r.monitoringRuleId != null && serverDisplay != null ? (serverDisplay.get(r.monitoringRuleId) != null ? serverDisplay.get(r.monitoringRuleId) : '-') : '-'}">-</td>
             <td>
               <span class="badge rounded-pill"
                     th:classappend="${r.success} ? ' text-bg-success' : ' text-bg-danger'"
@@ -54,20 +55,99 @@
             </td>
             <td th:with="disp=${startedDisplay != null ? startedDisplay.get(r.id) : null}"
                 th:text="${disp != null ? disp : (r.startedAt != null ? #temporals.format(r.startedAt, 'yyyy-MM-dd HH:mm:ss') : '-')}">-</td>
+            <td th:with="disp=${finishedDisplay != null ? finishedDisplay.get(r.id) : null}"
+                th:text="${disp != null ? disp : (r.finishedAt != null ? #temporals.format(r.finishedAt, 'yyyy-MM-dd HH:mm:ss') : '-')}">-</td>
             <td th:text="${r.durationMs != null ? r.durationMs + ' ms' : '-'}">-</td>
             <td class="small text-break" style="max-width:300px">
-              <span th:if="${r.errorMessage}" class="text-danger" th:text="${r.errorMessage}">error</span>
+              <span th:if="${r.errorMessage}" class="text-danger" th:text="${#strings.abbreviate(r.errorMessage, 80)}">error</span>
               <span th:if="${r.errorMessage == null && r.output != null}" class="text-muted" th:text="${#strings.abbreviate(r.output, 80)}">output</span>
               <span th:if="${r.errorMessage == null && r.output == null}">-</span>
+              <button th:if="${r.errorMessage != null || r.output != null}" 
+                      type="button" 
+                      class="btn btn-link btn-sm p-0 ms-1" 
+                      style="font-size: 0.75rem; vertical-align: baseline;"
+                      data-bs-toggle="modal" 
+                      data-bs-target="#outputModal"
+                      th:attr="data-output=${r.output}, data-error=${r.errorMessage}, data-id=${r.id}, data-rule-name=${r.monitoringRuleId != null && ruleNameDisplay != null ? (ruleNameDisplay.get(r.monitoringRuleId) != null ? ruleNameDisplay.get(r.monitoringRuleId) : '-') : '-'}">
+                <i class="bi bi-eye"></i> 보기
+              </button>
             </td>
           </tr>
           <tr th:if="${items == null || #lists.isEmpty(items)}">
-            <td colspan="7" class="text-center text-muted py-4">해당 데이터가 없습니다</td>
+            <td colspan="8" class="text-center text-muted py-4">해당 데이터가 없습니다</td>
           </tr>
           </tbody>
         </table>
       </div>
     </div>
+
+    <!-- 출력/오류 전체 보기 모달 -->
+    <div class="modal fade" id="outputModal" tabindex="-1" aria-labelledby="outputModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="outputModalLabel">
+              출력/오류 내용 
+              <span id="outputModalId" class="text-muted small">#</span>
+              <span id="outputModalRuleName" class="text-muted small ms-2"></span>
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div th:id="outputModalError" class="mb-3" style="display:none;">
+              <strong class="text-danger">오류 메시지:</strong>
+              <pre class="mb-0 mt-2 p-3 bg-light rounded small text-break" style="white-space:pre-wrap; word-wrap:break-word; max-height:40vh; overflow-y:auto;" id="outputModalErrorContent"></pre>
+            </div>
+            <div th:id="outputModalOutput" class="mb-0" style="display:none;">
+              <strong class="text-muted">출력 내용:</strong>
+              <pre class="mb-0 mt-2 p-3 bg-light rounded small text-break" style="white-space:pre-wrap; word-wrap:break-word; max-height:40vh; overflow-y:auto;" id="outputModalOutputContent"></pre>
+            </div>
+            <div id="outputModalEmpty" class="text-muted">(내용 없음)</div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script th:inline="javascript">
+    document.getElementById('outputModal').addEventListener('show.bs.modal', function(ev) {
+      var btn = ev.relatedTarget;
+      var id = btn.getAttribute('data-id') || '';
+      var ruleName = btn.getAttribute('data-rule-name') || '';
+      var output = btn.getAttribute('data-output') || '';
+      var error = btn.getAttribute('data-error') || '';
+      
+      document.getElementById('outputModalId').textContent = id ? '#' + id : '';
+      document.getElementById('outputModalRuleName').textContent = ruleName ? '(' + ruleName + ')' : '';
+      
+      var errorDiv = document.getElementById('outputModalError');
+      var outputDiv = document.getElementById('outputModalOutput');
+      var emptyDiv = document.getElementById('outputModalEmpty');
+      var errorContent = document.getElementById('outputModalErrorContent');
+      var outputContent = document.getElementById('outputModalOutputContent');
+      
+      if (error) {
+        errorDiv.style.display = 'block';
+        errorContent.textContent = error;
+      } else {
+        errorDiv.style.display = 'none';
+      }
+      
+      if (output) {
+        outputDiv.style.display = 'block';
+        outputContent.textContent = output;
+      } else {
+        outputDiv.style.display = 'none';
+      }
+      
+      if (!error && !output) {
+        emptyDiv.style.display = 'block';
+      } else {
+        emptyDiv.style.display = 'none';
+      }
+    });
+    </script>
 
   </div>
 </div>

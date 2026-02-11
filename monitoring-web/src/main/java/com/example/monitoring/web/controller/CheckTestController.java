@@ -46,9 +46,35 @@ public class CheckTestController {
         return checkTestService.testSshConnection(host, port, sshUsername, sshPassword, sshPrivateKeyPath);
     }
 
+    @PostMapping("/logs")
+    public CheckTestService.TestResult testLogs(
+            @RequestParam String host,
+            @RequestParam(required = false) Integer port,
+            @RequestParam String sshUsername,
+            @RequestParam(required = false) String sshPassword,
+            @RequestParam(required = false) String sshPrivateKeyPath,
+            @RequestParam String logFilePath,
+            @RequestParam(required = false) String includeKeywords,
+            @RequestParam(required = false) String excludeKeywords) {
+        return checkTestService.testLogs(host, port, sshUsername, sshPassword, sshPrivateKeyPath, 
+                                        logFilePath, includeKeywords, excludeKeywords);
+    }
+
     @PostMapping("/vpn-connection")
     public CheckTestService.TestResult testVpnConnection(
             @RequestParam String host) {
         return checkTestService.testVpnConnection(host);
+    }
+
+    @PostMapping("/disk-space")
+    public CheckTestService.TestResult testDiskSpace(
+            @RequestParam String host,
+            @RequestParam(required = false) Integer port,
+            @RequestParam String sshUsername,
+            @RequestParam(required = false) String sshPassword,
+            @RequestParam(required = false) String sshPrivateKeyPath,
+            @RequestParam(required = false) String diskPath) {
+        return checkTestService.testDiskSpace(host, port, sshUsername, sshPassword, 
+                                              sshPrivateKeyPath, diskPath);
     }
 }

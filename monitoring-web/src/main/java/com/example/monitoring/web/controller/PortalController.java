@@ -32,7 +32,7 @@ public class PortalController {
     public String home(
             @RequestParam(required = false) Long ruleId,
             Model model) {
-        model.addAttribute("pageTitle", "Home");
+        model.addAttribute("pageTitle", "홈");
         model.addAttribute("activeMenu", "home");
         model.addAttribute("content", "home :: content");
 
@@ -63,6 +63,7 @@ public class PortalController {
         List<CheckRunEntity> checkRuns = checkRunService.list(ruleId, null);
         model.addAttribute("checkRuns", checkRuns);
         model.addAttribute("startedDisplay", checkRunService.buildStartedDisplayMap(checkRuns));
+        model.addAttribute("finishedDisplay", checkRunService.buildFinishedDisplayMap(checkRuns));
         model.addAttribute("ruleNameDisplay", checkRunService.buildRuleNameDisplayMap(checkRuns));
         model.addAttribute("serverDisplay", checkRunService.buildServerDisplayMap(checkRuns));
         model.addAttribute("filterRuleId", ruleId);

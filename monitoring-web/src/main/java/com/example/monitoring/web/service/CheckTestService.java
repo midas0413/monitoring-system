@@ -217,6 +217,175 @@ public class CheckTestService {
         }
     }
 
+    /**
+     * 로그 파일 모니터링 테스트
+     */
+    public TestResult testLogs(String host, Integer port, String sshUsername, String sshPassword, 
+                                String sshPrivateKeyPath, String logFilePath, String includeKeywords, String excludeKeywords) {
+        if (!StringUtils.hasText(logFilePath)) {
+            return TestResult.fail("로그 파일 경로를 입력하세요.");
+        }
+        if (!StringUtils.hasText(host)) {
+            return TestResult.fail("Host를 입력하세요.");
+        }
+        int p = (port != null) ? port : 22;
+        if (!StringUtils.hasText(sshUsername)) {
+            return TestResult.fail("SSH Username을 입력하세요.");
+        }
+        if (!StringUtils.hasText(sshPassword) && !StringUtils.hasText(sshPrivateKeyPath)) {
+            return TestResult.fail("SSH 비밀번호 또는 Private Key 경로가 필요합니다.");
+        }
+
+        try (SSHClient ssh = new SSHClient()) {
+            ssh.addHostKeyVerifier(new PromiscuousVerifier());
+            ssh.setConnectTimeout(SSH_CONNECT_TIMEOUT_MS);
+            ssh.setTimeout(SSH_CMD_TIMEOUT_MS);
+            ssh.connect(host, p);
+
+            if (StringUtils.hasText(sshPrivateKeyPath)) {
+                ssh.authPublickey(sshUsername, sshPrivateKeyPath);
+            } else {
+                ssh.authPassword(sshUsername, sshPassword != null ? sshPassword : "");
+            }
+
+            // 여러 로그 파일 경로 처리
+            String[] logPaths = logFilePath.split(",");
+            StringBuilder combinedOutput = new StringBuilder();
+            boolean hasError = false;
+            String lastError = null;
+
+            for (String path : logPaths) {
+                String trimmedPath = path.trim();
+                if (trimmedPath.isEmpty()) {
+                    continue;
+                }
+
+                try {
+                    // 로그 파일 검색 명령어 구성
+                    String command = buildLogSearchCommand(trimmedPath, includeKeywords, excludeKeywords);
+                    
+                    try (var session = ssh.startSession()) {
+                        var cmd = session.exec(command);
+                        ByteArrayOutputStream out = new ByteArrayOutputStream();
+                        ByteArrayOutputStream err = new ByteArrayOutputStream();
+                        cmd.getInputStream().transferTo(out);
+                        cmd.getErrorStream().transferTo(err);
+                        cmd.join(SSH_CMD_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+
+                        int exitCode = cmd.getExitStatus() != null ? cmd.getExitStatus() : -1;
+                        String stdout = out.toString(StandardCharsets.UTF_8).trim();
+                        String stderr = err.toString(StandardCharsets.UTF_8).trim();
+
+                        // stderr에 실제 에러 메시지가 있는지 확인
+                        boolean hasRealError = StringUtils.hasText(stderr) && 
+                                (stderr.contains("No such file") || 
+                                 stderr.contains("Permission denied") ||
+                                 stderr.contains("cannot open") ||
+                                 stderr.contains("cannot read") ||
+                                 stderr.contains("No such file or directory") ||
+                                 stderr.contains("Access denied"));
+
+                        if (hasRealError) {
+                            // 실제 파일 읽기 오류
+                            hasError = true;
+                            lastError = "Failed to read " + trimmedPath + ": " + stderr;
+                        } else if (exitCode == 0 || StringUtils.hasText(stdout)) {
+                            // 성공 또는 grep이 매칭을 찾은 경우
+                            if (StringUtils.hasText(stdout)) {
+                                if (combinedOutput.length() > 0) {
+                                    combinedOutput.append("\n---\n");
+                                }
+                                combinedOutput.append("[").append(trimmedPath).append("]\n");
+                                combinedOutput.append(stdout);
+                            } else if (exitCode == 0) {
+                                // exitCode가 0이고 stdout이 비어있으면 매칭되는 라인 없음
+                                if (combinedOutput.length() > 0) {
+                                    combinedOutput.append("\n---\n");
+                                }
+                                combinedOutput.append("[").append(trimmedPath).append("]\n");
+                                combinedOutput.append("(No matching lines found)");
+                            }
+                        } else if (exitCode == 1 && !StringUtils.hasText(stderr)) {
+                            // grep이 매칭을 못 찾아서 exit code 1이지만 stderr가 없으면 정상 (매칭 없음)
+                            if (combinedOutput.length() > 0) {
+                                combinedOutput.append("\n---\n");
+                            }
+                            combinedOutput.append("[").append(trimmedPath).append("]\n");
+                            combinedOutput.append("(No matching lines found)");
+                        } else {
+                            // 기타 오류
+                            hasError = true;
+                            lastError = "Failed to read " + trimmedPath + ": " + 
+                                       (StringUtils.hasText(stderr) ? stderr : "exitCode=" + exitCode);
+                        }
+                    }
+                } catch (Exception e) {
+                    hasError = true;
+                    lastError = "Error processing " + trimmedPath + ": " + e.getMessage();
+                }
+            }
+
+            String finalOutput = combinedOutput.toString();
+            if (finalOutput.isEmpty()) {
+                if (hasError) {
+                    return TestResult.fail(lastError != null ? lastError : "로그 파일을 읽을 수 없습니다.");
+                } else {
+                    return TestResult.ok("매칭되는 로그 항목이 없습니다.");
+                }
+            }
+
+            if (hasError && lastError != null) {
+                finalOutput += "\n[WARNING] " + lastError;
+            }
+
+            return TestResult.ok(finalOutput);
+        } catch (IOException e) {
+            return TestResult.fail("SSH 연결 실패: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 로그 파일 검색 명령어 구성 (MonitoringRuleExecutorService와 동일한 로직)
+     */
+    private String buildLogSearchCommand(String logPath, String includeKeywords, String excludeKeywords) {
+        StringBuilder command = new StringBuilder();
+        
+        // includeKeywords가 있으면 grep으로 필터링, 없으면 tail로 최근 로그만 읽기
+        if (StringUtils.hasText(includeKeywords)) {
+            // 키워드를 OR로 연결 (예: ERROR|FAIL|CRITICAL)
+            String[] keywords = includeKeywords.split(",");
+            StringBuilder pattern = new StringBuilder();
+            for (int i = 0; i < keywords.length; i++) {
+                if (i > 0) pattern.append("|");
+                // 정규식 특수 문자 이스케이프
+                String keyword = keywords[i].trim().replaceAll("[.\\\\+*?\\[^\\]$(){}=!<>|:\\-]", "\\\\$0");
+                pattern.append(keyword);
+            }
+            
+            // grep으로 키워드 검색 (최근 1000줄만)
+            command.append("tail -n 1000 ").append(logPath)
+                   .append(" | grep -E '").append(pattern).append("'");
+        } else {
+            // 키워드가 없으면 최근 100줄만 읽기
+            command.append("tail -n 100 ").append(logPath);
+        }
+        
+        // excludeKeywords가 있으면 추가 필터링
+        if (StringUtils.hasText(excludeKeywords)) {
+            String[] excludeKeys = excludeKeywords.split(",");
+            for (String excludeKey : excludeKeys) {
+                String trimmed = excludeKey.trim();
+                if (!trimmed.isEmpty()) {
+                    // 정규식 특수 문자 이스케이프
+                    String escaped = trimmed.replaceAll("[.\\\\+*?\\[^\\]$(){}=!<>|:\\-]", "\\\\$0");
+                    command.append(" | grep -v -E '").append(escaped).append("'");
+                }
+            }
+        }
+        
+        return command.toString();
+    }
+
     public TestResult testSql(String host, String dbType, Integer dbPort, String dbName, String dbUsername, String dbPassword, String sql) {
         if (!StringUtils.hasText(sql)) {
             return TestResult.fail("SQL을 입력하세요.");
@@ -413,6 +582,116 @@ public class CheckTestService {
             case "mssql", "sqlserver" -> "com.microsoft.sqlserver.jdbc.SQLServerDriver";
             default -> null;
         };
+    }
+
+    /**
+     * 디스크 공간 모니터링 테스트
+     */
+    public TestResult testDiskSpace(String host, Integer port, String sshUsername, String sshPassword,
+                                    String sshPrivateKeyPath, String diskPath) {
+        // diskPath는 선택 입력 (비어있으면 전체 마운트 포인트 확인)
+        if (!StringUtils.hasText(host)) {
+            return TestResult.fail("Host를 입력하세요.");
+        }
+        int p = (port != null) ? port : 22;
+        if (!StringUtils.hasText(sshUsername)) {
+            return TestResult.fail("SSH Username을 입력하세요.");
+        }
+        if (!StringUtils.hasText(sshPassword) && !StringUtils.hasText(sshPrivateKeyPath)) {
+            return TestResult.fail("SSH 비밀번호 또는 Private Key 경로가 필요합니다.");
+        }
+
+        try (SSHClient ssh = new SSHClient()) {
+            ssh.addHostKeyVerifier(new PromiscuousVerifier());
+            ssh.setConnectTimeout(SSH_CONNECT_TIMEOUT_MS);
+            ssh.setTimeout(SSH_CMD_TIMEOUT_MS);
+            ssh.connect(host, p);
+
+            if (StringUtils.hasText(sshPrivateKeyPath)) {
+                ssh.authPublickey(sshUsername, sshPrivateKeyPath);
+            } else {
+                ssh.authPassword(sshUsername, sshPassword != null ? sshPassword : "");
+            }
+
+            // df -h 명령어로 디스크 사용률 확인
+            // diskPath가 지정되어 있으면 해당 경로만, 없으면 전체 확인
+            String command;
+            if (StringUtils.hasText(diskPath)) {
+                // 특정 경로의 디스크 사용률 확인
+                command = "df -h " + diskPath.trim();
+            } else {
+                // 전체 디스크 사용률 확인
+                command = "df -h";
+            }
+
+            try (var session = ssh.startSession()) {
+                var cmd = session.exec(command);
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                ByteArrayOutputStream err = new ByteArrayOutputStream();
+                cmd.getInputStream().transferTo(out);
+                cmd.getErrorStream().transferTo(err);
+                cmd.join(SSH_CMD_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+
+                int exitCode = cmd.getExitStatus() != null ? cmd.getExitStatus() : -1;
+                String stdout = out.toString(StandardCharsets.UTF_8).trim();
+                String stderr = err.toString(StandardCharsets.UTF_8).trim();
+
+                if (exitCode == 0) {
+                    if (StringUtils.hasText(stdout)) {
+                        // df 출력을 파싱하여 사용률 정보 추출
+                        String[] lines = stdout.split("\n");
+                        StringBuilder result = new StringBuilder();
+                        result.append("디스크 사용률 정보:\n\n");
+                        
+                        // 헤더 라인 출력
+                        if (lines.length > 0) {
+                            result.append(lines[0]).append("\n");
+                            int separatorLength = Math.min(80, lines[0].length());
+                            for (int j = 0; j < separatorLength; j++) {
+                                result.append("-");
+                            }
+                            result.append("\n");
+                        }
+                        
+                        // 데이터 라인 출력 (헤더 제외)
+                        for (int i = 1; i < lines.length; i++) {
+                            if (StringUtils.hasText(lines[i])) {
+                                result.append(lines[i]).append("\n");
+                            }
+                        }
+                        
+                        // 사용률 추출 및 요약 정보 추가
+                        result.append("\n--- 요약 ---\n");
+                        for (int i = 1; i < lines.length; i++) {
+                            if (StringUtils.hasText(lines[i])) {
+                                String[] parts = lines[i].split("\\s+");
+                                if (parts.length >= 5) {
+                                    // Filesystem Size Used Avail Use% Mounted on
+                                    String filesystem = parts[0];
+                                    String size = parts[1];
+                                    String used = parts[2];
+                                    String avail = parts[3];
+                                    String usePercent = parts[4];
+                                    String mountedOn = parts.length > 5 ? parts[5] : "";
+                                    
+                                    result.append(String.format("파일시스템: %s, 사용률: %s, 사용: %s/%s, 마운트: %s\n",
+                                            filesystem, usePercent, used, size, mountedOn));
+                                }
+                            }
+                        }
+                        
+                        return TestResult.ok(result.toString());
+                    } else {
+                        return TestResult.ok("디스크 정보를 가져올 수 없습니다. (출력 없음)");
+                    }
+                } else {
+                    String errorMsg = StringUtils.hasText(stderr) ? stderr : "exitCode=" + exitCode;
+                    return TestResult.fail("디스크 정보 조회 실패: " + errorMsg);
+                }
+            }
+        } catch (IOException e) {
+            return TestResult.fail("SSH 연결 실패: " + e.getMessage());
+        }
     }
 
     public record TestResult(boolean success, String output) {

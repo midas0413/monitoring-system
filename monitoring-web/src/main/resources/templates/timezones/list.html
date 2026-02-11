@@ -54,7 +54,7 @@
                 <span th:if="${item.offsetHours != null}">
                   <span th:text="${item.offsetHours >= 0 ? '+' : ''} + ${item.offsetHours}"></span>
                   <span th:if="${item.offsetMinutes != null && item.offsetMinutes != 0}">
-                    :<span th:text="${#strings.padStart(#strings.toString(item.offsetMinutes), 2, '0')}"></span>
+                    :<span th:text="${item.offsetMinutes < 10 ? '0' + item.offsetMinutes : item.offsetMinutes}"></span>
                   </span>
                 </span>
                 <span th:if="${item.offsetHours == null}">-</span>
