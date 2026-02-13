@@ -144,6 +144,21 @@ public class MonitoringRuleService {
     }
 
     private void applyForm(MonitoringRuleEntity entity, MonitoringRuleForm form) {
+        log.info("applyForm 시작: ruleId={}, name={}", entity.getId(), form.getName());
+        log.info("폼에서 받은 템플릿 정보: templateCode={}, variablesLength={}", 
+                form.getKakaoTemplateCode(), 
+                form.getKakaoTemplateVariables() != null ? form.getKakaoTemplateVariables().length() : 0);
+        
+        if (form.getKakaoTemplateVariables() != null && !form.getKakaoTemplateVariables().isEmpty()) {
+            log.info("템플릿 변수 내용 (처음 200자): {}", 
+                    form.getKakaoTemplateVariables().length() > 200
+                        ? form.getKakaoTemplateVariables().substring(0, 200) + "..."
+                        : form.getKakaoTemplateVariables());
+            log.info("템플릿 변수 전체 내용: {}", form.getKakaoTemplateVariables());
+        } else {
+            log.info("템플릿 변수가 비어있습니다.");
+        }
+        
         entity.setName(form.getName());
         entity.setServerId(form.getServerId());
         entity.setMonitoringType(form.getMonitoringType());
@@ -191,8 +206,39 @@ public class MonitoringRuleService {
         // messageTemplate은 더 이상 사용하지 않음 (카카오 템플릿 사용)
         // 기존 데이터 호환성을 위해 빈 값으로 설정
         entity.setMessageTemplate("");
-        entity.setKakaoTemplateCode(form.getKakaoTemplateCode());
-        entity.setKakaoTemplateVariables(form.getKakaoTemplateVariables());
+        
+        // 카카오 템플릿 정보 저장 (KAKAO 채널이 선택되어 있지 않아도 저장 가능)
+        String kakaoTemplateCode = form.getKakaoTemplateCode();
+        String kakaoTemplateVariables = form.getKakaoTemplateVariables();
+        
+        // 저장 전 기존 값 확인
+        String oldVariables = entity.getKakaoTemplateVariables();
+        log.info("카카오 템플릿 변수 저장 전: ruleId={}, 기존 길이={}, 새 길이={}", 
+                entity.getId(),
+                oldVariables != null ? oldVariables.length() : 0,
+                kakaoTemplateVariables != null ? kakaoTemplateVariables.length() : 0);
+        
+        if (oldVariables != null && kakaoTemplateVariables != null && 
+            oldVariables.equals(kakaoTemplateVariables)) {
+            log.warn("⚠️ 템플릿 변수 값이 변경되지 않았습니다! (동일한 값)");
+        } else if (oldVariables != null && kakaoTemplateVariables != null) {
+            log.info("✅ 템플릿 변수 값이 변경되었습니다!");
+            log.info("기존 값 (처음 100자): {}", oldVariables.length() > 100 ? oldVariables.substring(0, 100) + "..." : oldVariables);
+            log.info("새 값 (처음 100자): {}", kakaoTemplateVariables.length() > 100 ? kakaoTemplateVariables.substring(0, 100) + "..." : kakaoTemplateVariables);
+        }
+        
+        // 빈 문자열이 아닌 경우에만 저장 (null은 허용)
+        entity.setKakaoTemplateCode(StringUtils.hasText(kakaoTemplateCode) ? kakaoTemplateCode : null);
+        entity.setKakaoTemplateVariables(StringUtils.hasText(kakaoTemplateVariables) ? kakaoTemplateVariables : null);
+        
+        log.info("카카오 템플릿 정보 저장: ruleId={}, name={}, templateCode={}, variablesLength={}", 
+                entity.getId(), entity.getName(), kakaoTemplateCode,
+                kakaoTemplateVariables != null ? kakaoTemplateVariables.length() : 0);
+        
+        if (kakaoTemplateVariables != null && !kakaoTemplateVariables.isEmpty()) {
+            log.info("템플릿 변수 전체 내용: {}", kakaoTemplateVariables);
+        }
+        
         entity.setCooldownSec(form.getCooldownSec() != null ? form.getCooldownSec() : 300);
     }
 
@@ -235,6 +281,10 @@ public class MonitoringRuleService {
         form.setKakaoTemplateCode(entity.getKakaoTemplateCode());
         form.setKakaoTemplateVariables(entity.getKakaoTemplateVariables());
         form.setCooldownSec(entity.getCooldownSec());
+
+        log.debug("MonitoringRuleForm 로드: ruleId={}, templateCode={}, variablesLength={}", 
+                entity.getId(), entity.getKakaoTemplateCode(),
+                entity.getKakaoTemplateVariables() != null ? entity.getKakaoTemplateVariables().length() : 0);
 
         return form;
     }

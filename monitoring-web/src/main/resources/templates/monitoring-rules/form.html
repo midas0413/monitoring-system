@@ -16,7 +16,8 @@
               th:action="${form.id != null} ? @{/monitoring-rules/{id}(id=${form.id})} : @{/monitoring-rules/new}" 
               th:object="${form}">
           <input type="hidden" th:field="*{id}" />
-    <input type="hidden" id="kakaoTemplateVariablesField" th:field="*{kakaoTemplateVariables}" />
+          <!-- th:field 대신 name 속성을 직접 사용하여 JavaScript로 설정한 값이 확실히 전송되도록 함 -->
+          <input type="hidden" id="kakaoTemplateVariablesField" name="kakaoTemplateVariables" th:value="${form.kakaoTemplateVariables}" />
 
           <!-- 기본 정보 -->
           <div class="row g-3 mb-4">
@@ -490,9 +491,25 @@
     toggleType(); // 초기 로드 시에도 실행
     
     // Form submit 전 validation 체크
-    var form = document.querySelector('form');
+    // 알림 규칙 폼을 정확히 선택 (로그아웃 폼 제외)
+    var form = document.querySelector('form[action*="/monitoring-rules"]');
+    console.log('[DEBUG] 첫 번째 이벤트 리스너 등록 시작: form=', form, 'action=', form ? form.action : 'null');
     if (form) {
+      console.log('[DEBUG] 첫 번째 이벤트 리스너 등록됨');
       form.addEventListener('submit', function(e) {
+        console.log('[DEBUG] ===== 첫 번째 이벤트 리스너 실행됨 =====');
+        // 저장 확인창을 가장 먼저 표시
+        var formId = document.querySelector('input[name="id"]')?.value;
+        var isEdit = formId && formId.trim() !== '';
+        var confirmMessage = isEdit ? '알림 규칙을 수정하시겠습니까?' : '알림 규칙을 등록하시겠습니까?';
+        console.log('[DEBUG] 확인창 표시: isEdit=' + isEdit + ', formId=' + formId);
+        if (!confirm(confirmMessage)) {
+          e.preventDefault();
+          console.log('[DEBUG] 사용자가 저장을 취소했습니다.');
+          return false;
+        }
+        console.log('[DEBUG] 사용자가 확인을 클릭했습니다. 폼 제출 진행...');
+        
         var monitoringType = typeSel.value;
         
         // 모니터링 타입이 선택되지 않았으면 막기
@@ -1280,13 +1297,28 @@
               inputsHtml += '</div>';
               inputsHtml += '</div>';
               inputsHtml += '</div>';
+              // 기존 입력 필드의 값 저장 (재생성 시 유지하기 위해)
+              var existingValues = {};
+              vars.forEach(function(v) {
+                var existingInput = document.querySelector('.template-var-input[data-varname="' + v + '"]');
+                if (existingInput && existingInput.value) {
+                  existingValues[v] = existingInput.value;
+                  console.log('[DEBUG] 기존 값 유지:', v, '=', existingInput.value.substring(0, 50) + '...');
+                }
+              });
+              
               vars.forEach(function(v, index) {
                 var varId = 'templateVar_' + index;
+                var existingValue = existingValues[v] || '';
                 inputsHtml += '<div class="mb-3">';
                 inputsHtml += '<label for="' + varId + '" class="form-label">' + escapeHtml(v) + ' <span class="text-danger">*</span></label>';
                 inputsHtml += '<textarea class="form-control template-var-input" id="' + varId + '" ';
                 inputsHtml += 'data-varname="' + escapeHtml(v) + '" rows="3" ';
-                inputsHtml += 'placeholder="예: ${ruleName} 모니터링&#10;또는&#10;현재값 : ${outputNum}&#10;임계값 : ${thresholdNum}" maxlength="1000"></textarea>';
+                inputsHtml += 'placeholder="예: ${ruleName} 모니터링&#10;또는&#10;현재값 : ${outputNum}&#10;임계값 : ${thresholdNum}" maxlength="1000">';
+                if (existingValue) {
+                  inputsHtml += escapeHtml(existingValue);
+                }
+                inputsHtml += '</textarea>';
                 inputsHtml += '<small class="form-text text-muted">템플릿 변수(${변수명})를 사용하여 입력하세요. 여러 줄 입력 가능합니다.</small>';
                 inputsHtml += '</div>';
               });
@@ -1299,23 +1331,7 @@
               console.log('[DEBUG] variableInputs.innerHTML 길이:', variableInputs.innerHTML.length);
               
               // 저장된 템플릿 변수 값이 있으면 입력 필드에 로드
-              var kakaoTemplateVariablesField = document.getElementById('kakaoTemplateVariablesField');
-              if (kakaoTemplateVariablesField && kakaoTemplateVariablesField.value) {
-                try {
-                  var savedVars = JSON.parse(kakaoTemplateVariablesField.value);
-                  // 템플릿 변수 입력 필드가 생성된 후 값 설정
-                  setTimeout(function() {
-                    for (var varName in savedVars) {
-                      var input = document.querySelector('.template-var-input[data-varname="' + varName + '"]');
-                      if (input) {
-                        input.value = savedVars[varName];
-                      }
-                    }
-                  }, 100);
-                } catch (e) {
-                  console.warn('템플릿 변수 값 파싱 실패:', e);
-                }
-              }
+              loadTemplateVariableValues();
               
               // 강제 리플로우 (브라우저가 레이아웃을 다시 계산하도록)
               void variableInputs.offsetHeight;
@@ -1372,12 +1388,83 @@
       }
     }
     
+    // 템플릿 변수 값이 이미 로드되었는지 추적
+    var templateValuesLoaded = false;
+    
+    // 저장된 템플릿 변수 값을 입력 필드에 로드하는 함수
+    function loadTemplateVariableValues(force) {
+      // 이미 로드되었고 강제 로드가 아니면 건너뜀
+      if (templateValuesLoaded && !force) {
+        console.log('[DEBUG] 템플릿 변수 값이 이미 로드되었습니다. 건너뜁니다.');
+        return;
+      }
+      
+      var kakaoTemplateVariablesField = document.getElementById('kakaoTemplateVariablesField');
+      if (!kakaoTemplateVariablesField || !kakaoTemplateVariablesField.value) {
+        console.log('[DEBUG] 저장된 템플릿 변수 값이 없습니다.');
+        return;
+      }
+      
+      try {
+        var savedVars = JSON.parse(kakaoTemplateVariablesField.value);
+        console.log('[DEBUG] 저장된 템플릿 변수 로드 시작:', savedVars);
+        
+        // 템플릿 변수 입력 필드가 생성될 때까지 대기
+        var attempts = 0;
+        var maxAttempts = 20; // 최대 2초 대기 (100ms * 20)
+        
+        var loadValues = function() {
+          attempts++;
+          var allFound = true;
+          var loadedCount = 0;
+          
+          for (var varName in savedVars) {
+            var input = document.querySelector('.template-var-input[data-varname="' + varName + '"]');
+            if (input) {
+              // 입력 필드가 비어있을 때만 저장된 값으로 채움 (사용자가 이미 입력한 값은 유지)
+              if (!input.value || input.value.trim() === '') {
+                input.value = savedVars[varName];
+                loadedCount++;
+                console.log('[DEBUG] 템플릿 변수 값 로드:', varName, '=', savedVars[varName].substring(0, 50) + '...');
+              } else {
+                console.log('[DEBUG] 템플릿 변수 입력 필드에 이미 값이 있음 (유지):', varName, '=', input.value.substring(0, 50) + '...');
+                loadedCount++; // 이미 값이 있으므로 로드된 것으로 간주
+              }
+            } else {
+              allFound = false;
+              console.log('[DEBUG] 템플릿 변수 입력 필드를 찾을 수 없음:', varName);
+            }
+          }
+          
+          if (allFound || loadedCount > 0) {
+            console.log('[DEBUG] 템플릿 변수 값 로드 완료:', loadedCount, '개');
+            templateValuesLoaded = true; // 로드 완료 표시
+            return;
+          }
+          
+          if (attempts < maxAttempts) {
+            setTimeout(loadValues, 100);
+          } else {
+            console.warn('[DEBUG] 템플릿 변수 입력 필드를 찾지 못했습니다. 시도 횟수:', attempts);
+          }
+        };
+        
+        // 즉시 시도하고, 실패하면 재시도
+        setTimeout(loadValues, 50);
+      } catch (e) {
+        console.error('템플릿 변수 값 파싱 실패:', e, '값:', kakaoTemplateVariablesField.value);
+      }
+    }
+    
     // 초기 상태 설정
     console.log('[DEBUG] 초기 상태 설정 시작');
     toggleKakaoTemplateCode();
     if (kakaoTemplateCode) {
       console.log('[DEBUG] 초기 템플릿 변수 업데이트 호출');
       updateTemplateVariables();
+    } else {
+      // 템플릿이 선택되지 않았어도 저장된 값이 있으면 로드 시도
+      setTimeout(loadTemplateVariableValues, 200);
     }
     
     // KAKAO 채널 체크박스 변경 시 토글
@@ -1393,13 +1480,28 @@
     if (kakaoTemplateCode) {
       kakaoTemplateCode.addEventListener('change', function() {
         console.log('[DEBUG] 카카오 템플릿 선택 변경');
+        templateValuesLoaded = false; // 템플릿이 변경되면 다시 로드 가능하도록
         updateTemplateVariables();
+        // 템플릿 변경 후 저장된 값 로드 (강제 로드)
+        setTimeout(function() { loadTemplateVariableValues(true); }, 300);
       });
     }
     
-    // 폼 제출 시 KAKAO 채널 선택되어 있으면 템플릿 검증 및 템플릿 변수 값 저장
-    if (form) {
-      form.addEventListener('submit', function(e) {
+    // 폼 제출 시 템플릿 검증 및 템플릿 변수 값 저장
+    // 알림 규칙 폼을 정확히 선택 (로그아웃 폼 제외)
+    var form2 = document.querySelector('form[action*="/monitoring-rules"]'); // 두 번째 이벤트 리스너용 form 변수
+    console.log('[DEBUG] 두 번째 이벤트 리스너 등록 시작: form2=', form2, 'action=', form2 ? form2.action : 'null');
+    if (form2) {
+      console.log('[DEBUG] 두 번째 이벤트 리스너 등록됨');
+      form2.addEventListener('submit', function(e) {
+        console.log('========================================');
+        console.log('[DEBUG] ===== 두 번째 이벤트 리스너 실행됨 (템플릿 변수 처리) =====');
+        console.log('========================================');
+        
+        // 확인창은 첫 번째 이벤트 리스너에서 이미 표시되었으므로 여기서는 제거
+        // (중복 방지)
+        
+        // KAKAO 채널이 선택되어 있으면 템플릿 검증
         if (channelKAKAO && channelKAKAO.checked) {
           if (!kakaoTemplateCode || !kakaoTemplateCode.value || !kakaoTemplateCode.value.trim()) {
             e.preventDefault();
@@ -1409,48 +1511,235 @@
             }
             return false;
           }
+        }
+        
+        // 템플릿 변수 입력 값 수집하여 JSON으로 저장 (KAKAO 채널 선택 여부와 관계없이)
+        console.log('[DEBUG] 폼 제출 시작 - 템플릿 변수 수집');
+        var templateVarInputs = document.querySelectorAll('.template-var-input');
+        console.log('[DEBUG] 찾은 템플릿 변수 입력 필드 개수:', templateVarInputs.length);
+        
+        var templateVars = {};
+        var hasValues = false;
+        var missingVars = [];
+        
+        templateVarInputs.forEach(function(input, index) {
+          var varName = input.getAttribute('data-varname');
+          var varValue = input.value; // trim() 전에 원본 값 확인
+          var inputId = input.id || 'input-' + index;
+          var inputType = input.tagName.toLowerCase();
           
-          // 템플릿 변수 입력 값 수집하여 JSON으로 저장
-          var templateVarInputs = document.querySelectorAll('.template-var-input');
-          var templateVars = {};
-          var hasValues = false;
-          var missingVars = [];
+          // 입력 필드의 실제 DOM 값과 JavaScript value 속성 값 비교
+          var domValue = input.textContent || input.innerText || '';
+          var valueAttr = input.getAttribute('value') || '';
           
-          templateVarInputs.forEach(function(input) {
-            var varName = input.getAttribute('data-varname');
-            var varValue = input.value.trim();
-            if (varName) {
-              if (varValue) {
-                templateVars[varName] = varValue;
-                hasValues = true;
-              } else {
+          console.log('[DEBUG] 템플릿 변수 입력 필드 [' + index + ']:', {
+            id: inputId,
+            type: inputType,
+            varName: varName,
+            valueLength: varValue ? varValue.length : 0,
+            valuePreview: varValue ? (varValue.length > 100 ? varValue.substring(0, 100) + '...' : varValue) : '(빈 값)',
+            fullValue: varValue, // 전체 값 출력
+            domValueLength: domValue ? domValue.length : 0,
+            valueAttrLength: valueAttr ? valueAttr.length : 0,
+            isVisible: input.offsetParent !== null,
+            display: window.getComputedStyle(input).display
+          });
+          
+          if (varName) {
+            var trimmedValue = varValue ? varValue.trim() : '';
+            if (trimmedValue) {
+              templateVars[varName] = trimmedValue;
+              hasValues = true;
+              console.log('[DEBUG] ✅ 템플릿 변수 수집됨:', varName, '=', {
+                length: trimmedValue.length,
+                preview: trimmedValue.length > 100 ? trimmedValue.substring(0, 100) + '...' : trimmedValue,
+                fullValue: trimmedValue // 전체 값 출력
+              });
+            } else {
+              console.log('[DEBUG] ⚠️ 템플릿 변수 값이 비어있음:', varName);
+              // KAKAO 채널이 선택되어 있을 때만 필수 변수로 체크
+              if (channelKAKAO && channelKAKAO.checked) {
                 missingVars.push(varName);
               }
             }
+          } else {
+            console.warn('[DEBUG] ⚠️ varName이 없음:', input);
+          }
+        });
+        
+        console.log('[DEBUG] 수집된 템플릿 변수:', Object.keys(templateVars).length, '개');
+        console.log('[DEBUG] 템플릿 변수 내용 (전체):', JSON.stringify(templateVars, null, 2));
+        
+        // 각 변수의 전체 내용 출력
+        for (var key in templateVars) {
+          console.log('[DEBUG] 변수 상세:', key, '=', {
+            length: templateVars[key].length,
+            fullValue: templateVars[key]
           });
+        }
+        
+        // KAKAO 채널이 선택되어 있고 필수 변수 값이 모두 입력되었는지 확인
+        if (channelKAKAO && channelKAKAO.checked && missingVars.length > 0) {
+          e.preventDefault();
+          alert('다음 템플릿 변수 값을 입력해주세요: ' + missingVars.join(', '));
+          // 첫 번째 빈 필드로 포커스 이동
+          var firstEmpty = document.querySelector('.template-var-input[data-varname="' + missingVars[0] + '"]');
+          if (firstEmpty) {
+            firstEmpty.focus();
+          }
+          return false;
+        }
+        
+        // 템플릿 변수 값이 있으면 JSON으로 저장 (항상 실행)
+        var kakaoTemplateVariablesField = document.getElementById('kakaoTemplateVariablesField');
+        if (!kakaoTemplateVariablesField) {
+          console.error('[DEBUG] kakaoTemplateVariablesField를 찾을 수 없습니다!');
+          e.preventDefault();
+          alert('템플릿 변수 필드를 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.');
+          return false;
+        }
+        
+        // 저장 전 기존 값 확인
+        var oldValue = kakaoTemplateVariablesField.value || '';
+        console.log('[DEBUG] 저장 전 기존 값 (길이:', oldValue.length, '):', oldValue.length > 0 ? oldValue.substring(0, 100) + '...' : '(빈 값)');
+        
+        if (hasValues) {
+          var jsonValue = JSON.stringify(templateVars);
+          console.log('[DEBUG] 저장하려는 JSON 값 (길이:', jsonValue.length, '):', jsonValue.substring(0, 200) + (jsonValue.length > 200 ? '...' : ''));
           
-          // 필수 변수 값이 모두 입력되었는지 확인
-          if (missingVars.length > 0) {
-            e.preventDefault();
-            alert('다음 템플릿 변수 값을 입력해주세요: ' + missingVars.join(', '));
-            // 첫 번째 빈 필드로 포커스 이동
-            var firstEmpty = document.querySelector('.template-var-input[data-varname="' + missingVars[0] + '"]');
-            if (firstEmpty) {
-              firstEmpty.focus();
-            }
-            return false;
+          // 값 설정 (name 속성을 직접 사용하므로 명시적으로 설정)
+          kakaoTemplateVariablesField.value = jsonValue;
+          
+          // name 속성 확인 및 설정 (명시적으로 설정)
+          var fieldName = kakaoTemplateVariablesField.name || kakaoTemplateVariablesField.getAttribute('name');
+          console.log('[DEBUG] Hidden 필드 name 속성 (설정 전):', fieldName);
+          if (!fieldName || fieldName !== 'kakaoTemplateVariables') {
+            console.warn('[DEBUG] name 속성이 올바르지 않음. 현재:', fieldName, '-> kakaoTemplateVariables로 설정');
+            kakaoTemplateVariablesField.setAttribute('name', 'kakaoTemplateVariables');
+            kakaoTemplateVariablesField.name = 'kakaoTemplateVariables';
+            console.log('[DEBUG] name 속성 설정 완료:', kakaoTemplateVariablesField.name);
+          } else {
+            console.log('[DEBUG] ✅ name 속성이 올바릅니다:', fieldName);
           }
           
-          // 템플릿 변수 값이 있으면 JSON으로 저장
-          var kakaoTemplateVariablesField = document.getElementById('kakaoTemplateVariablesField');
-          if (kakaoTemplateVariablesField) {
-            if (hasValues) {
-              kakaoTemplateVariablesField.value = JSON.stringify(templateVars);
+          // 값이 제대로 설정되었는지 확인
+          var actualValue = kakaoTemplateVariablesField.value || '';
+          console.log('[DEBUG] 설정한 값 (길이:', jsonValue.length, '):', jsonValue.substring(0, 100) + (jsonValue.length > 100 ? '...' : ''));
+          console.log('[DEBUG] 실제 필드 값 (길이:', actualValue.length, '):', actualValue.length > 0 ? (actualValue.substring(0, 100) + (actualValue.length > 100 ? '...' : '')) : '(빈 값)');
+          
+          if (actualValue !== jsonValue) {
+            console.error('[DEBUG] ⚠️ 값 설정 실패! 값이 다릅니다.');
+            console.error('[DEBUG] 설정하려던 값:', jsonValue);
+            console.error('[DEBUG] 실제 필드 값:', actualValue);
+            
+            // 강제로 다시 설정
+            kakaoTemplateVariablesField.value = jsonValue;
+            actualValue = kakaoTemplateVariablesField.value || '';
+            if (actualValue !== jsonValue) {
+              console.error('[DEBUG] 재설정 후에도 값이 다릅니다!');
             } else {
-              kakaoTemplateVariablesField.value = '';
+              console.log('[DEBUG] ✅ 재설정 성공 (길이:', actualValue.length, ')');
             }
+          } else {
+            console.log('[DEBUG] ✅ 템플릿 변수 저장 완료 (길이:', jsonValue.length, ')');
+          }
+          
+          console.log('[DEBUG] 최종 필드 값 (길이:', actualValue.length, '):', actualValue.length > 0 ? (actualValue.substring(0, 200) + (actualValue.length > 200 ? '...' : '')) : '(빈 값)');
+        } else {
+          // 기존 값이 있으면 유지, 없으면 빈 값
+          if (!oldValue || oldValue.trim() === '') {
+            kakaoTemplateVariablesField.setAttribute('value', '');
+            kakaoTemplateVariablesField.value = '';
+            console.log('[DEBUG] 템플릿 변수 없음, 빈 값으로 저장');
+          } else {
+            console.log('[DEBUG] 템플릿 변수 없지만 기존 값 유지 (길이:', oldValue.length, ')');
           }
         }
+        
+        // 템플릿 코드도 항상 저장되도록 확인
+        if (kakaoTemplateCode) {
+          console.log('[DEBUG] 템플릿 코드:', kakaoTemplateCode.value);
+        } else {
+          console.warn('[DEBUG] kakaoTemplateCode를 찾을 수 없습니다!');
+        }
+        
+        // 최종 확인: hidden 필드 값 확인 (폼 제출 직전)
+        console.log('[DEBUG] ===== 최종 확인 =====');
+        var finalValue = kakaoTemplateVariablesField.value || '';
+        console.log('[DEBUG] 최종 저장될 템플릿 변수 값 (길이:', finalValue.length, '):', finalValue.length > 0 ? finalValue.substring(0, 200) + '...' : '(빈 값)');
+        console.log('[DEBUG] 최종 저장될 템플릿 변수 값 (전체):', finalValue);
+        
+        // 폼의 모든 hidden 필드 확인
+        var allHiddenFields = form.querySelectorAll('input[type="hidden"]');
+        console.log('[DEBUG] 폼의 모든 hidden 필드 개수:', allHiddenFields.length);
+        allHiddenFields.forEach(function(field, idx) {
+          if (field.name === 'kakaoTemplateVariables' || field.id === 'kakaoTemplateVariablesField') {
+            console.log('[DEBUG] Hidden 필드 [' + idx + ']:', {
+              id: field.id,
+              name: field.name,
+              valueLength: field.value ? field.value.length : 0,
+              value: field.value ? (field.value.length > 200 ? field.value.substring(0, 200) + '...' : field.value) : '(빈 값)'
+            });
+          }
+        });
+        
+        // 폼 데이터 직접 확인 (제출 직전 - 동기적으로)
+        var formData = new FormData(form);
+        var formDataValue = formData.get('kakaoTemplateVariables') || '';
+        console.log('[DEBUG] FormData에서 읽은 값 (길이:', formDataValue.length, '):', formDataValue.length > 0 ? (formDataValue.length > 200 ? formDataValue.substring(0, 200) + '...' : formDataValue) : '(빈 값)');
+        console.log('[DEBUG] FormData에서 읽은 값 (전체):', formDataValue);
+        
+        // 값이 다르면 경고 및 수정
+        if (finalValue !== formDataValue) {
+          console.warn('[DEBUG] ⚠️ 경고: hidden 필드 값과 FormData 값이 다릅니다!');
+          console.warn('[DEBUG] hidden 필드 (길이:', finalValue.length, '):', finalValue.length > 0 ? finalValue.substring(0, 100) : '(빈 값)');
+          console.warn('[DEBUG] FormData (길이:', formDataValue.length, '):', formDataValue.length > 0 ? formDataValue.substring(0, 100) : '(빈 값)');
+          
+          // finalValue가 더 최신이면 hidden 필드 값을 강제로 다시 설정
+          if (finalValue && finalValue.length > formDataValue.length) {
+            console.log('[DEBUG] finalValue가 더 최신이므로 hidden 필드 값을 강제로 다시 설정');
+            // 모든 방법으로 값 설정 시도
+            kakaoTemplateVariablesField.removeAttribute('value');
+            kakaoTemplateVariablesField.setAttribute('value', finalValue);
+            kakaoTemplateVariablesField.value = finalValue;
+            
+            // name 속성도 명시적으로 설정
+            if (!kakaoTemplateVariablesField.name || kakaoTemplateVariablesField.name !== 'kakaoTemplateVariables') {
+              kakaoTemplateVariablesField.setAttribute('name', 'kakaoTemplateVariables');
+              kakaoTemplateVariablesField.name = 'kakaoTemplateVariables';
+            }
+            
+            // 다시 확인
+            var recheckValue = kakaoTemplateVariablesField.value || '';
+            console.log('[DEBUG] 재설정 후 값 (길이:', recheckValue.length, '):', recheckValue.length > 0 ? recheckValue.substring(0, 100) : '(빈 값)');
+          }
+        } else {
+          console.log('[DEBUG] ✅ hidden 필드 값과 FormData 값이 일치합니다.');
+        }
+        
+        // 폼 제출 직전 최종 확인 및 강제 설정
+        console.log('========================================');
+        console.log('[DEBUG] ===== 폼 제출 직전 최종 확인 =====');
+        var preSubmitValue = kakaoTemplateVariablesField.value || '';
+        console.log('[DEBUG] 제출 직전 hidden 필드 값 (길이:', preSubmitValue.length, '):', preSubmitValue.length > 0 ? preSubmitValue.substring(0, 100) : '(빈 값)');
+        
+        // 최종적으로 수집한 값이 있으면 강제로 설정
+        if (hasValues && jsonValue) {
+          if (preSubmitValue !== jsonValue) {
+            console.warn('[DEBUG] ⚠️ 제출 직전 값이 다릅니다! 강제로 설정합니다.');
+            kakaoTemplateVariablesField.value = jsonValue;
+            // name 속성도 명시적으로 설정
+            kakaoTemplateVariablesField.setAttribute('name', 'kakaoTemplateVariables');
+            kakaoTemplateVariablesField.name = 'kakaoTemplateVariables';
+            console.log('[DEBUG] 강제 설정 완료. 최종 값 (길이:', kakaoTemplateVariablesField.value.length, ')');
+          }
+        }
+        
+        // 확인창은 첫 번째 이벤트 리스너에서 이미 표시되었으므로 여기서는 제거
+        // (중복 방지)
+        
+        console.log('[DEBUG] ===== 폼 제출 진행 =====');
+        console.log('========================================');
       });
     }
   })();

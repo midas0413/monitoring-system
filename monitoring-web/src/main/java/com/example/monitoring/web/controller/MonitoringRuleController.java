@@ -11,6 +11,7 @@ import com.example.monitoring.web.service.MonitoringRuleService;
 import com.example.monitoring.web.service.RuleRecipientLinkService;
 import com.example.monitoring.web.service.ServerService;
 import com.example.monitoring.web.service.SystemCodeService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -83,9 +84,10 @@ public class MonitoringRuleController {
     @PostMapping("/new")
     public String create(@ModelAttribute MonitoringRuleForm form, RedirectAttributes redirectAttributes) {
         try {
-            ruleService.create(form);
+            Long id = ruleService.create(form);
             redirectAttributes.addFlashAttribute("message", "모니터링 규칙이 성공적으로 등록되었습니다.");
-            return "redirect:/rules";
+            // 등록 후 목록이 아닌 수정 페이지로 이동하여 등록된 내용 확인 가능
+            return "redirect:/rules/" + id + "/edit";
         } catch (IllegalArgumentException e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
             return "redirect:/rules/new";
@@ -111,11 +113,63 @@ public class MonitoringRuleController {
 
     @PostMapping("/{id}")
     public String update(@PathVariable Long id, @ModelAttribute MonitoringRuleForm form, 
-                        RedirectAttributes redirectAttributes) {
+                        RedirectAttributes redirectAttributes, HttpServletRequest request) {
         try {
+            // 디버깅: 폼 데이터 확인
+            org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(MonitoringRuleController.class);
+            
+            // 요청 파라미터에서 직접 값 확인 (디버깅용)
+            String directParamValue = request.getParameter("kakaoTemplateVariables");
+            
+            // 모든 요청 파라미터 로그 출력 (디버깅용)
+            log.info("===== 요청 파라미터 전체 확인 =====");
+            request.getParameterMap().forEach((key, values) -> {
+                if (key.contains("kakao") || key.contains("template") || key.contains("variable")) {
+                    String valueStr = values != null && values.length > 0 ? values[0] : "";
+                    log.info("파라미터 [{}]: 길이={}, 값={}", 
+                            key, 
+                            valueStr.length(),
+                            valueStr.length() > 200 ? valueStr.substring(0, 200) + "..." : valueStr);
+                    // 전체 값도 로그 출력 (길이 제한 없이)
+                    if (key.equals("kakaoTemplateVariables")) {
+                        log.info("파라미터 [{}] 전체 값: {}", key, valueStr);
+                    }
+                }
+            });
+            log.info("====================================");
+            
+            log.info("규칙 수정 요청: ruleId={}, templateCode={}, variablesLength={}, directParamLength={}", 
+                    id, form.getKakaoTemplateCode(),
+                    form.getKakaoTemplateVariables() != null ? form.getKakaoTemplateVariables().length() : 0,
+                    directParamValue != null ? directParamValue.length() : 0);
+            
+            // 요청 파라미터 값이 있고 폼 바인딩 값과 다르면 요청 파라미터 값 사용
+            if (directParamValue != null && !directParamValue.equals(form.getKakaoTemplateVariables())) {
+                log.warn("⚠️ 요청 파라미터 값과 폼 바인딩 값이 다릅니다! 요청 파라미터 값을 사용합니다.");
+                log.warn("폼 바인딩 값 (길이: {}): {}", 
+                        form.getKakaoTemplateVariables() != null ? form.getKakaoTemplateVariables().length() : 0,
+                        form.getKakaoTemplateVariables() != null && form.getKakaoTemplateVariables().length() > 100 
+                            ? form.getKakaoTemplateVariables().substring(0, 100) + "..." 
+                            : form.getKakaoTemplateVariables());
+                log.warn("요청 파라미터 값 (길이: {}): {}", 
+                        directParamValue.length(),
+                        directParamValue.length() > 100 ? directParamValue.substring(0, 100) + "..." : directParamValue);
+                form.setKakaoTemplateVariables(directParamValue);
+            } else if (directParamValue != null && directParamValue.equals(form.getKakaoTemplateVariables())) {
+                log.debug("✅ 요청 파라미터 값과 폼 바인딩 값이 일치합니다.");
+            }
+            
+            if (form.getKakaoTemplateVariables() != null && !form.getKakaoTemplateVariables().isEmpty()) {
+                log.debug("템플릿 변수 내용 (처음 200자): {}", 
+                        form.getKakaoTemplateVariables().length() > 200 
+                            ? form.getKakaoTemplateVariables().substring(0, 200) + "..." 
+                            : form.getKakaoTemplateVariables());
+            }
+            
             ruleService.update(id, form);
             redirectAttributes.addFlashAttribute("message", "모니터링 규칙이 성공적으로 수정되었습니다.");
-            return "redirect:/rules";
+            // 수정 후 목록이 아닌 수정 페이지로 다시 이동하여 수정된 내용 확인 가능
+            return "redirect:/rules/" + id + "/edit";
         } catch (IllegalArgumentException e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
             return "redirect:/rules/" + id + "/edit";
