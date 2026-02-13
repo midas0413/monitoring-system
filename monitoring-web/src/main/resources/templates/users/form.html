@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<section th:fragment="content">
+    <div class="container-fluid">
+
+        <div class="page-header mb-3">
+            <h5 th:text="${form.id == null} ? '사용자 등록' : '사용자 수정'">사용자 등록</h5>
+            <div class="page-header-actions">
+              <a class="btn btn-outline-secondary" th:href="@{/settings/users}">목록</a>
+            </div>
+        </div>
+
+        <!-- 메시지 -->
+        <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+            <span th:text="${errorMessage}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <form th:object="${form}" method="post" th:action="@{/settings/users}">
+            <input type="hidden" th:field="*{id}">
+
+            <div class="card card-shadow">
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <label class="col-sm-2 col-form-label">아이디 <span class="text-danger">*</span></label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" th:field="*{username}" 
+                                   th:readonly="${form.id != null}" required>
+                            <div class="form-text" th:if="${form.id != null}">아이디는 수정할 수 없습니다</div>
+                            <div th:if="${#fields.hasErrors('username')}" class="text-danger">
+                                <small th:errors="*{username}">오류</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <label class="col-sm-2 col-form-label">비밀번호 <span class="text-danger" th:if="${form.id == null}">*</span></label>
+                        <div class="col-sm-10">
+                            <input type="password" class="form-control" th:field="*{password}" 
+                                   th:required="${form.id == null}">
+                            <div class="form-text" th:if="${form.id != null}">비밀번호를 변경하지 않으려면 비워두세요</div>
+                            <div th:if="${#fields.hasErrors('password')}" class="text-danger">
+                                <small th:errors="*{password}">오류</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <label class="col-sm-2 col-form-label">성명 <span class="text-danger">*</span></label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" th:field="*{name}" required>
+                            <div th:if="${#fields.hasErrors('name')}" class="text-danger">
+                                <small th:errors="*{name}">오류</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <label class="col-sm-2 col-form-label">부서</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" th:field="*{department}">
+                            <div th:if="${#fields.hasErrors('department')}" class="text-danger">
+                                <small th:errors="*{department}">오류</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <label class="col-sm-2 col-form-label">직급</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" th:field="*{position}">
+                            <div th:if="${#fields.hasErrors('position')}" class="text-danger">
+                                <small th:errors="*{position}">오류</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <label class="col-sm-2 col-form-label">역할 <span class="text-danger">*</span></label>
+                        <div class="col-sm-10">
+                            <select class="form-select" th:field="*{role}" required>
+                                <option value="USER">사용자</option>
+                                <option value="ADMIN">관리자</option>
+                            </select>
+                            <div th:if="${#fields.hasErrors('role')}" class="text-danger">
+                                <small th:errors="*{role}">오류</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <label class="col-sm-2 col-form-label">상태</label>
+                        <div class="col-sm-10">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" th:field="*{enabled}" id="enabled">
+                                <label class="form-check-label" for="enabled">
+                                    활성화
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-sm-10 offset-sm-2">
+                            <button type="submit" class="btn btn-primary">저장</button>
+                            <a class="btn btn-outline-secondary" th:href="@{/settings/users}">취소</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+    </div>
+</section>
+</body>
+</html>

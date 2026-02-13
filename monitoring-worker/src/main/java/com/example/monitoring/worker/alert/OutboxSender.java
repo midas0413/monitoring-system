@@ -67,10 +67,13 @@ public class OutboxSender {
 
         NotificationDeliverer.DeliverResult r;
         
-        // KAKAO 채널일 때는 checkRunId를 전달하여 정확한 서버명 추출
+        // KAKAO 채널일 때는 checkRunId와 템플릿 코드를 전달하여 정확한 서버명 추출 및 템플릿 코드 사용
         if (n.getChannel() == com.example.monitoring.common.domain.NotificationChannel.KAKAO 
                 && deliverer instanceof KakaoDeliverer) {
-            r = ((KakaoDeliverer) deliverer).deliverWithContext(to, title, body, n.getCheckRunId());
+            String templateCode = n.getKakaoTemplateCode();
+            log.info("카카오 알림 발송 시도. outboxId={}, templateCode={}, checkRunId={}", 
+                    n.getId(), templateCode, n.getCheckRunId());
+            r = ((KakaoDeliverer) deliverer).deliverWithContext(to, title, body, n.getCheckRunId(), templateCode);
         } else {
             r = deliverer.deliver(to, title, body);
         }

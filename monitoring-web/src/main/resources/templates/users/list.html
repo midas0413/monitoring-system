@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<section th:fragment="content">
+    <div class="container-fluid">
+
+        <div class="page-header mb-3">
+            <h5>사용자 관리</h5>
+            <div class="page-header-actions">
+              <a class="btn btn-primary" th:href="@{/settings/users/create}">+ 등록</a>
+            </div>
+        </div>
+
+        <!-- 메시지 -->
+        <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+            <span th:text="${successMessage}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+            <span th:text="${errorMessage}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <div class="card card-shadow">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th style="width:90px;">ID</th>
+                        <th>아이디</th>
+                        <th>성명</th>
+                        <th>부서</th>
+                        <th>직급</th>
+                        <th style="width:100px;">역할</th>
+                        <th style="width:100px;">상태</th>
+                        <th style="width:170px;"></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="user : ${users.content}">
+                        <td th:text="${user.id}">1</td>
+                        <td class="fw-semibold" th:text="${user.username}">username</td>
+                        <td th:text="${user.name}">name</td>
+                        <td th:text="${user.department}">department</td>
+                        <td th:text="${user.position}">position</td>
+                        <td>
+                            <span class="badge rounded-pill"
+                                  th:classappend="${user.role == 'ADMIN'} ? ' text-bg-danger' : ' text-bg-primary'"
+                                  th:text="${user.role == 'ADMIN'} ? '관리자' : '사용자'">사용자</span>
+                        </td>
+                        <td>
+                            <span class="badge rounded-pill"
+                                  th:classappend="${user.enabled} ? ' text-bg-success' : ' text-bg-secondary'"
+                                  th:text="${user.enabled} ? '활성' : '비활성'">활성</span>
+                        </td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-primary"
+                               th:href="@{/settings/users/{id}/edit(id=${user.id})}">수정</a>
+                            <form class="d-inline" method="post"
+                                  th:action="@{/settings/users/{id}/delete(id=${user.id})}"
+                                  onsubmit="return confirm('이 사용자를 삭제하시겠습니까?');">
+                                <button class="btn btn-sm btn-outline-danger" type="submit">삭제</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <tr th:if="${users == null || users.isEmpty()}">
+                        <td colspan="8" class="text-center text-muted py-4">등록된 사용자가 없습니다</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 페이지네이션 -->
+        <nav th:if="${users.totalPages > 1}" aria-label="페이지 네비게이션">
+            <ul class="pagination justify-content-center mt-3">
+                <li class="page-item" th:classappend="${users.first} ? 'disabled'">
+                    <a class="page-link" th:href="@{/settings/users(page=${users.number - 1})}">이전</a>
+                </li>
+                <li class="page-item" th:each="i : ${#numbers.sequence(0, users.totalPages - 1)}"
+                    th:classappend="${i == users.number} ? 'active'">
+                    <a class="page-link" th:href="@{/settings/users(page=${i})}" th:text="${i + 1}">1</a>
+                </li>
+                <li class="page-item" th:classappend="${users.last} ? 'disabled'">
+                    <a class="page-link" th:href="@{/settings/users(page=${users.number + 1})}">다음</a>
+                </li>
+            </ul>
+        </nav>
+
+    </div>
+</section>
+</body>
+</html>

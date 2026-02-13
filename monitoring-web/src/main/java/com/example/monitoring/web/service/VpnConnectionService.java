@@ -92,6 +92,9 @@ public class VpnConnectionService {
         form.setName(entity.getName());
         form.setHost(entity.getHost());
         form.setCheckIntervalSec(entity.getCheckIntervalSec());
+        form.setCheckMethod(entity.getCheckMethod() != null ? entity.getCheckMethod() : com.example.monitoring.common.domain.VpnCheckMethod.TCP);
+        form.setKakaoTemplateCode(entity.getKakaoTemplateCode());
+        form.setKakaoTemplateVariables(entity.getKakaoTemplateVariables());
         form.setEnabled(entity.getEnabled());
         form.setDescription(entity.getDescription());
         return form;
@@ -101,6 +104,9 @@ public class VpnConnectionService {
         entity.setName(StringUtils.hasText(form.getName()) ? form.getName().trim() : null);
         entity.setHost(StringUtils.hasText(form.getHost()) ? form.getHost().trim() : null);
         entity.setCheckIntervalSec(form.getCheckIntervalSec() != null ? form.getCheckIntervalSec() : 60);
+        entity.setCheckMethod(form.getCheckMethod() != null ? form.getCheckMethod() : com.example.monitoring.common.domain.VpnCheckMethod.TCP);
+        entity.setKakaoTemplateCode(form.getKakaoTemplateCode());
+        entity.setKakaoTemplateVariables(form.getKakaoTemplateVariables());
         entity.setEnabled(form.getEnabled() != null ? form.getEnabled() : true);
         entity.setDescription(StringUtils.hasText(form.getDescription()) ? form.getDescription().trim() : null);
     }

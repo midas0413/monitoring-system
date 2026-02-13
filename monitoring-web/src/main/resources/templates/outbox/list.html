@@ -35,8 +35,8 @@
                     th:text="${n.status}">PENDING</span>
             </td>
             <td><span class="badge rounded-pill badge-soft" th:text="${n.channel}">SMS</span></td>
-            <td th:text="${n.monitoringRuleId != null && ruleDisplay != null ? (ruleDisplay.get(n.monitoringRuleId) != null ? ruleDisplay.get(n.monitoringRuleId) : '(' + n.monitoringRuleId + ') -') : '-'}">-</td>
-            <td th:text="${n.checkRunId}">-</td>
+            <td th:text="${n.monitoringRuleId != null && ruleDisplay != null ? (ruleDisplay.get(n.monitoringRuleId) != null ? ruleDisplay.get(n.monitoringRuleId) : '(' + n.monitoringRuleId + ') -') : (n.checkRunId != null && checkRunRuleDisplay != null && checkRunRuleDisplay.get(n.checkRunId) != null ? checkRunRuleDisplay.get(n.checkRunId) : '-')}">-</td>
+            <td th:text="${n.checkRunId != null ? n.checkRunId : '-'}">-</td>
             <td th:text="${n.toAddr}">-</td>
             <td th:with="disp=${createdDisplay != null ? createdDisplay.get(n.id) : null}"
                 th:text="${disp != null ? disp : (n.createdAt != null ? #temporals.format(n.createdAt, 'yyyy-MM-dd HH:mm') : '-')}">-</td>

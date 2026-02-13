@@ -32,6 +32,7 @@ public class NotificationOutboxPageController {
         model.addAttribute("items", items);
         model.addAttribute("createdDisplay", service.buildCreatedDisplayMap(items));
         model.addAttribute("ruleDisplay", service.buildRuleDisplayMap(items));
+        model.addAttribute("checkRunRuleDisplay", service.buildCheckRunRuleDisplayMap(items));
         model.addAttribute("page", page);
         model.addAttribute("hasNext", items.size() >= 100);
 

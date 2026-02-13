@@ -16,6 +16,7 @@
               th:action="${form.id != null} ? @{/monitoring-rules/{id}(id=${form.id})} : @{/monitoring-rules/new}" 
               th:object="${form}">
           <input type="hidden" th:field="*{id}" />
+    <input type="hidden" id="kakaoTemplateVariablesField" th:field="*{kakaoTemplateVariables}" />
 
           <!-- 기본 정보 -->
           <div class="row g-3 mb-4">
@@ -355,133 +356,71 @@
               <label class="form-label">Channels</label>
               <div class="d-flex gap-4">
                 <div class="form-check">
-                  <input class="form-check-input" type="checkbox" value="SMS" th:field="*{channelList}">
+                  <input class="form-check-input" type="checkbox" value="SMS" th:field="*{channelList}" id="channelSMS">
                   <label class="form-check-label">SMS</label>
                 </div>
                 <div class="form-check">
-                  <input class="form-check-input" type="checkbox" value="EMAIL" th:field="*{channelList}">
+                  <input class="form-check-input" type="checkbox" value="EMAIL" th:field="*{channelList}" id="channelEMAIL">
                   <label class="form-check-label">EMAIL</label>
                 </div>
                 <div class="form-check">
-                  <input class="form-check-input" type="checkbox" value="KAKAO" th:field="*{channelList}">
+                  <input class="form-check-input" type="checkbox" value="KAKAO" th:field="*{channelList}" id="channelKAKAO">
                   <label class="form-check-label">KAKAO</label>
                 </div>
               </div>
             </div>
+            <!-- 카카오 템플릿 선택 (KAKAO 채널 선택 시에만 표시) -->
+            <div class="col-md-10" id="kakaoTemplateCodeBlock" style="display:none;">
+              <label class="form-label">카카오 알림톡 템플릿 <span class="text-danger">*</span></label>
+              <select class="form-select" id="kakaoTemplateCode" th:field="*{kakaoTemplateCode}">
+                <option value="">-- 템플릿 선택 --</option>
+                <option th:each="template : ${kakaoTemplates}" 
+                        th:value="${template.templateCode}" 
+                        th:selected="${form.kakaoTemplateCode != null && form.kakaoTemplateCode == template.templateCode}"
+                        th:text="${template.name} + ' (' + ${template.templateCode} + ')'"
+                        th:data-variables="${template.variables}">
+                </option>
+              </select>
+              <div class="form-text small text-muted mt-2">
+                카카오 알림톡 발송에 사용할 템플릿을 선택하세요. 
+                템플릿은 <a th:href="@{/settings/kakao-templates}" target="_blank">카카오 템플릿 관리</a>에서 등록할 수 있습니다.
+              </div>
+              <!-- 템플릿 변수 표시 및 입력 영역 -->
+              <div id="kakaoTemplateVariables" class="mt-2" data-init-hidden="true" style="display: none !important;">
+                <div class="alert alert-info mb-2">
+                  <strong>템플릿 변수:</strong>
+                  <div id="templateVariablesList" class="mt-2"></div>
+                </div>
+                <!-- 템플릿 변수 입력 필드 (동적 생성) -->
+                <div id="templateVariableInputs" class="mt-2"></div>
+              </div>
+            </div>
           </div>
 
-          <!-- Message Template -->
-          <div class="row g-3 mb-4">
+          <!-- 카카오 템플릿 테스트 -->
+          <div class="row g-3 mb-4" id="kakaoTemplateTestBlock" style="display: none;">
             <div class="col-12">
-              <h6 class="text-primary mb-2"><i class="bi bi-chat-text"></i> Message Template</h6>
+              <h6 class="text-primary mb-2"><i class="bi bi-chat-text"></i> 카카오 템플릿 테스트</h6>
               <hr class="mb-3">
             </div>
             <div class="col-12">
-              <label class="form-label">Message Template <span class="text-danger">*</span></label>
-              <textarea class="form-control" rows="3" id="messageTemplate" th:field="*{messageTemplate}" required
-                        placeholder="예: [${ruleName}] 모니터링에 알림 발생.&#10;임계값 : ${threshold}&#10;현재값 : ${outputNum}&#10;발생시각 : ${finishedAt} [${finishedAtLocal}]"></textarea>
-              <div class="mt-2">
-                <div class="row g-2 align-items-end">
-                  <div class="col-md-3">
-                    <label class="form-label small mb-1">테스트 수신자</label>
-                    <input type="text" class="form-control form-control-sm" id="testRecipient" 
-                           placeholder="010-1234-5678" value="">
-                  </div>
-                  <div class="col-md-2">
-                    <label class="form-label small mb-1">채널</label>
-                    <select class="form-select form-select-sm" id="testChannel">
-                      <option value="KAKAO">카카오톡</option>
-                      <option value="SMS">SMS</option>
-                    </select>
-                  </div>
-                  <div class="col-md-2">
-                    <button type="button" class="btn btn-sm btn-outline-info w-100" id="testTemplateBtn" 
-                            th:disabled="${form.id == null}">
-                      <i class="bi bi-send"></i> 템플릿 테스트
-                    </button>
-                  </div>
-                  <div class="col-md-5">
-                    <div id="templateTestResult" class="alert mb-0" style="display:none;" role="alert"></div>
-                  </div>
+              <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                  <label class="form-label small mb-1">테스트 수신자</label>
+                  <input type="text" class="form-control form-control-sm" id="testRecipient" 
+                         placeholder="010-1234-5678" value="">
                 </div>
-                <small class="form-text text-muted">규칙 저장 후 템플릿 테스트가 가능합니다.</small>
-              </div>
-              <div class="form-text small text-muted mt-2">
-                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" 
-                        data-bs-target="#messageTemplateHelp" aria-expanded="false" aria-controls="messageTemplateHelp"
-                        id="messageTemplateHelpToggle">
-                  <i class="bi bi-chevron-down" id="messageTemplateHelpIcon"></i> 사용 가능한 변수 보기
-                </button>
-                <div class="collapse mt-2" id="messageTemplateHelp">
-                  <div class="border rounded p-3 bg-light">
-                    <strong class="d-block mb-2">📝 사용 가능한 변수 (${변수명} 또는 {변수명} 형식 사용)</strong>
-                  
-                  <div class="row">
-                    <div class="col-md-6">
-                      <strong class="text-primary">📋 Rule 정보</strong>
-                      <ul class="small mb-2">
-                        <li><code>${ruleName}</code> - Rule 이름</li>
-                        <li><code>${ruleId}</code> - Rule ID</li>
-                        <li><code>${monitoringType}</code> - 모니터링 타입 (SHELL, DB, LOGS, DISK_SPACE)</li>
-                        <li><code>${alertOperator}</code> - 알림 연산자 (RUN_FAILED, OUTPUT_NUM_GT 등)</li>
-                      </ul>
-                      
-                      <strong class="text-primary">🖥️ 서버 정보</strong>
-                      <ul class="small mb-2">
-                        <li><code>${serverId}</code> - 서버 ID</li>
-                        <li><code>${serverName}</code> - 서버명</li>
-                        <li><code>${serverHost}</code> - 서버 호스트 (IP 또는 도메인)</li>
-                        <li><code>${serverTimezone}</code> - 서버 타임존 (예: Asia/Seoul)</li>
-                      </ul>
-                      
-                      <strong class="text-primary">📊 실행 결과</strong>
-                      <ul class="small mb-2">
-                        <li><code>${success}</code> - 실행 성공 여부 (true/false)</li>
-                        <li><code>${status}</code> - 실행 상태 (SUCCESS/FAIL/UNKNOWN)</li>
-                        <li><code>${output}</code> - 출력 내용 (전체)</li>
-                        <li><code>${error}</code> - 에러 메시지 (실패 시)</li>
-                      </ul>
-                    </div>
-                    
-                    <div class="col-md-6">
-                      <strong class="text-primary">🔢 출력 값</strong>
-                      <ul class="small mb-2">
-                        <li><code>${outputNum}</code> - 출력에서 추출한 숫자 값</li>
-                        <li><code>${outputLen}</code> - 출력 길이 (문자 수)</li>
-                      </ul>
-                      
-                      <strong class="text-primary">⚙️ 임계값</strong>
-                      <ul class="small mb-2">
-                        <li><code>${threshold}</code> - 임계값 (thresholdNum 또는 thresholdLen)</li>
-                        <li><code>${thresholdNum}</code> - 숫자 임계값</li>
-                        <li><code>${thresholdLen}</code> - 길이 임계값</li>
-                        <li><code>${pattern}</code> - 패턴 (정규식 또는 포함 문자열)</li>
-                      </ul>
-                      
-                      <strong class="text-primary">⏰ 모니터링 시각</strong>
-                      <ul class="small mb-2">
-                        <li><code>${startedAt}</code> - 시작 시간 (UTC, yyyy-MM-dd HH:mm:ss)</li>
-                        <li><code>${finishedAt}</code> - 종료 시간 (UTC, yyyy-MM-dd HH:mm:ss)</li>
-                        <li><code>${startedAtLocal}</code> - 시작 시간 (현지 시각, yyyy-MM-dd HH:mm:ss)</li>
-                        <li><code>${finishedAtLocal}</code> - 종료 시간 (현지 시각, yyyy-MM-dd HH:mm:ss)</li>
-                        <li><code>${startedDate}</code> - 시작 날짜 (현지 시각, yyyy-MM-dd)</li>
-                        <li><code>${finishedDate}</code> - 종료 날짜 (현지 시각, yyyy-MM-dd)</li>
-                        <li><code>${startedTime}</code> - 시작 시간 (현지 시각, HH:mm:ss)</li>
-                        <li><code>${finishedTime}</code> - 종료 시간 (현지 시각, HH:mm:ss)</li>
-                        <li><code>${durationMs}</code> - 실행 시간 (밀리초)</li>
-                        <li><code>${duration}</code> - 실행 시간 (가독성 형식: X시간 Y분 Z초)</li>
-                      </ul>
-                    </div>
-                  </div>
-                  
-                  <div class="mt-2 pt-2 border-top">
-                    <small class="text-muted">
-                      💡 <strong>팁:</strong> 현지 시각 변수(${finishedAtLocal}, ${startedAtLocal} 등)는 서버에 설정된 타임존을 기준으로 자동 변환됩니다.
-                      예: 서버 타임존이 "Asia/Seoul"인 경우, UTC 시간이 한국 시간으로 변환되어 표시됩니다.
-                    </small>
-                  </div>
+                <div class="col-md-2">
+                  <button type="button" class="btn btn-sm btn-outline-info w-100" id="testTemplateBtn" 
+                          th:disabled="${form.id == null}">
+                    <i class="bi bi-send"></i> 템플릿 테스트
+                  </button>
+                </div>
+                <div class="col-md-7">
+                  <div id="templateTestResult" class="alert mb-0" style="display:none;" role="alert"></div>
                 </div>
               </div>
+              <small class="form-text text-muted">카카오 템플릿을 선택하고 규칙을 저장한 후 템플릿 테스트가 가능합니다.</small>
             </div>
           </div>
 
@@ -798,17 +737,23 @@
       shellTestResult.style.display = 'block';
     }
     
-    // 메시지 템플릿 도움말 collapse 아이콘 토글
-    var messageTemplateHelp = document.getElementById('messageTemplateHelp');
-    var messageTemplateHelpIcon = document.getElementById('messageTemplateHelpIcon');
-    if (messageTemplateHelp && messageTemplateHelpIcon) {
-      messageTemplateHelp.addEventListener('show.bs.collapse', function () {
-        messageTemplateHelpIcon.className = 'bi bi-chevron-up';
-      });
-      messageTemplateHelp.addEventListener('hide.bs.collapse', function () {
-        messageTemplateHelpIcon.className = 'bi bi-chevron-down';
-      });
-    }
+    // 템플릿 변수 도움말 collapse 아이콘 토글 (동적으로 생성되므로 이벤트 위임 사용)
+    document.addEventListener('show.bs.collapse', function(e) {
+      if (e.target && e.target.id === 'templateVariablesHelp') {
+        var icon = document.getElementById('templateVariablesHelpIcon');
+        if (icon) {
+          icon.className = 'bi bi-chevron-up';
+        }
+      }
+    });
+    document.addEventListener('hide.bs.collapse', function(e) {
+      if (e.target && e.target.id === 'templateVariablesHelp') {
+        var icon = document.getElementById('templateVariablesHelpIcon');
+        if (icon) {
+          icon.className = 'bi bi-chevron-down';
+        }
+      }
+    });
     
     // 로그 파일 테스트 버튼
     var testLogsBtn = document.getElementById('testLogsBtn');
@@ -903,28 +848,46 @@
       return text.replace(/[&<>"']/g, function(m) { return map[m]; });
     }
     
-    // 메시지 템플릿 테스트 버튼
+    // 카카오 템플릿 테스트 버튼
     var testTemplateBtn = document.getElementById('testTemplateBtn');
     var templateTestResult = document.getElementById('templateTestResult');
-    var messageTemplate = document.getElementById('messageTemplate');
     var testRecipient = document.getElementById('testRecipient');
-    var testChannel = document.getElementById('testChannel');
+    var kakaoTemplateTestBlock = document.getElementById('kakaoTemplateTestBlock');
+    var kakaoTemplateCodeSelect = document.getElementById('kakaoTemplateCode');
     var formId = document.querySelector('input[name="id"]');
+    
+    // 카카오 템플릿 선택 시 테스트 블록 표시
+    function updateKakaoTemplateTestVisibility() {
+      if (kakaoTemplateTestBlock && kakaoTemplateCodeSelect) {
+        var isKakaoSelected = document.getElementById('channelKAKAO') && document.getElementById('channelKAKAO').checked;
+        var hasTemplate = kakaoTemplateCodeSelect.value && kakaoTemplateCodeSelect.value !== '';
+        kakaoTemplateTestBlock.style.display = (isKakaoSelected && hasTemplate) ? 'block' : 'none';
+      }
+    }
+    
+    if (kakaoTemplateCodeSelect) {
+      kakaoTemplateCodeSelect.addEventListener('change', updateKakaoTemplateTestVisibility);
+    }
+    
+    // 채널 선택 변경 시 테스트 블록 표시 업데이트
+    var channelKAKAO = document.getElementById('channelKAKAO');
+    if (channelKAKAO) {
+      channelKAKAO.addEventListener('change', updateKakaoTemplateTestVisibility);
+    }
     
     if (testTemplateBtn) {
       testTemplateBtn.addEventListener('click', function() {
         var ruleId = formId ? formId.value : null;
-        var template = messageTemplate ? messageTemplate.value : '';
         var recipient = testRecipient ? testRecipient.value.trim() : '';
-        var channel = testChannel ? testChannel.value : 'KAKAO';
+        var templateCode = kakaoTemplateCodeSelect ? kakaoTemplateCodeSelect.value : '';
         
         if (!ruleId || ruleId === '' || ruleId === '0') {
           showTemplateTestResult(false, '규칙을 먼저 저장한 후 테스트할 수 있습니다.');
           return;
         }
         
-        if (!template || !template.trim()) {
-          showTemplateTestResult(false, '메시지 템플릿을 입력하세요.');
+        if (!templateCode || templateCode === '') {
+          showTemplateTestResult(false, '카카오 템플릿을 선택하세요.');
           return;
         }
         
@@ -945,9 +908,7 @@
         templateTestResult.style.display = 'none';
         
         var formData = new FormData();
-        formData.append('template', template);
         formData.append('recipient', recipient);
-        formData.append('channel', channel);
         
         fetch('/api/monitoring-rules/' + ruleId + '/test-template', {
           method: 'POST',
@@ -970,6 +931,9 @@
         });
       });
     }
+    
+    // 초기 로드 시 테스트 블록 표시 업데이트
+    updateKakaoTemplateTestVisibility();
     
     function showTemplateTestResult(success, message) {
       if (!templateTestResult) return;
@@ -1087,6 +1051,406 @@
       });
       alertRuleGuideCollapse.addEventListener('hide.bs.collapse', function () {
         alertRuleGuideIcon.className = 'bi bi-chevron-down';
+      });
+    }
+    
+    // 카카오 템플릿 선택 필드 표시/숨김 제어
+    var channelKAKAO = document.getElementById('channelKAKAO');
+    var kakaoTemplateCodeBlock = document.getElementById('kakaoTemplateCodeBlock');
+    var kakaoTemplateCode = document.getElementById('kakaoTemplateCode');
+    var kakaoTemplateVariables = document.getElementById('kakaoTemplateVariables');
+    var templateVariablesList = document.getElementById('templateVariablesList');
+    
+    function toggleKakaoTemplateCode() {
+      if (channelKAKAO && kakaoTemplateCodeBlock) {
+        if (channelKAKAO.checked) {
+          kakaoTemplateCodeBlock.style.display = 'block';
+          if (kakaoTemplateCode) {
+            kakaoTemplateCode.setAttribute('required', 'required');
+          }
+          // kakaoTemplateVariables는 updateTemplateVariables()에서 처리
+        } else {
+          kakaoTemplateCodeBlock.style.display = 'none';
+          if (kakaoTemplateCode) {
+            kakaoTemplateCode.removeAttribute('required');
+          }
+          if (kakaoTemplateVariables) {
+            kakaoTemplateVariables.style.cssText = 'display: none !important;';
+          }
+        }
+      }
+    }
+    
+    // 템플릿 선택 시 변수 표시
+    function updateTemplateVariables() {
+      console.log('[DEBUG] updateTemplateVariables 호출됨');
+      if (!kakaoTemplateCode || !kakaoTemplateVariables || !templateVariablesList) {
+        console.warn('[DEBUG] 필수 요소가 없음:', {
+          kakaoTemplateCode: !!kakaoTemplateCode,
+          kakaoTemplateVariables: !!kakaoTemplateVariables,
+          templateVariablesList: !!templateVariablesList
+        });
+        return;
+      }
+      
+      var selectedOption = kakaoTemplateCode.options[kakaoTemplateCode.selectedIndex];
+      if (!selectedOption || !selectedOption.value) {
+        console.log('[DEBUG] 템플릿이 선택되지 않음');
+        kakaoTemplateVariables.style.display = 'none';
+        return;
+      }
+      
+      console.log('[DEBUG] 선택된 템플릿:', selectedOption.value);
+      // 변수 정보 가져오기
+      var variables = selectedOption.getAttribute('data-variables');
+      console.log('[DEBUG] 템플릿 변수:', variables);
+      if (variables && variables.trim()) {
+        try {
+          // JSON 배열 형식인지 확인
+          var vars = [];
+          if (variables.trim().startsWith('[')) {
+            vars = JSON.parse(variables);
+          } else {
+            // 쉼표 구분 형식
+            vars = variables.split(',').map(function(v) { return v.trim(); }).filter(function(v) { return v.length > 0; });
+          }
+          
+          if (vars.length > 0) {
+            // 먼저 kakaoTemplateVariables를 표시 (display: none 상태에서는 브라우저가 렌더링하지 않음)
+            console.log('[DEBUG] kakaoTemplateVariables display 설정 전:', kakaoTemplateVariables.style.display);
+            var kakaoTemplateCodeBlock = document.getElementById('kakaoTemplateCodeBlock');
+            console.log('[DEBUG] kakaoTemplateCodeBlock display:', kakaoTemplateCodeBlock ? kakaoTemplateCodeBlock.style.display : 'not found');
+            console.log('[DEBUG] channelKAKAO checked:', channelKAKAO ? channelKAKAO.checked : 'not found');
+            
+            // 부모 요소가 숨겨져 있으면 표시
+            if (kakaoTemplateCodeBlock) {
+              var blockDisplay = window.getComputedStyle(kakaoTemplateCodeBlock).display;
+              console.log('[DEBUG] kakaoTemplateCodeBlock computed display:', blockDisplay);
+              if (blockDisplay === 'none') {
+                console.log('[DEBUG] kakaoTemplateCodeBlock이 숨겨져 있음. 표시하도록 설정');
+                kakaoTemplateCodeBlock.style.setProperty('display', 'block', 'important');
+              }
+            }
+            
+            // kakaoTemplateVariables를 먼저 표시 (HTML 삽입 전에)
+            console.log('[DEBUG] kakaoTemplateVariables 설정 전:', {
+              styleDisplay: kakaoTemplateVariables.style.display,
+              computedDisplay: window.getComputedStyle(kakaoTemplateVariables).display,
+              offsetHeight: kakaoTemplateVariables.offsetHeight,
+              hasStyleAttr: kakaoTemplateVariables.hasAttribute('style')
+            });
+            
+            // 인라인 style 속성 완전히 제거
+            kakaoTemplateVariables.removeAttribute('style');
+            
+            // 클래스에서 숨김 관련 클래스 제거 (예: d-none, hidden 등)
+            kakaoTemplateVariables.classList.remove('d-none', 'hidden', 'invisible');
+            
+            // cssText로 모든 스타일을 한 번에 설정 (가장 강력한 방법)
+            kakaoTemplateVariables.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; height: auto !important; min-height: 1px !important;';
+            
+            // 강제 리플로우 (레이아웃 재계산)
+            void kakaoTemplateVariables.offsetHeight;
+            
+            // 추가 확인: 클래스나 다른 속성 확인
+            var computedStyle = window.getComputedStyle(kakaoTemplateVariables);
+            var parentElement = kakaoTemplateVariables.parentElement;
+            var parentComputedStyle = parentElement ? window.getComputedStyle(parentElement) : null;
+            
+            // 부모 요소도 확인하고 필요시 표시
+            if (parentElement && parentComputedStyle && parentComputedStyle.display === 'none') {
+              console.warn('[DEBUG] 부모 요소가 숨겨져 있음. 표시하도록 설정');
+              parentElement.style.setProperty('display', 'block', 'important');
+            }
+            
+            console.log('[DEBUG] kakaoTemplateVariables 설정 후:', {
+              styleDisplay: kakaoTemplateVariables.style.display,
+              computedDisplay: computedStyle.display,
+              computedVisibility: computedStyle.visibility,
+              computedHeight: computedStyle.height,
+              computedMaxHeight: computedStyle.maxHeight,
+              computedMinHeight: computedStyle.minHeight,
+              computedOpacity: computedStyle.opacity,
+              offsetHeight: kakaoTemplateVariables.offsetHeight,
+              clientHeight: kakaoTemplateVariables.clientHeight,
+              scrollHeight: kakaoTemplateVariables.scrollHeight,
+              styleAttribute: kakaoTemplateVariables.getAttribute('style'),
+              className: kakaoTemplateVariables.className,
+              classList: Array.from(kakaoTemplateVariables.classList),
+              parentElement: parentElement ? parentElement.id : 'none',
+              parentDisplay: parentComputedStyle ? parentComputedStyle.display : 'none',
+              parentOffsetHeight: parentElement ? parentElement.offsetHeight : 0,
+              parentClientHeight: parentElement ? parentElement.clientHeight : 0,
+              parentComputedDisplay: parentComputedStyle ? parentComputedStyle.display : 'none'
+            });
+            
+            // computedDisplay가 여전히 none이면 경고 및 강제 설정
+            if (computedStyle.display === 'none') {
+              console.error('[DEBUG] 경고: computedDisplay가 여전히 none입니다!');
+              console.error('[DEBUG] 모든 CSS 규칙:', computedStyle.cssText);
+              // cssText로 강제 설정
+              kakaoTemplateVariables.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; height: auto !important; min-height: 1px !important;';
+              // 다시 확인
+              var newComputedStyle = window.getComputedStyle(kakaoTemplateVariables);
+              console.warn('[DEBUG] cssText 설정 후 computedDisplay:', newComputedStyle.display);
+            }
+            
+            // 변수 목록 표시
+            var html = '<div class="d-flex flex-wrap gap-2">';
+            vars.forEach(function(v) {
+              html += '<span class="badge bg-primary">' + escapeHtml(v) + '</span>';
+            });
+            html += '</div>';
+            templateVariablesList.innerHTML = html;
+            console.log('[DEBUG] templateVariablesList innerHTML 설정 완료, 길이:', html.length);
+            console.log('[DEBUG] templateVariablesList offsetHeight:', templateVariablesList.offsetHeight);
+            
+            // 변수 입력 필드 생성
+            var variableInputs = document.getElementById('templateVariableInputs');
+            console.log('[DEBUG] variableInputs:', variableInputs);
+            if (variableInputs) {
+              console.log('[DEBUG] 템플릿 변수 입력 필드 생성 시작, 변수 개수:', vars.length);
+              var inputsHtml = '<div class="card card-shadow mt-2"><div class="card-body"><h6 class="card-title">템플릿 변수 입력</h6>';
+              inputsHtml += '<div class="mb-3">';
+              inputsHtml += '<button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" ';
+              inputsHtml += 'data-bs-target="#templateVariablesHelp" aria-expanded="false" aria-controls="templateVariablesHelp" ';
+              inputsHtml += 'id="templateVariablesHelpToggle">';
+              inputsHtml += '<i class="bi bi-chevron-down" id="templateVariablesHelpIcon"></i> 사용 가능한 템플릿 변수 보기';
+              inputsHtml += '</button>';
+              inputsHtml += '<div class="collapse mt-2" id="templateVariablesHelp">';
+              inputsHtml += '<div class="border rounded p-3 bg-light small">';
+              inputsHtml += '<strong class="d-block mb-2">📝 사용 가능한 템플릿 변수 (${변수명} 형식 사용)</strong>';
+              inputsHtml += '<div class="row">';
+              inputsHtml += '<div class="col-md-6">';
+              inputsHtml += '<strong class="text-primary">📋 Rule 정보</strong>';
+              inputsHtml += '<ul class="small mb-2">';
+              inputsHtml += '<li><code>${ruleName}</code> - Rule 이름</li>';
+              inputsHtml += '<li><code>${ruleId}</code> - Rule ID</li>';
+              inputsHtml += '<li><code>${monitoringType}</code> - 모니터링 타입 (SHELL, DB, LOGS, DISK_SPACE)</li>';
+              inputsHtml += '<li><code>${alertOperator}</code> - 알림 연산자 (RUN_FAILED, OUTPUT_NUM_GT 등)</li>';
+              inputsHtml += '</ul>';
+              inputsHtml += '<strong class="text-primary">🖥️ 서버 정보</strong>';
+              inputsHtml += '<ul class="small mb-2">';
+              inputsHtml += '<li><code>${serverId}</code> - 서버 ID</li>';
+              inputsHtml += '<li><code>${serverName}</code> - 서버명</li>';
+              inputsHtml += '<li><code>${serverHost}</code> - 서버 호스트 (IP 또는 도메인)</li>';
+              inputsHtml += '<li><code>${serverTimezone}</code> - 서버 타임존 (예: Asia/Seoul)</li>';
+              inputsHtml += '</ul>';
+              inputsHtml += '<strong class="text-primary">📊 실행 결과</strong>';
+              inputsHtml += '<ul class="small mb-2">';
+              inputsHtml += '<li><code>${success}</code> - 실행 성공 여부 (true/false)</li>';
+              inputsHtml += '<li><code>${status}</code> - 실행 상태 (SUCCESS/FAIL/UNKNOWN)</li>';
+              inputsHtml += '<li><code>${output}</code> - 출력 내용 (전체)</li>';
+              inputsHtml += '<li><code>${error}</code> - 에러 메시지 (실패 시)</li>';
+              inputsHtml += '</ul>';
+              inputsHtml += '</div>';
+              inputsHtml += '<div class="col-md-6">';
+              inputsHtml += '<strong class="text-primary">🔢 출력 값</strong>';
+              inputsHtml += '<ul class="small mb-2">';
+              inputsHtml += '<li><code>${outputNum}</code> - 출력에서 추출한 숫자 값</li>';
+              inputsHtml += '<li><code>${outputLen}</code> - 출력 길이 (문자 수)</li>';
+              inputsHtml += '</ul>';
+              inputsHtml += '<strong class="text-primary">⚙️ 임계값</strong>';
+              inputsHtml += '<ul class="small mb-2">';
+              inputsHtml += '<li><code>${threshold}</code> - 임계값 (thresholdNum 또는 thresholdLen)</li>';
+              inputsHtml += '<li><code>${thresholdNum}</code> - 숫자 임계값</li>';
+              inputsHtml += '<li><code>${thresholdLen}</code> - 길이 임계값</li>';
+              inputsHtml += '<li><code>${pattern}</code> - 패턴 (정규식 또는 포함 문자열)</li>';
+              inputsHtml += '</ul>';
+              inputsHtml += '<strong class="text-primary">⏰ 모니터링 시각</strong>';
+              inputsHtml += '<ul class="small mb-2">';
+              inputsHtml += '<li><code>${startedAt}</code> - 시작 시간 (한국 시간, yyyy-MM-dd HH:mm:ss)</li>';
+              inputsHtml += '<li><code>${finishedAt}</code> - 종료 시간 (한국 시간, yyyy-MM-dd HH:mm:ss)</li>';
+              inputsHtml += '<li><code>${startedAtLocal}</code> - 시작 시간 (서버 현지 시각, yyyy-MM-dd HH:mm:ss)</li>';
+              inputsHtml += '<li><code>${finishedAtLocal}</code> - 종료 시간 (서버 현지 시각, yyyy-MM-dd HH:mm:ss)</li>';
+              inputsHtml += '<li><code>${startedDate}</code> - 시작 날짜 (한국 시간, yyyy-MM-dd)</li>';
+              inputsHtml += '<li><code>${finishedDate}</code> - 종료 날짜 (한국 시간, yyyy-MM-dd)</li>';
+              inputsHtml += '<li><code>${startedTime}</code> - 시작 시간 (한국 시간, HH:mm:ss)</li>';
+              inputsHtml += '<li><code>${finishedTime}</code> - 종료 시간 (한국 시간, HH:mm:ss)</li>';
+              inputsHtml += '<li><code>${durationMs}</code> - 실행 시간 (밀리초)</li>';
+              inputsHtml += '<li><code>${duration}</code> - 실행 시간 (가독성 형식: X시간 Y분 Z초)</li>';
+              inputsHtml += '</ul>';
+              inputsHtml += '</div>';
+              inputsHtml += '</div>';
+              inputsHtml += '<div class="mt-2 pt-2 border-top">';
+              inputsHtml += '<small class="text-muted">';
+              inputsHtml += '💡 <strong>팁:</strong> 템플릿 변수는 ${변수명} 형식으로 입력하세요. 여러 줄 입력이 가능하며, 변수와 일반 텍스트를 함께 사용할 수 있습니다.';
+              inputsHtml += '</small>';
+              inputsHtml += '</div>';
+              inputsHtml += '</div>';
+              inputsHtml += '</div>';
+              inputsHtml += '</div>';
+              vars.forEach(function(v, index) {
+                var varId = 'templateVar_' + index;
+                inputsHtml += '<div class="mb-3">';
+                inputsHtml += '<label for="' + varId + '" class="form-label">' + escapeHtml(v) + ' <span class="text-danger">*</span></label>';
+                inputsHtml += '<textarea class="form-control template-var-input" id="' + varId + '" ';
+                inputsHtml += 'data-varname="' + escapeHtml(v) + '" rows="3" ';
+                inputsHtml += 'placeholder="예: ${ruleName} 모니터링&#10;또는&#10;현재값 : ${outputNum}&#10;임계값 : ${thresholdNum}" maxlength="1000"></textarea>';
+                inputsHtml += '<small class="form-text text-muted">템플릿 변수(${변수명})를 사용하여 입력하세요. 여러 줄 입력 가능합니다.</small>';
+                inputsHtml += '</div>';
+              });
+              inputsHtml += '</div></div>';
+              
+              // HTML 삽입 (이미 display: block 상태이므로 브라우저가 렌더링함)
+              variableInputs.innerHTML = inputsHtml;
+              console.log('[DEBUG] 템플릿 변수 입력 필드 HTML 생성 완료');
+              console.log('[DEBUG] 생성된 HTML 길이:', inputsHtml.length);
+              console.log('[DEBUG] variableInputs.innerHTML 길이:', variableInputs.innerHTML.length);
+              
+              // 저장된 템플릿 변수 값이 있으면 입력 필드에 로드
+              var kakaoTemplateVariablesField = document.getElementById('kakaoTemplateVariablesField');
+              if (kakaoTemplateVariablesField && kakaoTemplateVariablesField.value) {
+                try {
+                  var savedVars = JSON.parse(kakaoTemplateVariablesField.value);
+                  // 템플릿 변수 입력 필드가 생성된 후 값 설정
+                  setTimeout(function() {
+                    for (var varName in savedVars) {
+                      var input = document.querySelector('.template-var-input[data-varname="' + varName + '"]');
+                      if (input) {
+                        input.value = savedVars[varName];
+                      }
+                    }
+                  }, 100);
+                } catch (e) {
+                  console.warn('템플릿 변수 값 파싱 실패:', e);
+                }
+              }
+              
+              // 강제 리플로우 (브라우저가 레이아웃을 다시 계산하도록)
+              void variableInputs.offsetHeight;
+              
+              // 렌더링 확인
+              console.log('[DEBUG] kakaoTemplateVariables offsetHeight:', kakaoTemplateVariables.offsetHeight);
+              console.log('[DEBUG] kakaoTemplateVariables clientHeight:', kakaoTemplateVariables.clientHeight);
+              console.log('[DEBUG] kakaoTemplateVariables scrollHeight:', kakaoTemplateVariables.scrollHeight);
+              console.log('[DEBUG] templateVariableInputs offsetHeight:', variableInputs.offsetHeight);
+              console.log('[DEBUG] templateVariableInputs clientHeight:', variableInputs.clientHeight);
+              console.log('[DEBUG] templateVariableInputs scrollHeight:', variableInputs.scrollHeight);
+              console.log('[DEBUG] templateVariableInputs children:', variableInputs.children.length);
+              console.log('[DEBUG] templateVariableInputs firstChild:', variableInputs.firstChild ? variableInputs.firstChild.tagName : 'none');
+              console.log('[DEBUG] templateVariablesList offsetHeight:', templateVariablesList.offsetHeight);
+              
+              // DOM 구조 확인
+              if (variableInputs.firstChild) {
+                console.log('[DEBUG] firstChild offsetHeight:', variableInputs.firstChild.offsetHeight);
+                console.log('[DEBUG] firstChild className:', variableInputs.firstChild.className);
+                console.log('[DEBUG] firstChild offsetHeight (강제 리플로우 후):', variableInputs.firstChild.offsetHeight);
+              }
+              
+              // 실제 DOM 요소 확인
+              var textareas = variableInputs.querySelectorAll('textarea');
+              console.log('[DEBUG] 생성된 textarea 개수:', textareas.length);
+              if (textareas.length > 0) {
+                console.log('[DEBUG] 첫 번째 textarea offsetHeight:', textareas[0].offsetHeight);
+                console.log('[DEBUG] 첫 번째 textarea display:', window.getComputedStyle(textareas[0]).display);
+                console.log('[DEBUG] 첫 번째 textarea visibility:', window.getComputedStyle(textareas[0]).visibility);
+              }
+            }
+          } else {
+            kakaoTemplateVariables.style.display = 'none';
+            var variableInputs = document.getElementById('templateVariableInputs');
+            if (variableInputs) {
+              variableInputs.innerHTML = '';
+            }
+          }
+        } catch (e) {
+          // 파싱 실패 시 그대로 표시
+          templateVariablesList.innerHTML = '<code>' + escapeHtml(variables) + '</code>';
+          var variableInputs = document.getElementById('templateVariableInputs');
+          if (variableInputs) {
+            variableInputs.innerHTML = '';
+          }
+          kakaoTemplateVariables.style.display = 'block';
+        }
+      } else {
+        kakaoTemplateVariables.style.display = 'none';
+        var variableInputs = document.getElementById('templateVariableInputs');
+        if (variableInputs) {
+          variableInputs.innerHTML = '';
+        }
+      }
+    }
+    
+    // 초기 상태 설정
+    console.log('[DEBUG] 초기 상태 설정 시작');
+    toggleKakaoTemplateCode();
+    if (kakaoTemplateCode) {
+      console.log('[DEBUG] 초기 템플릿 변수 업데이트 호출');
+      updateTemplateVariables();
+    }
+    
+    // KAKAO 채널 체크박스 변경 시 토글
+    if (channelKAKAO) {
+      channelKAKAO.addEventListener('change', function() {
+        console.log('[DEBUG] KAKAO 채널 체크박스 변경');
+        toggleKakaoTemplateCode();
+        updateTemplateVariables();
+      });
+    }
+    
+    // 템플릿 선택 변경 시 변수 업데이트
+    if (kakaoTemplateCode) {
+      kakaoTemplateCode.addEventListener('change', function() {
+        console.log('[DEBUG] 카카오 템플릿 선택 변경');
+        updateTemplateVariables();
+      });
+    }
+    
+    // 폼 제출 시 KAKAO 채널 선택되어 있으면 템플릿 검증 및 템플릿 변수 값 저장
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        if (channelKAKAO && channelKAKAO.checked) {
+          if (!kakaoTemplateCode || !kakaoTemplateCode.value || !kakaoTemplateCode.value.trim()) {
+            e.preventDefault();
+            alert('카카오 알림톡 템플릿을 선택해주세요.');
+            if (kakaoTemplateCode) {
+              kakaoTemplateCode.focus();
+            }
+            return false;
+          }
+          
+          // 템플릿 변수 입력 값 수집하여 JSON으로 저장
+          var templateVarInputs = document.querySelectorAll('.template-var-input');
+          var templateVars = {};
+          var hasValues = false;
+          var missingVars = [];
+          
+          templateVarInputs.forEach(function(input) {
+            var varName = input.getAttribute('data-varname');
+            var varValue = input.value.trim();
+            if (varName) {
+              if (varValue) {
+                templateVars[varName] = varValue;
+                hasValues = true;
+              } else {
+                missingVars.push(varName);
+              }
+            }
+          });
+          
+          // 필수 변수 값이 모두 입력되었는지 확인
+          if (missingVars.length > 0) {
+            e.preventDefault();
+            alert('다음 템플릿 변수 값을 입력해주세요: ' + missingVars.join(', '));
+            // 첫 번째 빈 필드로 포커스 이동
+            var firstEmpty = document.querySelector('.template-var-input[data-varname="' + missingVars[0] + '"]');
+            if (firstEmpty) {
+              firstEmpty.focus();
+            }
+            return false;
+          }
+          
+          // 템플릿 변수 값이 있으면 JSON으로 저장
+          var kakaoTemplateVariablesField = document.getElementById('kakaoTemplateVariablesField');
+          if (kakaoTemplateVariablesField) {
+            if (hasValues) {
+              kakaoTemplateVariablesField.value = JSON.stringify(templateVars);
+            } else {
+              kakaoTemplateVariablesField.value = '';
+            }
+          }
+        }
       });
     }
   })();

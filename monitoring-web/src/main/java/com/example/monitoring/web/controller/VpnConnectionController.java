@@ -4,8 +4,8 @@ import com.example.monitoring.common.domain.ServerStatus;
 import com.example.monitoring.common.domain.VpnConnectionEntity;
 import com.example.monitoring.web.dto.VpnConnectionForm;
 import com.example.monitoring.web.service.HomeService;
+import com.example.monitoring.web.service.KakaoTemplateService;
 import com.example.monitoring.web.service.VpnConnectionService;
-import com.example.monitoring.web.service.VpnNotificationTemplateService;
 import com.example.monitoring.web.service.VpnRecipientLinkService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -25,18 +25,18 @@ import java.util.stream.Collectors;
 public class VpnConnectionController {
 
     private final VpnConnectionService vpnService;
-    private final VpnNotificationTemplateService templateService;
     private final HomeService homeService;
     private final VpnRecipientLinkService vpnRecipientLinkService;
+    private final KakaoTemplateService kakaoTemplateService;
 
     public VpnConnectionController(VpnConnectionService vpnService,
-                                  VpnNotificationTemplateService templateService,
                                   HomeService homeService,
-                                  VpnRecipientLinkService vpnRecipientLinkService) {
+                                  VpnRecipientLinkService vpnRecipientLinkService,
+                                  KakaoTemplateService kakaoTemplateService) {
         this.vpnService = vpnService;
-        this.templateService = templateService;
         this.homeService = homeService;
         this.vpnRecipientLinkService = vpnRecipientLinkService;
+        this.kakaoTemplateService = kakaoTemplateService;
     }
 
     @GetMapping
@@ -64,8 +64,7 @@ public class VpnConnectionController {
         form.setEnabled(true);
         form.setCheckIntervalSec(60);
         model.addAttribute("form", form);
-        model.addAttribute("template", null);
-        model.addAttribute("templateForm", new com.example.monitoring.web.dto.VpnNotificationTemplateForm());
+        model.addAttribute("kakaoTemplates", kakaoTemplateService.listEnabled());
         return "layout";
     }
 
@@ -91,15 +90,7 @@ public class VpnConnectionController {
         VpnConnectionForm form = vpnService.toForm(entity);
         model.addAttribute("form", form);
         model.addAttribute("vpnInfo", entity); // VPN 상세 정보 전달
-        // VPN당 하나의 템플릿만 사용
-        var templateOpt = templateService.getByVpnId(id);
-        model.addAttribute("template", templateOpt.orElse(null));
-        // 템플릿 폼 객체 전달
-        if (templateOpt.isPresent()) {
-            model.addAttribute("templateForm", templateService.toForm(templateOpt.get()));
-        } else {
-            model.addAttribute("templateForm", new com.example.monitoring.web.dto.VpnNotificationTemplateForm());
-        }
+        model.addAttribute("kakaoTemplates", kakaoTemplateService.listEnabled());
         return "layout";
     }
 
@@ -148,6 +139,27 @@ public class VpnConnectionController {
         vpnRecipientLinkService.saveLinks(id, recipientIds != null ? recipientIds : List.of());
         redirectAttributes.addFlashAttribute("message", "VPN 수신자 연결이 저장되었습니다.");
         return "redirect:/vpn/" + id + "/recipients";
+    }
+}
+
+/**
+ * VPN 템플릿 테스트 API 컨트롤러
+ */
+@RestController
+@RequestMapping("/api/vpn")
+class VpnTemplateTestController {
+
+    private final com.example.monitoring.web.service.MessageTemplateTestService templateTestService;
+
+    public VpnTemplateTestController(com.example.monitoring.web.service.MessageTemplateTestService templateTestService) {
+        this.templateTestService = templateTestService;
+    }
+
+    @PostMapping(value = "/{id}/test-template", produces = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+    public com.example.monitoring.web.service.MessageTemplateTestService.TestResult testTemplate(
+            @PathVariable Long id,
+            @RequestParam String recipient) {
+        return templateTestService.testVpnKakaoTemplate(id, recipient);
     }
 }
 

@@ -36,6 +36,16 @@ body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, san
   display: flex; align-items: center; gap: 8px;
   padding: 6px 12px; border-radius: 8px; background: #f1f5f9; flex-shrink: 0;
 }
+.portal-user .dropdown-toggle {
+  color: #334155 !important;
+  text-decoration: none;
+  border: none;
+  background: none;
+  padding: 0;
+}
+.portal-user .dropdown-toggle:hover {
+  color: #0f172a !important;
+}
 .portal-user-icon { font-size: 1rem; }
 .portal-user-name { font-weight: 500; color: #334155; font-size: 0.9rem; }
 

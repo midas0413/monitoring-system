@@ -20,9 +20,7 @@ public class MessageTemplateTestController {
     @PostMapping(value = "/{id}/test-template", produces = MediaType.APPLICATION_JSON_VALUE)
     public MessageTemplateTestService.TestResult testTemplate(
             @PathVariable Long id,
-            @RequestParam String template,
-            @RequestParam String recipient,
-            @RequestParam(defaultValue = "KAKAO") String channel) {
-        return templateTestService.testTemplate(id, template, recipient, channel);
+            @RequestParam String recipient) {
+        return templateTestService.testKakaoTemplate(id, recipient);
     }
 }

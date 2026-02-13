@@ -147,7 +147,7 @@ public class VpnStatusChangeNotifier {
                 String toAddr = getRecipientAddress(recipient, channel);
                 if (!StringUtils.hasText(toAddr)) continue;
 
-                createNotification(toAddr, channel, title, body, now, checkRun.getId());
+                createNotification(toAddr, channel, title, body, now, checkRun.getId(), vpn);
             }
         }
     }
@@ -156,7 +156,7 @@ public class VpnStatusChangeNotifier {
      * 알림 생성 및 큐에 추가 (체크 실행 내역과 연결)
      */
     private void createNotification(String toAddr, NotificationChannel channel,
-                                   String title, String body, OffsetDateTime now, Long checkRunId) {
+                                   String title, String body, OffsetDateTime now, Long checkRunId, VpnConnectionEntity vpn) {
         NotificationOutboxEntity notification = new NotificationOutboxEntity();
         notification.setStatus(NotificationStatus.PENDING);
         notification.setChannel(channel);
@@ -165,13 +165,21 @@ public class VpnStatusChangeNotifier {
         notification.setToAddr(toAddr);
         notification.setTitle(title);
         notification.setBody(body);
+        // KAKAO 채널인 경우 VPN의 템플릿 코드 저장
+        if (channel == NotificationChannel.KAKAO && vpn != null) {
+            notification.setKakaoTemplateCode(vpn.getKakaoTemplateCode());
+            log.info("VPN status change notification created: to={}, channel={}, checkRunId={}, kakaoTemplateCode={}", 
+                    toAddr, channel, checkRunId, vpn.getKakaoTemplateCode());
+        } else {
+            log.info("VPN status change notification created: to={}, channel={}, checkRunId={}, title={}", 
+                    toAddr, channel, checkRunId, title);
+        }
         notification.setCreatedAt(now);
         notification.setNextAttemptAt(now);
         notification.setAttempt(0);
         notification.setMaxAttempt(5);
 
         outboxRepo.save(notification);
-        log.info("VPN status change notification created: to={}, channel={}, checkRunId={}, title={}", toAddr, channel, checkRunId, title);
     }
 
     /**

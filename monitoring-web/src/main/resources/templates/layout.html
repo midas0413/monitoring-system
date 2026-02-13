@@ -19,8 +19,26 @@
         <h1 class="portal-brand" th:text="${systemName}">Monitoring Portal</h1>
       </div>
       <div class="portal-user">
-        <span class="portal-user-icon">👤</span>
-        <span class="portal-user-name" th:text="${currentUser}">Guest</span>
+        <div class="dropdown">
+          <button class="btn btn-link text-decoration-none p-0 d-flex align-items-center gap-2" 
+                  type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false"
+                  style="color: #334155; border: none; background: none;">
+            <span class="portal-user-icon">👤</span>
+            <span class="portal-user-name" th:text="${currentUser}">Guest</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z"/>
+            </svg>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+            <li><a class="dropdown-item" th:href="@{/profile}">내 정보</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <form method="post" th:action="@{/logout}" class="d-inline">
+                <button type="submit" class="dropdown-item text-danger">로그아웃</button>
+              </form>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   </header>

@@ -1,8 +1,10 @@
 package com.example.monitoring.web.service;
 
+import com.example.monitoring.common.domain.CheckRunEntity;
 import com.example.monitoring.common.domain.MonitoringRuleEntity;
 import com.example.monitoring.common.domain.NotificationOutboxEntity;
 import com.example.monitoring.common.domain.NotificationStatus;
+import com.example.monitoring.common.repo.CheckRunRepository;
 import com.example.monitoring.common.repo.MonitoringRuleRepository;
 import com.example.monitoring.common.repo.NotificationOutboxRepository;
 import org.springframework.data.domain.PageRequest;
@@ -13,6 +15,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class NotificationOutboxService {
@@ -23,11 +27,14 @@ public class NotificationOutboxService {
 
     private final NotificationOutboxRepository repository;
     private final MonitoringRuleRepository monitoringRuleRepository;
+    private final CheckRunRepository checkRunRepository;
 
     public NotificationOutboxService(NotificationOutboxRepository repository,
-                                    MonitoringRuleRepository monitoringRuleRepository) {
+                                    MonitoringRuleRepository monitoringRuleRepository,
+                                    CheckRunRepository checkRunRepository) {
         this.repository = repository;
         this.monitoringRuleRepository = monitoringRuleRepository;
+        this.checkRunRepository = checkRunRepository;
     }
 
     public List<NotificationOutboxEntity> list(int page) {
@@ -60,7 +67,9 @@ public class NotificationOutboxService {
         return map;
     }
 
-    /** monitoringRuleId -> "(ID) 규칙명" 형식의 문자열 */
+    /** 
+     * monitoringRuleId -> "(ID) 규칙명" 형식의 문자열
+     */
     public Map<Long, String> buildRuleDisplayMap(List<NotificationOutboxEntity> items) {
         Map<Long, String> map = new HashMap<>();
         for (NotificationOutboxEntity n : items) {
@@ -78,6 +87,34 @@ public class NotificationOutboxService {
                     .orElse("(" + ruleId + ") -");
             map.put(ruleId, ruleDisplay);
         }
+        return map;
+    }
+
+    /**
+     * checkRunId -> 규칙명 형식의 문자열 (VPN 상태변경 등)
+     * VPN 상태변경의 경우 checkRunId를 통해 vpnId를 확인하여 "VPN 상태변경"으로 표시
+     */
+    public Map<Long, String> buildCheckRunRuleDisplayMap(List<NotificationOutboxEntity> items) {
+        Map<Long, String> map = new HashMap<>();
+        
+        // checkRunId가 있고 monitoringRuleId가 null인 항목들의 checkRunId 수집
+        Set<Long> checkRunIds = items.stream()
+                .filter(n -> n.getCheckRunId() != null && n.getMonitoringRuleId() == null)
+                .map(NotificationOutboxEntity::getCheckRunId)
+                .collect(Collectors.toSet());
+        
+        // checkRunId로 CheckRunEntity 조회하여 VPN 상태변경인지 확인
+        for (Long checkRunId : checkRunIds) {
+            if (map.containsKey(checkRunId)) continue;
+            
+            checkRunRepository.findById(checkRunId).ifPresent(checkRun -> {
+                if (checkRun.getVpnId() != null) {
+                    // VPN 상태변경인 경우
+                    map.put(checkRunId, "VPN 상태변경");
+                }
+            });
+        }
+        
         return map;
     }
 }

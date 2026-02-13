@@ -53,8 +53,28 @@ public class AligoClient {
      * @param var2 템플릿 변수2 (알림내용 등)
      */
     public AligoResult sendAlimtalk(String receiver, String title, String message, String var1, String var2) {
+        return sendAlimtalk(receiver, title, message, var1, var2, null, null);
+    }
+    
+    /**
+     * 알림톡 발송 (템플릿 변수 및 템플릿 코드 포함)
+     * @param receiver 수신자 전화번호
+     * @param title 제목
+     * @param message 메시지 (템플릿 변수가 없을 때 사용)
+     * @param var1 템플릿 변수1 (서버명 등)
+     * @param var2 템플릿 변수2 (알림내용 등)
+     * @param templateCode 템플릿 코드 (null이면 AligoProperties의 기본 템플릿 코드 사용)
+     * @param buttonInfo 버튼 정보 (JSON 형식, null이면 기본 버튼 사용)
+     */
+    public AligoResult sendAlimtalk(String receiver, String title, String message, String var1, String var2, String templateCode, String buttonInfo) {
         if (!props.isAlimtalkAvailable()) {
             return AligoResult.fail("Aligo 알림톡 설정 부족 (apiKey, userId, sender, senderKey, templateCode)");
+        }
+
+        // 템플릿 코드 결정: 파라미터로 받은 것이 있으면 사용, 없으면 기본값
+        String tplCode = StringUtils.hasText(templateCode) ? templateCode : props.getTemplateCode();
+        if (!StringUtils.hasText(tplCode)) {
+            return AligoResult.fail("템플릿 코드가 설정되지 않았습니다. 알림 규칙에 카카오 템플릿 ID를 설정하거나 Aligo 기본 템플릿 코드를 설정하세요.");
         }
 
         try {
@@ -65,38 +85,37 @@ public class AligoClient {
             params.add("apikey", props.getApiKey());
             params.add("userid", props.getUserId());
             params.add("senderkey", props.getSenderKey());
-            params.add("tpl_code", props.getTemplateCode());
+            params.add("tpl_code", tplCode);
             params.add("sender", props.getSender());
             params.add("receiver_1", normalizePhone(receiver));
             params.add("subject_1", truncate(title, 50));
             
-            // Aligo API curl 예제 방식: message_1에 실제 치환된 값을 전달 (var1, var2 파라미터 없음)
-            // 템플릿 형식 (정확히 일치해야 함):
-            // #{시스템} 모니터링에 알림이 발생했습니다.
-            // 알림내용 : #{알림}
-            // 
-            // 중요: "알림톡 내용(message)은 템플릿과 동일하게 개행문자를 입력하셔야 합니다"
-            // curl 예제에는 var1, var2 파라미터가 없고, message_1에 직접 치환된 값을 전달
-            String systemInfo = StringUtils.hasText(var1) ? var1 : "시스템";
-            String alertInfo = StringUtils.hasText(var2) ? var2 : "알림 내용 없음";
-            
-            // message_1에 실제 치환된 값 전달 (템플릿 형식과 정확히 일치해야 함)
-            // 템플릿의 개행 문자를 \n으로 표현 (템플릿과 동일하게)
-            // alertInfo에 줄바꿈이 포함되어 있으면 그대로 유지
-            String message1;
-            if (StringUtils.hasText(alertInfo) && alertInfo.contains("\n")) {
-                // alertInfo에 줄바꿈이 있으면 그대로 사용 (템플릿의 줄바꿈 유지)
-                message1 = String.format("%s 모니터링에 알림이 발생했습니다.\n알림내용 :\n%s", systemInfo, alertInfo);
-            } else {
-                // 줄바꿈이 없으면 기존 형식 사용
-                message1 = String.format("%s 모니터링에 알림이 발생했습니다.\n알림내용 : %s", systemInfo, alertInfo);
+            // message 파라미터가 이미 템플릿 메시지 형태로 치환된 경우 그대로 사용
+            // 그렇지 않으면 기존 방식으로 조합
+            String message1 = message;
+            if (!StringUtils.hasText(message1)) {
+                // message가 비어있으면 기존 방식으로 조합
+                String systemInfo = StringUtils.hasText(var1) ? var1 : "시스템";
+                String alertInfo = StringUtils.hasText(var2) ? var2 : "알림 내용 없음";
+                
+                if (StringUtils.hasText(alertInfo) && alertInfo.contains("\n")) {
+                    message1 = String.format("%s 모니터링에 알림이 발생했습니다.\n알림내용 :\n%s", systemInfo, alertInfo);
+                } else {
+                    message1 = String.format("%s 모니터링에 알림이 발생했습니다.\n알림내용 : %s", systemInfo, alertInfo);
+                }
             }
             params.add("message_1", truncate(message1, 1000));
             
-            // 템플릿에 채널추가 버튼이 있는 경우 button_1 파라미터 추가
-            // linkType: AC (채널 추가)
-            // curl 예제: button_1: {"button":[{"name":"버튼명","linkType":"AC","linkTypeName":"채널 추가"}]}
-            String button1 = "{\"button\":[{\"name\":\"채널추가\",\"linkType\":\"AC\",\"linkTypeName\":\"채널 추가\"}]}";
+            // 버튼 정보: 파라미터로 받은 것이 있으면 사용, 없으면 기본 버튼 사용
+            String button1;
+            if (StringUtils.hasText(buttonInfo)) {
+                button1 = buttonInfo;
+                log.info("템플릿에서 버튼 정보 사용: {}", button1);
+            } else {
+                // 기본 버튼 (채널 추가)
+                button1 = "{\"button\":[{\"name\":\"채널추가\",\"linkType\":\"AC\",\"linkTypeName\":\"채널 추가\"}]}";
+                log.info("기본 버튼 정보 사용: {}", button1);
+            }
             params.add("button_1", button1);
             
             // curl 예제에는 var1, var2 파라미터가 없음
@@ -104,7 +123,7 @@ public class AligoClient {
             
             // 모든 파라미터 상세 로깅 (디버깅용)
             log.info("Aligo 알림톡 API 파라미터 전송:");
-            log.info("  tpl_code={}", props.getTemplateCode());
+            log.info("  tpl_code={}", tplCode);
             log.info("  message_1={}", message1);
             log.info("  button_1={}", button1);
             log.info("  var1=전달 안 함 (curl 예제 방식)");

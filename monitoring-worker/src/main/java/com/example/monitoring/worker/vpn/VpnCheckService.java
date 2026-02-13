@@ -14,6 +14,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.monitoring.common.domain.VpnCheckMethod;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.time.OffsetDateTime;
@@ -61,7 +63,7 @@ public class VpnCheckService {
             return;
         }
 
-        ServerStatus newStatus = checkConnectivity(freshVpn.getHost());
+        ServerStatus newStatus = checkConnectivity(freshVpn.getHost(), freshVpn.getCheckMethod());
         ServerStatus oldStatus = freshVpn.getStatus();
 
         // 한국 시간(KST, UTC+9)으로 저장
@@ -69,6 +71,12 @@ public class VpnCheckService {
         
         log.info("VPN connectivity check result: id={}, name={}, host={}, oldStatus={}, newStatus={}", 
                 freshVpn.getId(), freshVpn.getName(), freshVpn.getHost(), oldStatus, newStatus);
+        
+        // UP으로 판정된 경우 경고 메시지 추가
+        if (newStatus == ServerStatus.UP) {
+            log.warn("VPN status is UP for id={}, name={}, host={} - Please verify that VPN service is actually running, not just a web/SSH server", 
+                    freshVpn.getId(), freshVpn.getName(), freshVpn.getHost());
+        }
 
         // 항상 lastCheckedAt 업데이트
         freshVpn.setLastCheckedAt(now);
@@ -88,13 +96,16 @@ public class VpnCheckService {
             log.info("VPN status saved: id={}, name={}, status={}, lastCheckedAt={}, lastStatusChangeAt={}", 
                     freshVpn.getId(), freshVpn.getName(), freshVpn.getStatus(), freshVpn.getLastCheckedAt(), freshVpn.getLastStatusChangeAt());
 
-            // 상태 변경 알림 (oldStatus가 null이 아니고 실제로 변경된 경우에만)
-            if (oldStatus != null && oldStatus != newStatus) {
+            // 상태 변경 알림 (oldStatus가 null이 아니고 UNKNOWN이 아니며 실제로 변경된 경우에만)
+            // 초기 상태(UNKNOWN)에서 변경되는 경우는 알림 발송하지 않음
+            if (oldStatus != null && oldStatus != ServerStatus.UNKNOWN && oldStatus != newStatus) {
                 // 최신 엔티티를 사용하여 알림 발송
+                log.info("Sending VPN status change notification: vpn={}, {} -> {}", 
+                        freshVpn.getName(), oldStatus, newStatus);
                 notifier.notifyStatusChange(freshVpn, oldStatus, newStatus);
-            } else if (oldStatus == null) {
-                log.info("Skipping notification for initial status: vpn={}, newStatus={}", 
-                        freshVpn.getName(), newStatus);
+            } else if (oldStatus == null || oldStatus == ServerStatus.UNKNOWN) {
+                log.info("Skipping notification for initial/unknown status: vpn={}, oldStatus={}, newStatus={}", 
+                        freshVpn.getName(), oldStatus, newStatus);
             }
 
             // VPN Down 시 해당 서버의 모니터링 룰 비활성화
@@ -195,9 +206,12 @@ public class VpnCheckService {
 
     /**
      * VPN 호스트 연결성 체크
-     * TCP 연결 테스트만 사용 (Ping은 신뢰할 수 없음)
+     * checkMethod에 따라 TCP, PING, 또는 둘 다 체크
      */
-    private ServerStatus checkConnectivity(String host) {
+    private ServerStatus checkConnectivity(String host, VpnCheckMethod checkMethod) {
+        if (checkMethod == null) {
+            checkMethod = VpnCheckMethod.TCP; // 기본값
+        }
         if (host == null || host.isBlank()) {
             log.warn("VPN host is null or blank");
             return ServerStatus.UNKNOWN;
@@ -214,48 +228,87 @@ public class VpnCheckService {
                 return ServerStatus.UNKNOWN;
             }
 
-            log.debug("Checking VPN connectivity: hostname={}, specifiedPort={}", hostname, specifiedPort);
+            log.info("Checking VPN connectivity: hostname={}, specifiedPort={}, checkMethod={}", hostname, specifiedPort, checkMethod);
 
-            // TCP 연결 테스트만 사용 (Ping은 방화벽에서 차단될 수 있어 신뢰할 수 없음)
+            // PING만 체크하는 경우
+            if (checkMethod == VpnCheckMethod.PING) {
+                return checkPing(hostname);
+            }
+
+            // TCP 체크
+            boolean tcpSuccess = false;
             int[] portsToTest;
             if (specifiedPort > 0) {
                 portsToTest = new int[]{specifiedPort};
+                log.info("VPN will test specified port only: {}", specifiedPort);
             } else {
                 // 기본 포트들 시도: 443, 80, 22, 8080 (HTTPS 우선)
                 portsToTest = new int[]{443, 80, 22, 8080};
+                log.info("VPN will test default ports in order: 443, 80, 22, 8080");
             }
 
             boolean anyPortReachable = false;
+            int successfulPort = -1;
             for (int port : portsToTest) {
                 try (Socket socket = new Socket()) {
+                    log.info("Attempting TCP connection to {}:{} (timeout: {}ms)", hostname, port, CONNECTION_TIMEOUT_MS);
                     socket.connect(new InetSocketAddress(hostname, port), CONNECTION_TIMEOUT_MS);
-                    log.info("VPN TCP connection success: hostname={}, port={}", hostname, port);
-                    return ServerStatus.UP;
+                    successfulPort = port;
+                    log.warn("VPN TCP connection success: hostname={}, port={} - WARNING: This port may not be a VPN service! (Could be web server, SSH, etc.)", hostname, port);
+                    log.warn("VPN status set to UP based on port {} connection, but this does not guarantee VPN service is running", port);
+                    log.warn("If VPN service is not actually running, please specify VPN-specific port in host field (e.g., {}:{}) or change checkMethod to PING", hostname, port);
+                    tcpSuccess = true;
+                    break; // 하나라도 성공하면 중단
                 } catch (java.net.ConnectException e) {
                     // 연결 거부 - 포트는 열려있지만 서비스가 없거나 거부
-                    log.debug("VPN TCP connection refused: hostname={}, port={}", hostname, port);
+                    log.info("VPN TCP connection refused: hostname={}, port={} (port is open but connection refused)", hostname, port);
                     anyPortReachable = true; // 포트는 열려있음
                 } catch (java.net.SocketTimeoutException e) {
                     // 타임아웃 - 연결 불가
-                    log.debug("VPN TCP connection timeout: hostname={}, port={}", hostname, port);
+                    log.info("VPN TCP connection timeout: hostname={}, port={} (timeout after {}ms)", hostname, port, CONNECTION_TIMEOUT_MS);
                 } catch (java.net.UnknownHostException e) {
                     // 호스트를 찾을 수 없음
                     log.warn("VPN host not found: hostname={}, error={}", hostname, e.getMessage());
-                    return ServerStatus.DOWN;
+                    // TCP만 체크하는 경우 즉시 DOWN 반환
+                    if (checkMethod == VpnCheckMethod.TCP) {
+                        return ServerStatus.DOWN;
+                    }
                 } catch (Exception e) {
                     // 기타 오류
-                    log.debug("VPN TCP connection failed: hostname={}, port={}, error={}", hostname, port, e.getMessage());
+                    log.info("VPN TCP connection failed: hostname={}, port={}, error={}", hostname, port, e.getMessage());
                 }
             }
 
-            // 모든 포트 테스트 실패
-            if (anyPortReachable) {
-                // 일부 포트는 열려있지만 연결 실패
-                log.info("VPN connection failed: hostname={}, ports tested but connection failed", hostname);
-            } else {
-                // 모든 포트 연결 불가
-                log.info("VPN connection failed: hostname={}, all ports unreachable", hostname);
+            // TCP만 체크하는 경우
+            if (checkMethod == VpnCheckMethod.TCP) {
+                if (tcpSuccess) {
+                    return ServerStatus.UP;
+                } else {
+                    if (anyPortReachable) {
+                        log.warn("VPN connection failed: hostname={}, some ports were reachable but all connections failed (ports tested: {})", 
+                                hostname, java.util.Arrays.toString(portsToTest));
+                    } else {
+                        log.warn("VPN connection failed: hostname={}, all ports unreachable (ports tested: {})", 
+                                hostname, java.util.Arrays.toString(portsToTest));
+                    }
+                    log.info("VPN status set to DOWN: hostname={}, all tested ports failed (ports tested: {})", 
+                            hostname, java.util.Arrays.toString(portsToTest));
+                    return ServerStatus.DOWN;
+                }
             }
+
+            // BOTH인 경우 PING도 체크
+            if (checkMethod == VpnCheckMethod.BOTH) {
+                boolean pingSuccess = checkPing(hostname) == ServerStatus.UP;
+                if (tcpSuccess || pingSuccess) {
+                    log.info("VPN status set to UP: hostname={}, TCP={}, PING={}", hostname, tcpSuccess, pingSuccess);
+                    return ServerStatus.UP;
+                } else {
+                    log.warn("VPN connection failed: hostname={}, both TCP and PING failed", hostname);
+                    return ServerStatus.DOWN;
+                }
+            }
+
             return ServerStatus.DOWN;
 
         } catch (NumberFormatException e) {
@@ -263,6 +316,33 @@ public class VpnCheckService {
             return ServerStatus.UNKNOWN;
         } catch (Exception e) {
             log.error("VPN connection check error: host={}, error={}", host, e.getMessage(), e);
+            return ServerStatus.DOWN;
+        }
+    }
+
+    /**
+     * PING(ICMP) 체크
+     */
+    private ServerStatus checkPing(String hostname) {
+        try {
+            log.info("Attempting PING to {} (timeout: {}ms)", hostname, CONNECTION_TIMEOUT_MS);
+            InetAddress address = InetAddress.getByName(hostname);
+            boolean reachable = address.isReachable(CONNECTION_TIMEOUT_MS);
+            
+            if (reachable) {
+                log.info("VPN PING success: hostname={}", hostname);
+                return ServerStatus.UP;
+            } else {
+                log.info("VPN PING failed: hostname={} (host not reachable)", hostname);
+                return ServerStatus.DOWN;
+            }
+        } catch (java.net.UnknownHostException e) {
+            log.warn("VPN host not found (PING): hostname={}, error={}", hostname, e.getMessage());
+            return ServerStatus.DOWN;
+        } catch (Exception e) {
+            log.warn("VPN PING check error: hostname={}, error={} - Note: PING may be blocked by firewall or require root/admin privileges", 
+                    hostname, e.getMessage());
+            // PING 실패는 방화벽이나 권한 문제일 수 있으므로 DOWN 반환
             return ServerStatus.DOWN;
         }
     }

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<section th:fragment="content">
+    <div class="container-fluid">
+
+        <div class="page-header mb-3">
+            <h5>내 정보</h5>
+        </div>
+
+        <!-- 메시지 -->
+        <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+            <span th:text="${successMessage}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+            <span th:text="${errorMessage}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <form th:object="${form}" method="post" th:action="@{/profile}">
+            <input type="hidden" th:field="*{id}">
+            <input type="hidden" th:field="*{username}">
+
+            <div class="card card-shadow">
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <label class="col-sm-2 col-form-label">아이디</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" th:value="${form.username}" readonly>
+                            <div class="form-text">아이디는 변경할 수 없습니다</div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <label class="col-sm-2 col-form-label">성명 <span class="text-danger">*</span></label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" th:field="*{name}" required>
+                            <div th:if="${#fields.hasErrors('name')}" class="text-danger">
+                                <small th:errors="*{name}">오류</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <label class="col-sm-2 col-form-label">부서</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" th:field="*{department}">
+                            <div th:if="${#fields.hasErrors('department')}" class="text-danger">
+                                <small th:errors="*{department}">오류</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <label class="col-sm-2 col-form-label">직급</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" th:field="*{position}">
+                            <div th:if="${#fields.hasErrors('position')}" class="text-danger">
+                                <small th:errors="*{position}">오류</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h6 class="mb-3">비밀번호 변경</h6>
+                    <div class="row mb-3">
+                        <label class="col-sm-2 col-form-label">현재 비밀번호</label>
+                        <div class="col-sm-10">
+                            <input type="password" class="form-control" th:field="*{currentPassword}" 
+                                   placeholder="비밀번호를 변경하려면 입력하세요">
+                            <div class="form-text">비밀번호를 변경하지 않으려면 비워두세요</div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <label class="col-sm-2 col-form-label">새 비밀번호</label>
+                        <div class="col-sm-10">
+                            <input type="password" class="form-control" th:field="*{password}" 
+                                   placeholder="새 비밀번호를 입력하세요">
+                            <div th:if="${#fields.hasErrors('password')}" class="text-danger">
+                                <small th:errors="*{password}">오류</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-sm-10 offset-sm-2">
+                            <button type="submit" class="btn btn-primary">저장</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+    </div>
+</section>
+</body>
+</html>

@@ -1,7 +1,15 @@
 -- V1__init.sql (서버 기반 모니터링 시스템 초기 스키마)
 -- DB 초기화용: 기존 테이블 삭제 후 재생성
+-- 
+-- 통합된 마이그레이션 내용:
+-- - V1: 초기 스키마 (servers, monitoring_rules, check_runs, alert_recipients 등)
+-- - V6: VPN check_method 컬럼 추가 (vpn_connections.check_method: TCP, PING, BOTH)
+-- - V9: 카카오 템플릿 코드 컬럼 추가 
+--       (monitoring_rules.kakao_template_code, notification_outbox.kakao_template_code)
+-- - V10: 카카오 템플릿 관리 테이블 추가 (kakao_templates)
 
 -- 기존 테이블 삭제 (초기화용)
+DROP TABLE IF EXISTS kakao_templates CASCADE;
 DROP TABLE IF EXISTS vpn_notification_templates CASCADE;
 DROP TABLE IF EXISTS notification_outbox CASCADE;
 DROP TABLE IF EXISTS alert_rule_recipient_links CASCADE;
@@ -44,6 +52,8 @@ create table vpn_connections (
     name varchar(100) not null unique,              -- VPN명 (ex: DEV_VPN, PROD_VPN)
     host varchar(255) not null,                     -- VPN 호스트 (IP 또는 URL)
     check_interval_sec int not null default 60,     -- VPN 상태 체크 주기 (초)
+    check_method varchar(10) not null default 'TCP', -- VPN 체크 방법: TCP, PING, BOTH
+    kakao_template_code varchar(100) null,          -- 카카오 알림톡 템플릿 ID (Aligo tpl_code)
     enabled boolean not null default true,
     status varchar(20) not null default 'UNKNOWN', -- UP, DOWN, UNKNOWN
     last_checked_at timestamptz null,
@@ -52,6 +62,9 @@ create table vpn_connections (
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
+
+comment on column vpn_connections.check_method is 'VPN 체크 방법: TCP, PING, BOTH';
+comment on column vpn_connections.kakao_template_code is '카카오 알림톡 템플릿 ID (Aligo tpl_code). KAKAO 채널 사용 시 선택';
 
 create index if not exists idx_vpn_connections_enabled on vpn_connections(enabled);
 create index if not exists idx_vpn_connections_status on vpn_connections(status);
@@ -116,6 +129,8 @@ create table monitoring_rules (
     -- 알림 설정
     channels varchar(100) null,                    -- 알림 채널 (SMS,EMAIL,KAKAO)
     message_template text not null,                 -- 메시지 템플릿
+    kakao_template_code varchar(100) null,          -- 카카오 알림톡 템플릿 ID (Aligo tpl_code)
+    kakao_template_variables text null,            -- 카카오 템플릿 변수 값 (JSON 형식: {"변수명": "값"})
     cooldown_sec int not null default 300,         -- 쿨다운 시간 (초)
     
     -- 실행 관리
@@ -131,16 +146,19 @@ create table monitoring_rules (
     updated_at timestamptz not null default now()
 );
 
+comment on column monitoring_rules.kakao_template_code is '카카오 알림톡 템플릿 ID (Aligo tpl_code). KAKAO 채널 사용 시 필수';
+
 create index if not exists idx_monitoring_rules_server_id on monitoring_rules(server_id);
 create index if not exists idx_monitoring_rules_enabled on monitoring_rules(enabled);
 create index if not exists idx_monitoring_rules_type on monitoring_rules(monitoring_type);
 create index if not exists idx_monitoring_rules_next_run_at on monitoring_rules(next_run_at);
 create index if not exists idx_monitoring_rules_due on monitoring_rules(next_run_at) where enabled = true;
 
--- 5) check_runs (monitoring_rule_id 참조)
+-- 5) check_runs (monitoring_rule_id 또는 vpn_id 참조)
 create table check_runs (
     id bigserial primary key,
-    monitoring_rule_id bigint not null references monitoring_rules(id) on delete cascade,
+    monitoring_rule_id bigint null references monitoring_rules(id) on delete cascade,
+    vpn_id bigint null references vpn_connections(id) on delete set null,
 
     success boolean not null,
 
@@ -149,11 +167,15 @@ create table check_runs (
 
     duration_ms bigint,
     output text,
-    error_message varchar(1000)
+    error_message varchar(1000),
+    
+    constraint chk_check_runs_rule_or_vpn check (monitoring_rule_id is not null or vpn_id is not null)
 );
 
 create index if not exists idx_check_runs_monitoring_rule_id_started_at
     on check_runs(monitoring_rule_id, started_at desc);
+create index if not exists idx_check_runs_vpn_id_started_at
+    on check_runs(vpn_id, started_at desc);
 
 -- 6) alert_recipients
 create table alert_recipients (
@@ -196,6 +218,7 @@ create table notification_outbox (
 
     monitoring_rule_id bigint null references monitoring_rules(id) on delete set null,
     check_run_id bigint null references check_runs(id) on delete set null,
+    kakao_template_code varchar(100) null,          -- 카카오 알림톡 템플릿 ID (Aligo tpl_code)
 
     to_addr varchar(200) not null,
     title varchar(200) null,
@@ -212,6 +235,8 @@ create table notification_outbox (
     created_at timestamptz not null default now(),
     sent_at timestamptz null
 );
+
+comment on column notification_outbox.kakao_template_code is '카카오 알림톡 템플릿 ID (Aligo tpl_code). KAKAO 채널 사용 시 알림 규칙의 템플릿 코드 저장';
 
 create index if not exists idx_outbox_due on notification_outbox(status, next_attempt_at, id);
 create index if not exists idx_outbox_processing_until on notification_outbox(status, processing_until);
@@ -303,3 +328,40 @@ create index if not exists idx_vpn_templates_enabled on vpn_notification_templat
 -- $${oldStatus} - 이전 상태 (UP/DOWN/UNKNOWN)
 -- $${newStatus} - 현재 상태 (UP/DOWN/UNKNOWN)
 -- $${changeTime} - 상태 변경 시간 (yyyy-MM-dd HH:mm:ss)
+
+-- 13) vpn_recipient_links (VPN별 알림 수신자 연결)
+create table vpn_recipient_links (
+    id bigserial primary key,
+    vpn_id bigint not null references vpn_connections(id) on delete cascade,
+    recipient_id bigint not null references alert_recipients(id) on delete cascade,
+    enabled boolean not null default true,
+    created_at timestamptz not null default now(),
+    unique (vpn_id, recipient_id)
+);
+
+create index if not exists idx_vpn_recipient_links_vpn_id on vpn_recipient_links(vpn_id);
+create index if not exists idx_vpn_recipient_links_recipient_id on vpn_recipient_links(recipient_id);
+
+-- 14) kakao_templates (카카오 알림톡 템플릿 관리)
+create table kakao_templates (
+    id bigserial primary key,
+    template_code varchar(100) not null unique,     -- Aligo 템플릿 코드 (tpl_code)
+    name varchar(100) not null,                      -- 템플릿 이름
+    template_message text null,                      -- 템플릿 메시지 형태 (알리고에 등록된 템플릿 본문 형태)
+    variables text null,                             -- 템플릿 변수 목록 (JSON 형식 또는 쉼표 구분)
+    button_info text null,                           -- 버튼 정보 (JSON 형식: {"button":[{"name":"버튼명","linkType":"AC","linkTypeName":"채널 추가"}]})
+    enabled boolean not null default true,           -- 활성화 여부
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_kakao_templates_enabled on kakao_templates(enabled);
+create index if not exists idx_kakao_templates_template_code on kakao_templates(template_code);
+
+comment on table kakao_templates is '카카오 알림톡 템플릿 관리 (Aligo 템플릿 코드 및 변수 정보)';
+comment on column kakao_templates.template_code is 'Aligo 템플릿 코드 (tpl_code)';
+comment on column kakao_templates.name is '템플릿 이름';
+comment on column kakao_templates.template_message is '템플릿 메시지 형태 (알리고에 등록된 템플릿 본문 형태, #{변수명} 형식 사용)';
+comment on column kakao_templates.variables is '템플릿 변수 목록 (JSON 형식: ["변수1", "변수2"] 또는 쉼표 구분 문자열)';
+comment on column kakao_templates.button_info is '버튼 정보 (JSON 형식: {"button":[{"name":"버튼명","linkType":"AC","linkTypeName":"채널 추가"}]})';
+comment on column kakao_templates.enabled is '활성화 여부';

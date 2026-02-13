@@ -46,6 +46,8 @@ public class MonitoringRuleForm {
     // 알림 설정
     private List<String> channelList = new ArrayList<>();  // SMS,EMAIL,KAKAO
     private String messageTemplate;
+    private String kakaoTemplateCode;  // 카카오 알림톡 템플릿 ID
+    private String kakaoTemplateVariables;  // 카카오 템플릿 변수 값 (JSON 형식: {"변수명": "값"})
     private Integer cooldownSec = 300;
 
     // Getters and Setters
@@ -119,6 +121,12 @@ public class MonitoringRuleForm {
 
     public String getMessageTemplate() { return messageTemplate; }
     public void setMessageTemplate(String messageTemplate) { this.messageTemplate = messageTemplate; }
+
+    public String getKakaoTemplateCode() { return kakaoTemplateCode; }
+    public void setKakaoTemplateCode(String kakaoTemplateCode) { this.kakaoTemplateCode = kakaoTemplateCode; }
+
+    public String getKakaoTemplateVariables() { return kakaoTemplateVariables; }
+    public void setKakaoTemplateVariables(String kakaoTemplateVariables) { this.kakaoTemplateVariables = kakaoTemplateVariables; }
 
     public Integer getCooldownSec() { return cooldownSec; }
     public void setCooldownSec(Integer cooldownSec) { this.cooldownSec = cooldownSec; }

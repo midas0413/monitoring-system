@@ -27,8 +27,9 @@ gradle/wrapper/gradle-wrapper.jar
 Thumbs.db
 
 # Documentation (분석 문서)
-*.md
-!README.md
+# *.md
+# !README.md
+# 빌드에 필요하므로 일단 제외하지 않음
 
 # SQL 유틸리티 파일
 export_monitoring_rules_insert.sql
@@ -42,12 +43,12 @@ monitoring-system-*.zip
 .git/
 .gitignore
 
-# Docker
-Dockerfile
-Dockerfile.web
-Dockerfile.worker
-docker-compose.yml
-docker-compose.prod.yml
+# Docker (빌드에 필요하므로 제외하지 않음)
+# Dockerfile
+# Dockerfile.web
+# Dockerfile.worker
+# docker-compose.yml
+# docker-compose.prod.yml
 .dockerignore
 
 # Environment

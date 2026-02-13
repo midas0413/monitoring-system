@@ -5,6 +5,7 @@ import com.example.monitoring.common.domain.MonitoringRuleEntity;
 import com.example.monitoring.common.domain.ServerEntity;
 import com.example.monitoring.web.dto.MonitoringRuleForm;
 import com.example.monitoring.web.dto.RuleRecipientsForm;
+import com.example.monitoring.web.service.KakaoTemplateService;
 import com.example.monitoring.web.service.MessageTemplateTestService;
 import com.example.monitoring.web.service.MonitoringRuleService;
 import com.example.monitoring.web.service.RuleRecipientLinkService;
@@ -26,15 +27,18 @@ public class MonitoringRuleController {
     private final ServerService serverService;
     private final SystemCodeService systemCodeService;
     private final RuleRecipientLinkService linkService;
+    private final KakaoTemplateService kakaoTemplateService;
 
     public MonitoringRuleController(MonitoringRuleService ruleService,
                                    ServerService serverService,
                                    SystemCodeService systemCodeService,
-                                   RuleRecipientLinkService linkService) {
+                                   RuleRecipientLinkService linkService,
+                                   KakaoTemplateService kakaoTemplateService) {
         this.ruleService = ruleService;
         this.serverService = serverService;
         this.systemCodeService = systemCodeService;
         this.linkService = linkService;
+        this.kakaoTemplateService = kakaoTemplateService;
     }
 
     @GetMapping
@@ -66,12 +70,13 @@ public class MonitoringRuleController {
         form.setEnabled(true);
         form.setIntervalSec(60);
         form.setCooldownSec(300);
-        form.setMessageTemplate("[${ruleName}] 모니터링에 알림 발생.\n임계값 : ${threshold}\n현재값 : ${outputNum}\n발생시각 : ${finishedAt} [${finishedAtLocal}]");
+        // messageTemplate은 더 이상 사용하지 않음 (카카오 템플릿 사용)
         
         model.addAttribute("form", form);
         model.addAttribute("servers", serverService.listEnabled());
         model.addAttribute("monitoringTypes", systemCodeService.listByType("MONITORING_TYPE"));
         model.addAttribute("alertOperators", systemCodeService.listByType("ALERT_OPERATOR"));
+        model.addAttribute("kakaoTemplates", kakaoTemplateService.listEnabled());
         return "layout";
     }
 
@@ -100,6 +105,7 @@ public class MonitoringRuleController {
         model.addAttribute("servers", serverService.listEnabled());
         model.addAttribute("monitoringTypes", systemCodeService.listByType("MONITORING_TYPE"));
         model.addAttribute("alertOperators", systemCodeService.listByType("ALERT_OPERATOR"));
+        model.addAttribute("kakaoTemplates", kakaoTemplateService.listEnabled());
         return "layout";
     }
 
@@ -158,4 +164,18 @@ public class MonitoringRuleController {
         }
     }
 
+    /**
+     * 카카오 템플릿 정보 조회 API (템플릿 ID로 조회)
+     */
+    @GetMapping("/api/kakao-template/{templateCode}")
+    @ResponseBody
+    public KakaoTemplateInfo getKakaoTemplateInfo(@PathVariable String templateCode) {
+        var template = kakaoTemplateService.getByTemplateCode(templateCode);
+        if (template == null) {
+            return new KakaoTemplateInfo(null, null, null);
+        }
+        return new KakaoTemplateInfo(template.getTemplateCode(), template.getName(), template.getVariables());
+    }
+
+    public record KakaoTemplateInfo(String templateCode, String name, String variables) {}
 }

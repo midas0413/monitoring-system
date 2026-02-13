@@ -1,22 +1,50 @@
 version: '3.8'
 
-# 프로덕션 환경용 docker-compose 설정
+# 프로덕션 환경용 Docker Compose 설정
 # 사용법: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 services:
   web:
+    restart: always
     environment:
-      # 프로덕션 환경 변수 오버라이드
-      SPRING_PROFILES_ACTIVE: prod
-      LOGGING_LEVEL_ROOT: INFO
-      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: INFO
-      LOGGING_LEVEL_ORG_THYMELEAF: INFO
-    # 프로덕션에서는 포트를 외부에 노출하지 않거나 리버스 프록시 사용
-    # ports:
-    #   - "8080:8080"
+      # 프로덕션 환경에서는 더 엄격한 로깅 레벨 사용
+      LOGGING_LEVEL_ROOT: ${LOGGING_LEVEL_ROOT:-WARN}
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB:-WARN}
+      LOGGING_LEVEL_ORG_THYMELEAF: ${LOGGING_LEVEL_ORG_THYMELEAF:-WARN}
+    # 리소스 제한 설정 (선택사항)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
 
   worker:
+    restart: always
     environment:
-      SPRING_PROFILES_ACTIVE: prod
-      LOGGING_LEVEL_ROOT: INFO
-    # 프로덕션에서 여러 worker 실행: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale worker=2
+      # 프로덕션 환경에서는 더 엄격한 로깅 레벨 사용
+      LOGGING_LEVEL_ROOT: ${LOGGING_LEVEL_ROOT:-WARN}
+    # 리소스 제한 설정 (선택사항)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    # 여러 worker 실행: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale worker=3
+
+  postgres:
+    restart: always
+    # 리소스 제한 설정 (선택사항)
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M

@@ -188,8 +188,11 @@ public class MonitoringRuleService {
 
         // 알림 설정
         entity.setChannels(form.toChannelsCsv());
-        entity.setMessageTemplate(form.getMessageTemplate() != null ? form.getMessageTemplate() : 
-                "${ruleName}에 모니터링 알림이 발생하였습니다.\n임계값 : ${threshold}\n현재값 : ${outputNum}");
+        // messageTemplate은 더 이상 사용하지 않음 (카카오 템플릿 사용)
+        // 기존 데이터 호환성을 위해 빈 값으로 설정
+        entity.setMessageTemplate("");
+        entity.setKakaoTemplateCode(form.getKakaoTemplateCode());
+        entity.setKakaoTemplateVariables(form.getKakaoTemplateVariables());
         entity.setCooldownSec(form.getCooldownSec() != null ? form.getCooldownSec() : 300);
     }
 
@@ -229,6 +232,8 @@ public class MonitoringRuleService {
 
         form.loadFromChannelsCsv(entity.getChannels());
         form.setMessageTemplate(entity.getMessageTemplate());
+        form.setKakaoTemplateCode(entity.getKakaoTemplateCode());
+        form.setKakaoTemplateVariables(entity.getKakaoTemplateVariables());
         form.setCooldownSec(entity.getCooldownSec());
 
         return form;

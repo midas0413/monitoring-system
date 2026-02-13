@@ -12,7 +12,12 @@ public interface VpnRecipientLinkRepository extends JpaRepository<VpnRecipientLi
     @Query("SELECT l FROM VpnRecipientLinkEntity l JOIN FETCH l.recipient WHERE l.vpnId = :vpnId AND l.enabled = true")
     List<VpnRecipientLinkEntity> findByVpnIdAndEnabledTrue(@Param("vpnId") Long vpnId);
 
+    @Query("SELECT l FROM VpnRecipientLinkEntity l JOIN FETCH l.recipient WHERE l.vpnId = :vpnId")
+    List<VpnRecipientLinkEntity> findByVpnIdWithRecipient(@Param("vpnId") Long vpnId);
+
     List<VpnRecipientLinkEntity> findByVpnId(Long vpnId);
+    
+    java.util.Optional<VpnRecipientLinkEntity> findByVpnIdAndRecipient_Id(Long vpnId, Long recipientId);
 
     void deleteByVpnId(Long vpnId);
 }

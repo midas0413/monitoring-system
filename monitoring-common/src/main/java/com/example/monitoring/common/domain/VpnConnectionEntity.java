@@ -20,6 +20,16 @@ public class VpnConnectionEntity {
     @Column(name = "check_interval_sec", nullable = false)
     private Integer checkIntervalSec = 60;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "check_method", nullable = false, length = 10)
+    private VpnCheckMethod checkMethod = VpnCheckMethod.TCP;
+
+    @Column(name = "kakao_template_code", length = 100)
+    private String kakaoTemplateCode;  // 카카오 알림톡 템플릿 ID (Aligo tpl_code)
+
+    @Column(name = "kakao_template_variables", columnDefinition = "text")
+    private String kakaoTemplateVariables;  // 카카오 템플릿 변수 값 (JSON 형식: {"변수명": "값"})
+
     @Column(nullable = false)
     private Boolean enabled = true;
 
@@ -53,6 +63,15 @@ public class VpnConnectionEntity {
 
     public Integer getCheckIntervalSec() { return checkIntervalSec; }
     public void setCheckIntervalSec(Integer checkIntervalSec) { this.checkIntervalSec = checkIntervalSec; }
+
+    public VpnCheckMethod getCheckMethod() { return checkMethod; }
+    public void setCheckMethod(VpnCheckMethod checkMethod) { this.checkMethod = checkMethod; }
+
+    public String getKakaoTemplateCode() { return kakaoTemplateCode; }
+    public void setKakaoTemplateCode(String kakaoTemplateCode) { this.kakaoTemplateCode = kakaoTemplateCode; }
+
+    public String getKakaoTemplateVariables() { return kakaoTemplateVariables; }
+    public void setKakaoTemplateVariables(String kakaoTemplateVariables) { this.kakaoTemplateVariables = kakaoTemplateVariables; }
 
     public Boolean getEnabled() { return enabled; }
     public void setEnabled(Boolean enabled) { this.enabled = enabled; }

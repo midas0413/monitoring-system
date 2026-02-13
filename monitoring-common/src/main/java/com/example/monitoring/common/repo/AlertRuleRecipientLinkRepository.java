@@ -13,6 +13,9 @@ public interface AlertRuleRecipientLinkRepository extends JpaRepository<AlertRul
     @Query("SELECT l FROM AlertRuleRecipientLinkEntity l JOIN FETCH l.recipient WHERE l.ruleId = :ruleId AND l.enabled = true")
     List<AlertRuleRecipientLinkEntity> findByRuleIdAndEnabledTrue(@Param("ruleId") Long ruleId);
 
+    @Query("SELECT l FROM AlertRuleRecipientLinkEntity l JOIN FETCH l.recipient WHERE l.ruleId = :ruleId")
+    List<AlertRuleRecipientLinkEntity> findByRuleIdWithRecipient(@Param("ruleId") Long ruleId);
+
     List<AlertRuleRecipientLinkEntity> findByRuleId(Long ruleId);
     Optional<AlertRuleRecipientLinkEntity> findByRuleIdAndRecipient_Id(Long ruleId, Long recipientId);
 

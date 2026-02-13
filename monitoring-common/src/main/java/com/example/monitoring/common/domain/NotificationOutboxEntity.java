@@ -51,6 +51,9 @@ public class NotificationOutboxEntity {
     @Column(name="processing_until")
     private OffsetDateTime processingUntil;
 
+    @Column(name="kakao_template_code", length=100)
+    private String kakaoTemplateCode;  // 카카오 알림톡 템플릿 ID (Aligo tpl_code)
+
     @Column(name="created_at", nullable=false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
@@ -103,6 +106,9 @@ public class NotificationOutboxEntity {
 
     public OffsetDateTime getProcessingUntil() { return processingUntil; }
     public void setProcessingUntil(OffsetDateTime processingUntil) { this.processingUntil = processingUntil; }
+
+    public String getKakaoTemplateCode() { return kakaoTemplateCode; }
+    public void setKakaoTemplateCode(String kakaoTemplateCode) { this.kakaoTemplateCode = kakaoTemplateCode; }
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }

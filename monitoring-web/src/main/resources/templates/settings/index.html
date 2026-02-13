@@ -57,5 +57,28 @@
         </div>
       </div>
     </div>
+
+    <!-- Kakao Templates -->
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">💬 카카오 템플릿</h5>
+          <p class="card-text text-muted">카카오 알림톡 템플릿 관리 (템플릿 코드 및 변수 정보)</p>
+          <a th:href="@{/settings/kakao-templates}" class="btn btn-primary">관리</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- User Management (Admin only) -->
+    <div class="col-md-6" th:if="${isAdmin}">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">👤 사용자 관리</h5>
+          <p class="card-text text-muted">시스템 사용자 등록 및 관리 (아이디, 비밀번호, 권한 등)</p>
+          <a th:href="@{/settings/users}" class="btn btn-primary">관리</a>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>

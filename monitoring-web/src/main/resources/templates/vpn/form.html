@@ -56,6 +56,7 @@
         th:method="${form.id != null ? 'POST' : 'POST'}" 
         th:object="${form}">
     <input type="hidden" th:field="*{id}" />
+    <input type="hidden" id="vpnKakaoTemplateVariablesField" th:field="*{kakaoTemplateVariables}" />
 
     <div class="row">
       <div class="col-md-6">
@@ -97,6 +98,24 @@
       </div>
       <div class="col-md-6">
         <div class="mb-3">
+          <label for="checkMethod" class="form-label">체크 방법 <span class="text-danger">*</span></label>
+          <select class="form-select" id="checkMethod" th:field="*{checkMethod}" required>
+            <option value="TCP">TCP 연결 (포트 체크)</option>
+            <option value="PING">PING (ICMP)</option>
+            <option value="BOTH">TCP + PING (둘 중 하나라도 성공하면 UP)</option>
+          </select>
+          <small class="form-text text-muted">
+            <strong>TCP:</strong> 포트 연결 테스트 (기본값: 443, 80, 22, 8080 또는 지정된 포트)<br>
+            <strong>PING:</strong> ICMP PING 테스트 (방화벽에서 차단될 수 있음)<br>
+            <strong>BOTH:</strong> TCP와 PING 모두 체크 (둘 중 하나라도 성공하면 UP)
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-12">
+        <div class="mb-3">
           <label class="form-label">체크 주기 안내</label>
           <div class="alert alert-info mb-0 small">
             <strong>권장 설정:</strong><br>
@@ -106,6 +125,63 @@
             <strong>참고:</strong> 시스템은 10초마다 체크 주기를 확인하며, 설정된 주기가 지난 VPN만 체크합니다.
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-12">
+        <div class="mb-3">
+          <label for="kakaoTemplateCode" class="form-label">카카오 알림톡 템플릿</label>
+          <select class="form-select" id="kakaoTemplateCode" th:field="*{kakaoTemplateCode}">
+            <option value="">-- 템플릿 선택 (선택사항) --</option>
+            <option th:each="template : ${kakaoTemplates}" 
+                    th:value="${template.templateCode}" 
+                    th:selected="${form.kakaoTemplateCode != null && form.kakaoTemplateCode == template.templateCode}"
+                    th:text="${template.name} + ' (' + ${template.templateCode} + ')'"
+                    th:data-variables="${template.variables}">
+            </option>
+          </select>
+          <div class="form-text small text-muted mt-2">
+            VPN 상태 변경 알림 발송 시 사용할 카카오 알림톡 템플릿을 선택하세요. 
+            템플릿은 <a th:href="@{/settings/kakao-templates}" target="_blank">카카오 템플릿 관리</a>에서 등록할 수 있습니다.
+          </div>
+          <!-- 템플릿 변수 표시 및 입력 영역 -->
+          <div id="vpnKakaoTemplateVariables" class="mt-2" data-init-hidden="true" style="display: none !important;">
+            <div class="alert alert-info mb-2">
+              <strong>템플릿 변수:</strong>
+              <div id="vpnTemplateVariablesList" class="mt-2"></div>
+            </div>
+            <!-- 템플릿 변수 입력 필드 (동적 생성) -->
+            <div id="vpnTemplateVariableInputs" class="mt-2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 카카오 템플릿 테스트 -->
+    <div class="row g-3 mb-4" id="vpnKakaoTemplateTestBlock" style="display: none;">
+      <div class="col-12">
+        <h6 class="text-primary mb-2"><i class="bi bi-chat-text"></i> 카카오 템플릿 테스트</h6>
+        <hr class="mb-3">
+      </div>
+      <div class="col-12">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label small mb-1">테스트 수신자</label>
+            <input type="text" class="form-control form-control-sm" id="vpnTestRecipient" 
+                   placeholder="010-1234-5678" value="">
+          </div>
+          <div class="col-md-2">
+            <button type="button" class="btn btn-sm btn-outline-info w-100" id="vpnTestTemplateBtn" 
+                    th:disabled="${form.id == null}">
+              <i class="bi bi-send"></i> 템플릿 테스트
+            </button>
+          </div>
+          <div class="col-md-7">
+            <div id="vpnTemplateTestResult" class="alert mb-0" style="display:none;" role="alert"></div>
+          </div>
+        </div>
+        <small class="form-text text-muted">카카오 템플릿을 선택하고 VPN을 저장한 후 템플릿 테스트가 가능합니다.</small>
       </div>
     </div>
 
@@ -128,97 +204,310 @@
     </div>
   </form>
 
-  <!-- VPN 알림 템플릿 관리 섹션 (VPN당 하나의 템플릿만 사용) -->
-  <div class="card card-shadow mt-4">
-    <div class="card-header">
-      <h5 class="mb-0">VPN 알림 메시지 템플릿</h5>
-    </div>
-    <div class="card-body">
-      <div th:if="${form.id == null}" class="alert alert-info mb-0">
-        <strong>안내:</strong> VPN을 먼저 등록하신 후 템플릿을 추가할 수 있습니다.
-      </div>
-      <div th:if="${form.id != null}">
-        <!-- 템플릿 등록/수정 폼 -->
-        <form th:action="${template != null ? '/vpn/' + form.id + '/templates/' + template.id : '/vpn/' + form.id + '/templates'}" 
-              method="post">
-          <input type="hidden" name="vpnId" th:value="${form.id}">
-          <input type="hidden" name="id" th:value="${template != null ? template.id : ''}">
-          
-          <div class="row">
-            <div class="col-md-6">
-              <div class="mb-3">
-                <label for="templateName" class="form-label">템플릿 이름 <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" id="templateName" name="name" 
-                       th:value="${template != null ? template.name : ''}" required
-                       placeholder="예: 기본 알림 템플릿">
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="mb-3">
-                <label class="form-label">상태</label>
-                <div class="form-check mt-2">
-                  <input class="form-check-input" type="checkbox" id="templateEnabled" name="enabled" 
-                         th:checked="${template != null ? template.enabled : true}">
-                  <label class="form-check-label" for="templateEnabled">활성</label>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="mb-3">
-            <label for="titleTemplate" class="form-label">제목 템플릿 <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="titleTemplate" name="titleTemplate" 
-                   th:value="${template != null ? template.titleTemplate : ''}" required
-                   placeholder="예: VPN 상태 변경: ${vpnName}">
-            <small class="form-text text-muted">템플릿 변수를 사용할 수 있습니다.</small>
-          </div>
-          
-          <div class="mb-3">
-            <label for="bodyTemplate" class="form-label">본문 템플릿 <span class="text-danger">*</span></label>
-            <textarea class="form-control" id="bodyTemplate" name="bodyTemplate" rows="8" required
-                      placeholder="예: [VPN 상태 변경 알림]&#10;VPN명: ${vpnName}&#10;호스트: ${vpnHost}&#10;이전 상태: ${oldStatus}&#10;현재 상태: ${newStatus}&#10;변경 시간: ${changeTime}"><th:block th:utext="${template != null ? template.bodyTemplate : ''}"></th:block></textarea>
-            <small class="form-text text-muted">템플릿 변수를 사용할 수 있습니다.</small>
-          </div>
-          
-          <div class="mb-3">
-            <label for="templateDescription" class="form-label">설명</label>
-            <textarea class="form-control" id="templateDescription" name="description" rows="2"
-                      placeholder="템플릿에 대한 설명을 입력하세요"><th:block th:utext="${template != null ? template.description : ''}"></th:block></textarea>
-          </div>
-          
-          <div class="d-flex justify-content-between">
-            <div>
-              <button type="submit" class="btn btn-primary">
-                <span th:if="${template == null}">템플릿 등록</span>
-                <span th:if="${template != null}">템플릿 수정</span>
-              </button>
-              <form th:if="${template != null}" 
-                    th:action="@{/vpn/{vpnId}/templates/{id}/delete(vpnId=${form.id}, id=${template.id})}" 
-                    method="post" style="display: inline;" 
-                    onsubmit="return confirm('템플릿을 삭제하시겠습니까?');">
-                <button type="submit" class="btn btn-outline-danger">템플릿 삭제</button>
-              </form>
-            </div>
-          </div>
-        </form>
-        
-        <div class="alert alert-info mt-3 mb-0 small">
-          <strong>템플릿 변수:</strong><br>
-          • <code>${vpnName}</code> - VPN 이름<br>
-          • <code>${vpnHost}</code> - VPN 호스트<br>
-          • <code>${oldStatus}</code> - 이전 상태 (UP/DOWN/UNKNOWN)<br>
-          • <code>${newStatus}</code> - 현재 상태 (UP/DOWN/UNKNOWN)<br>
-          • <code>${changeTime}</code> - 상태 변경 시간 (yyyy-MM-dd HH:mm:ss)
-        </div>
-      </div>
-    </div>
-  </div>
-
 
   <script th:inline="javascript">
   (function(){
     var testBtn = document.getElementById('testVpnConnectionBtn');
     var testResult = document.getElementById('vpnTestResult');
+    
+    // VPN 카카오 템플릿 선택 시 변수 표시 및 입력 필드 생성
+    var vpnKakaoTemplateCode = document.getElementById('kakaoTemplateCode');
+    var vpnKakaoTemplateVariables = document.getElementById('vpnKakaoTemplateVariables');
+    var vpnTemplateVariablesList = document.getElementById('vpnTemplateVariablesList');
+    var vpnKakaoTemplateTestBlock = document.getElementById('vpnKakaoTemplateTestBlock');
+    var vpnKakaoTemplateCodeSelect = document.getElementById('kakaoTemplateCode');
+    var form = document.querySelector('form');
+    
+    function updateVpnTemplateVariables() {
+      if (!vpnKakaoTemplateCode || !vpnKakaoTemplateVariables || !vpnTemplateVariablesList) return;
+      
+      var selectedOption = vpnKakaoTemplateCode.options[vpnKakaoTemplateCode.selectedIndex];
+      if (!selectedOption || !selectedOption.value) {
+        vpnKakaoTemplateVariables.style.display = 'none';
+        var variableInputs = document.getElementById('vpnTemplateVariableInputs');
+        if (variableInputs) {
+          variableInputs.innerHTML = '';
+        }
+        if (vpnKakaoTemplateTestBlock) {
+          vpnKakaoTemplateTestBlock.style.display = 'none';
+        }
+        return;
+      }
+      
+      var variables = selectedOption.getAttribute('data-variables');
+      if (variables && variables.trim()) {
+        try {
+          var vars = [];
+          if (variables.trim().startsWith('[')) {
+            vars = JSON.parse(variables);
+          } else {
+            vars = variables.split(',').map(function(v) { return v.trim(); }).filter(function(v) { return v.length > 0; });
+          }
+          
+          if (vars.length > 0) {
+            // 먼저 vpnKakaoTemplateVariables를 표시
+            vpnKakaoTemplateVariables.removeAttribute('style');
+            vpnKakaoTemplateVariables.classList.remove('d-none', 'hidden', 'invisible');
+            vpnKakaoTemplateVariables.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; height: auto !important; min-height: 1px !important;';
+            void vpnKakaoTemplateVariables.offsetHeight;
+            
+            // 변수 목록 표시
+            var html = '<div class="d-flex flex-wrap gap-2">';
+            vars.forEach(function(v) {
+              html += '<span class="badge bg-primary">' + escapeHtml(v) + '</span>';
+            });
+            html += '</div>';
+            vpnTemplateVariablesList.innerHTML = html;
+            
+            // 변수 입력 필드 생성
+            var variableInputs = document.getElementById('vpnTemplateVariableInputs');
+            if (variableInputs) {
+              var inputsHtml = '<div class="card card-shadow mt-2"><div class="card-body"><h6 class="card-title">템플릿 변수 입력</h6>';
+              inputsHtml += '<div class="mb-3">';
+              inputsHtml += '<button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" ';
+              inputsHtml += 'data-bs-target="#vpnTemplateVariablesHelp" aria-expanded="false" aria-controls="vpnTemplateVariablesHelp" ';
+              inputsHtml += 'id="vpnTemplateVariablesHelpToggle">';
+              inputsHtml += '<i class="bi bi-chevron-down" id="vpnTemplateVariablesHelpIcon"></i> 사용 가능한 템플릿 변수 보기';
+              inputsHtml += '</button>';
+              inputsHtml += '<div class="collapse mt-2" id="vpnTemplateVariablesHelp">';
+              inputsHtml += '<div class="border rounded p-3 bg-light small">';
+              inputsHtml += '<strong class="d-block mb-2">📝 사용 가능한 템플릿 변수 (${변수명} 형식 사용)</strong>';
+              inputsHtml += '<div class="row">';
+              inputsHtml += '<div class="col-md-6">';
+              inputsHtml += '<strong class="text-primary">📋 VPN 정보</strong>';
+              inputsHtml += '<ul class="small mb-2">';
+              inputsHtml += '<li><code>${vpnName}</code> - VPN 이름</li>';
+              inputsHtml += '<li><code>${vpnId}</code> - VPN ID</li>';
+              inputsHtml += '<li><code>${vpnHost}</code> - VPN 호스트 (IP 또는 도메인)</li>';
+              inputsHtml += '</ul>';
+              inputsHtml += '<strong class="text-primary">📊 상태 정보</strong>';
+              inputsHtml += '<ul class="small mb-2">';
+              inputsHtml += '<li><code>${oldStatus}</code> - 이전 상태 (UP/DOWN/UNKNOWN)</li>';
+              inputsHtml += '<li><code>${newStatus}</code> - 현재 상태 (UP/DOWN/UNKNOWN)</li>';
+              inputsHtml += '</ul>';
+              inputsHtml += '</div>';
+              inputsHtml += '<div class="col-md-6">';
+              inputsHtml += '<strong class="text-primary">⏰ 시간 정보</strong>';
+              inputsHtml += '<ul class="small mb-2">';
+              inputsHtml += '<li><code>${changeTime}</code> - 상태 변경 시간 (한국 시간, yyyy-MM-dd HH:mm:ss)</li>';
+              inputsHtml += '<li><code>${changeDate}</code> - 상태 변경 날짜 (한국 시간, yyyy-MM-dd)</li>';
+              inputsHtml += '<li><code>${changeTimeOnly}</code> - 상태 변경 시간 (한국 시간, HH:mm:ss)</li>';
+              inputsHtml += '</ul>';
+              inputsHtml += '</div>';
+              inputsHtml += '</div>';
+              inputsHtml += '<div class="mt-2 pt-2 border-top">';
+              inputsHtml += '<small class="text-muted">';
+              inputsHtml += '💡 <strong>팁:</strong> 템플릿 변수는 ${변수명} 형식으로 입력하세요. 여러 줄 입력이 가능하며, 변수와 일반 텍스트를 함께 사용할 수 있습니다.';
+              inputsHtml += '</small>';
+              inputsHtml += '</div>';
+              inputsHtml += '</div>';
+              inputsHtml += '</div>';
+              inputsHtml += '</div>';
+              
+              vars.forEach(function(v, index) {
+                var varId = 'vpnTemplateVar_' + index;
+                inputsHtml += '<div class="mb-3">';
+                inputsHtml += '<label for="' + varId + '" class="form-label">' + escapeHtml(v) + ' <span class="text-danger">*</span></label>';
+                inputsHtml += '<textarea class="form-control vpn-template-var-input" id="' + varId + '" ';
+                inputsHtml += 'data-varname="' + escapeHtml(v) + '" rows="3" ';
+                inputsHtml += 'placeholder="예: ${vpnName} VPN 상태 변경&#10;또는&#10;이전 상태: ${oldStatus}&#10;현재 상태: ${newStatus}&#10;변경 시간: ${changeTime}" maxlength="1000"></textarea>';
+                inputsHtml += '<small class="form-text text-muted">템플릿 변수(${변수명})를 사용하여 입력하세요. 여러 줄 입력 가능합니다.</small>';
+                inputsHtml += '</div>';
+              });
+              inputsHtml += '</div></div>';
+              
+              variableInputs.innerHTML = inputsHtml;
+              
+              // 저장된 템플릿 변수 값이 있으면 입력 필드에 로드
+              var vpnKakaoTemplateVariablesField = document.getElementById('vpnKakaoTemplateVariablesField');
+              if (vpnKakaoTemplateVariablesField && vpnKakaoTemplateVariablesField.value) {
+                try {
+                  var savedVars = JSON.parse(vpnKakaoTemplateVariablesField.value);
+                  setTimeout(function() {
+                    for (var varName in savedVars) {
+                      var input = document.querySelector('.vpn-template-var-input[data-varname="' + varName + '"]');
+                      if (input) {
+                        input.value = savedVars[varName];
+                      }
+                    }
+                  }, 100);
+                } catch (e) {
+                  console.warn('템플릿 변수 값 파싱 실패:', e);
+                }
+              }
+            }
+            
+            // 템플릿 테스트 블록 표시
+            if (vpnKakaoTemplateTestBlock) {
+              vpnKakaoTemplateTestBlock.style.display = 'block';
+            }
+          } else {
+            vpnKakaoTemplateVariables.style.display = 'none';
+            var variableInputs = document.getElementById('vpnTemplateVariableInputs');
+            if (variableInputs) {
+              variableInputs.innerHTML = '';
+            }
+            if (vpnKakaoTemplateTestBlock) {
+              vpnKakaoTemplateTestBlock.style.display = 'none';
+            }
+          }
+        } catch (e) {
+          vpnTemplateVariablesList.innerHTML = '<code>' + escapeHtml(variables) + '</code>';
+          vpnKakaoTemplateVariables.style.display = 'block';
+        }
+      } else {
+        vpnKakaoTemplateVariables.style.display = 'none';
+        var variableInputs = document.getElementById('vpnTemplateVariableInputs');
+        if (variableInputs) {
+          variableInputs.innerHTML = '';
+        }
+        if (vpnKakaoTemplateTestBlock) {
+          vpnKakaoTemplateTestBlock.style.display = 'none';
+        }
+      }
+    }
+    
+    function escapeHtml(text) {
+      var div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    // 템플릿 변수 도움말 collapse 아이콘 토글 (동적으로 생성되므로 이벤트 위임 사용)
+    document.addEventListener('show.bs.collapse', function(e) {
+      if (e.target && e.target.id === 'vpnTemplateVariablesHelp') {
+        var icon = document.getElementById('vpnTemplateVariablesHelpIcon');
+        if (icon) {
+          icon.className = 'bi bi-chevron-up';
+        }
+      }
+    });
+    document.addEventListener('hide.bs.collapse', function(e) {
+      if (e.target && e.target.id === 'vpnTemplateVariablesHelp') {
+        var icon = document.getElementById('vpnTemplateVariablesHelpIcon');
+        if (icon) {
+          icon.className = 'bi bi-chevron-down';
+        }
+      }
+    });
+    
+    // 카카오 템플릿 테스트 버튼
+    var vpnTestTemplateBtn = document.getElementById('vpnTestTemplateBtn');
+    var vpnTemplateTestResult = document.getElementById('vpnTemplateTestResult');
+    var vpnTestRecipient = document.getElementById('vpnTestRecipient');
+    var formId = document.querySelector('input[name="id"]');
+    
+    if (vpnTestTemplateBtn) {
+      vpnTestTemplateBtn.addEventListener('click', function() {
+        var vpnId = formId ? formId.value : null;
+        var recipient = vpnTestRecipient ? vpnTestRecipient.value.trim() : '';
+        var templateCode = vpnKakaoTemplateCodeSelect ? vpnKakaoTemplateCodeSelect.value : '';
+        
+        if (!vpnId || vpnId === '' || vpnId === '0') {
+          showVpnTemplateTestResult(false, 'VPN을 먼저 저장한 후 테스트할 수 있습니다.');
+          return;
+        }
+        
+        if (!templateCode || templateCode === '') {
+          showVpnTemplateTestResult(false, '카카오 템플릿을 선택하세요.');
+          return;
+        }
+        
+        if (!recipient) {
+          showVpnTemplateTestResult(false, '테스트 수신자 번호를 입력하세요.');
+          return;
+        }
+        
+        var phoneRegex = /^[0-9-]+$/;
+        if (!phoneRegex.test(recipient)) {
+          showVpnTemplateTestResult(false, '올바른 전화번호 형식을 입력하세요. (예: 010-1234-5678)');
+          return;
+        }
+        
+        vpnTestTemplateBtn.disabled = true;
+        vpnTestTemplateBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 테스트 중...';
+        vpnTemplateTestResult.style.display = 'none';
+        
+        var formData = new FormData();
+        formData.append('recipient', recipient);
+        
+        fetch('/api/vpn/' + vpnId + '/test-template', {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data) {
+            showVpnTemplateTestResult(data.success, data.message);
+          }
+        })
+        .catch(error => {
+          showVpnTemplateTestResult(false, '테스트 중 오류가 발생했습니다: ' + error.message);
+        })
+        .finally(() => {
+          if (vpnTestTemplateBtn) {
+            vpnTestTemplateBtn.disabled = false;
+            vpnTestTemplateBtn.innerHTML = '<i class="bi bi-send"></i> 템플릿 테스트';
+          }
+        });
+      });
+    }
+    
+    function showVpnTemplateTestResult(success, message) {
+      if (!vpnTemplateTestResult) return;
+      vpnTemplateTestResult.className = 'alert alert-dismissible fade show mb-0 ' + (success ? 'alert-success' : 'alert-danger');
+      vpnTemplateTestResult.innerHTML = '<span>' + escapeHtml(message) + '</span><button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+      vpnTemplateTestResult.style.display = 'block';
+    }
+    
+    if (vpnKakaoTemplateCode) {
+      updateVpnTemplateVariables();
+      vpnKakaoTemplateCode.addEventListener('change', updateVpnTemplateVariables);
+    }
+    
+    // 폼 제출 시 템플릿 변수 값 저장
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        if (vpnKakaoTemplateCode && vpnKakaoTemplateCode.value && vpnKakaoTemplateCode.value.trim()) {
+          var templateVarInputs = document.querySelectorAll('.vpn-template-var-input');
+          var templateVars = {};
+          var hasValues = false;
+          var missingVars = [];
+          
+          templateVarInputs.forEach(function(input) {
+            var varName = input.getAttribute('data-varname');
+            var varValue = input.value.trim();
+            if (varName) {
+              if (varValue) {
+                templateVars[varName] = varValue;
+                hasValues = true;
+              } else {
+                missingVars.push(varName);
+              }
+            }
+          });
+          
+          if (missingVars.length > 0) {
+            e.preventDefault();
+            alert('다음 템플릿 변수 값을 입력해주세요: ' + missingVars.join(', '));
+            var firstEmpty = document.querySelector('.vpn-template-var-input[data-varname="' + missingVars[0] + '"]');
+            if (firstEmpty) {
+              firstEmpty.focus();
+            }
+            return false;
+          }
+          
+          var vpnKakaoTemplateVariablesField = document.getElementById('vpnKakaoTemplateVariablesField');
+          if (vpnKakaoTemplateVariablesField) {
+            if (hasValues) {
+              vpnKakaoTemplateVariablesField.value = JSON.stringify(templateVars);
+            } else {
+              vpnKakaoTemplateVariablesField.value = '';
+            }
+          }
+        }
+      });
+    }
     
     if (testBtn) {
       testBtn.addEventListener('click', function() {

@@ -98,6 +98,12 @@ public class MonitoringRuleEntity {
     @Column(name = "message_template", nullable = false, columnDefinition = "text")
     private String messageTemplate;
 
+    @Column(name = "kakao_template_code", length = 100)
+    private String kakaoTemplateCode;  // 카카오 알림톡 템플릿 ID (Aligo tpl_code)
+
+    @Column(name = "kakao_template_variables", columnDefinition = "text")
+    private String kakaoTemplateVariables;  // 카카오 템플릿 변수 값 (JSON 형식: {"변수명": "값"})
+
     @Column(name = "cooldown_sec", nullable = false)
     private Integer cooldownSec = 300;
 
@@ -209,6 +215,12 @@ public class MonitoringRuleEntity {
 
     public String getMessageTemplate() { return messageTemplate; }
     public void setMessageTemplate(String messageTemplate) { this.messageTemplate = messageTemplate; }
+
+    public String getKakaoTemplateCode() { return kakaoTemplateCode; }
+    public void setKakaoTemplateCode(String kakaoTemplateCode) { this.kakaoTemplateCode = kakaoTemplateCode; }
+
+    public String getKakaoTemplateVariables() { return kakaoTemplateVariables; }
+    public void setKakaoTemplateVariables(String kakaoTemplateVariables) { this.kakaoTemplateVariables = kakaoTemplateVariables; }
 
     public Integer getCooldownSec() { return cooldownSec; }
     public void setCooldownSec(Integer cooldownSec) { this.cooldownSec = cooldownSec; }

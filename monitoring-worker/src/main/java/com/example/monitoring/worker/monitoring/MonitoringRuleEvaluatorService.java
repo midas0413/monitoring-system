@@ -2,6 +2,7 @@ package com.example.monitoring.worker.monitoring;
 
 import com.example.monitoring.common.domain.*;
 import com.example.monitoring.common.repo.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -11,7 +12,9 @@ import org.springframework.util.StringUtils;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -33,6 +36,7 @@ public class MonitoringRuleEvaluatorService {
     private final AlertRuleRecipientLinkRepository linkRepo;
     private final ServerRepository serverRepo;
     private final TimezoneCodeRepository timezoneRepo;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final DateTimeFormatter DEFAULT_DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter DEFAULT_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -247,6 +251,18 @@ public class MonitoringRuleEvaluatorService {
                 String toAddr = getRecipientAddress(recipient, channel);
                 if (!StringUtils.hasText(toAddr)) continue;
 
+                // KAKAO 채널이고 템플릿 변수 값이 있으면 그것을 사용하여 메시지 생성
+                String finalMessage = message;
+                if (channel == NotificationChannel.KAKAO && StringUtils.hasText(rule.getKakaoTemplateVariables())) {
+                    try {
+                        finalMessage = renderKakaoTemplateMessage(rule, run);
+                        log.info("KAKAO 템플릿 변수 사용하여 메시지 생성: ruleId={}, message={}", rule.getId(), finalMessage);
+                    } catch (Exception e) {
+                        log.warn("KAKAO 템플릿 변수 메시지 생성 실패, 기본 메시지 사용: ruleId={}, error={}", rule.getId(), e.getMessage());
+                        // 실패 시 기본 메시지 사용
+                    }
+                }
+
                 NotificationOutboxEntity notification = new NotificationOutboxEntity();
                 notification.setStatus(NotificationStatus.PENDING);
                 notification.setChannel(channel);
@@ -254,13 +270,21 @@ public class MonitoringRuleEvaluatorService {
                 notification.setCheckRunId(run.getId());
                 notification.setToAddr(toAddr);
                 notification.setTitle("Monitoring Alert: " + rule.getName());
-                notification.setBody(message);
+                notification.setBody(finalMessage);
+                // KAKAO 채널인 경우 템플릿 코드 저장
+                if (channel == NotificationChannel.KAKAO) {
+                    String templateCode = rule.getKakaoTemplateCode();
+                    notification.setKakaoTemplateCode(templateCode);
+                    log.info("Notification enqueued: ruleId={}, runId={}, channel={}, to={}, kakaoTemplateCode={}", 
+                            rule.getId(), run.getId(), channel, toAddr, templateCode);
+                } else {
+                    log.info("Notification enqueued: ruleId={}, runId={}, channel={}, to={}", 
+                            rule.getId(), run.getId(), channel, toAddr);
+                }
                 notification.setCreatedAt(now);
                 notification.setNextAttemptAt(now);
 
                 outboxRepo.save(notification);
-                log.info("Notification enqueued: ruleId={}, runId={}, channel={}, to={}", 
-                        rule.getId(), run.getId(), channel, toAddr);
             }
         }
     }
@@ -377,6 +401,106 @@ public class MonitoringRuleEvaluatorService {
         template = template.replace("{alertOperator}", rule.getAlertOperator() != null ? rule.getAlertOperator().name() : "");
 
         return template;
+    }
+
+    /**
+     * KAKAO 템플릿 변수 값을 사용하여 메시지 생성
+     * 템플릿 변수 값에 실제 값으로 치환하여 JSON 형식으로 반환
+     */
+    private String renderKakaoTemplateMessage(MonitoringRuleEntity rule, CheckRunEntity run) throws Exception {
+        String templateVariablesJson = rule.getKakaoTemplateVariables();
+        if (!StringUtils.hasText(templateVariablesJson)) {
+            return renderMessage(rule, run); // 기본 메시지 사용
+        }
+
+        // JSON 파싱
+        Map<String, String> templateVars = objectMapper.readValue(templateVariablesJson, 
+                objectMapper.getTypeFactory().constructMapType(HashMap.class, String.class, String.class));
+
+        // 서버 정보 조회 (renderMessage와 동일)
+        ServerEntity server = null;
+        String serverName = "";
+        String serverHost = "";
+        String serverTimezone = null;
+        ZoneId serverZoneId = null;
+        if (rule.getServerId() != null) {
+            Optional<ServerEntity> serverOpt = serverRepo.findById(rule.getServerId());
+            if (serverOpt.isPresent()) {
+                server = serverOpt.get();
+                serverName = server.getName() != null ? server.getName() : "";
+                serverHost = server.getHost() != null ? server.getHost() : "";
+                serverTimezone = server.getTimezone();
+                if (serverTimezone != null && !serverTimezone.isBlank()) {
+                    try {
+                        serverZoneId = ZoneId.of(serverTimezone);
+                    } catch (Exception e) {
+                        log.warn("Invalid timezone: {}", serverTimezone, e);
+                    }
+                }
+            }
+        }
+
+        // 출력값 추출
+        Double outputNum = extractOutputNum(run.getOutput());
+        int outputLen = (run.getOutput() != null) ? run.getOutput().length() : 0;
+        String threshold = (rule.getThresholdNum() != null) ? String.valueOf(rule.getThresholdNum())
+                : (rule.getThresholdLen() != null) ? String.valueOf(rule.getThresholdLen()) : "";
+        String status = run.getSuccess() != null ? (run.getSuccess() ? "SUCCESS" : "FAIL") : "UNKNOWN";
+
+        // 시간 포맷팅
+        ZoneId koreaZone = ZoneId.of("Asia/Seoul");
+        String startedAtStr = formatDateTime(run.getStartedAt(), koreaZone);
+        String finishedAtStr = formatDateTime(run.getFinishedAt(), koreaZone);
+        String startedAtLocalStr = formatDateTimeLocal(run.getStartedAt(), serverZoneId);
+        String finishedAtLocalStr = formatDateTimeLocal(run.getFinishedAt(), serverZoneId);
+        String startedDateStr = formatDate(run.getStartedAt(), koreaZone);
+        String finishedDateStr = formatDate(run.getFinishedAt(), koreaZone);
+        String startedTimeStr = formatTime(run.getStartedAt(), koreaZone);
+        String finishedTimeStr = formatTime(run.getFinishedAt(), koreaZone);
+        String durationStr = formatDuration(run.getDurationMs());
+
+        // 각 템플릿 변수 값에 실제 값으로 치환
+        Map<String, String> renderedVars = new HashMap<>();
+        for (Map.Entry<String, String> entry : templateVars.entrySet()) {
+            String varName = entry.getKey();
+            String varTemplate = entry.getValue();
+            
+            // 변수 템플릿에 실제 값 치환
+            String rendered = varTemplate;
+            rendered = rendered.replace("${ruleName}", safe(rule.getName()));
+            rendered = rendered.replace("${ruleId}", safeNum(rule.getId()));
+            rendered = rendered.replace("${serverId}", safeNum(rule.getServerId()));
+            rendered = rendered.replace("${serverName}", safe(serverName));
+            rendered = rendered.replace("${serverHost}", safe(serverHost));
+            rendered = rendered.replace("${serverTimezone}", safe(serverTimezone));
+            rendered = rendered.replace("${outputNum}", outputNum != null ? String.valueOf(outputNum) : "");
+            rendered = rendered.replace("${outputLen}", String.valueOf(outputLen));
+            rendered = rendered.replace("${threshold}", threshold);
+            rendered = rendered.replace("${thresholdNum}", rule.getThresholdNum() != null ? String.valueOf(rule.getThresholdNum()) : "");
+            rendered = rendered.replace("${thresholdLen}", rule.getThresholdLen() != null ? String.valueOf(rule.getThresholdLen()) : "");
+            rendered = rendered.replace("${pattern}", safe(rule.getPattern()));
+            rendered = rendered.replace("${status}", status);
+            rendered = rendered.replace("${success}", String.valueOf(run.getSuccess()));
+            rendered = rendered.replace("${output}", safe(run.getOutput()));
+            rendered = rendered.replace("${error}", safe(run.getErrorMessage()));
+            rendered = rendered.replace("${startedAt}", startedAtStr);
+            rendered = rendered.replace("${finishedAt}", finishedAtStr);
+            rendered = rendered.replace("${startedAtLocal}", startedAtLocalStr);
+            rendered = rendered.replace("${finishedAtLocal}", finishedAtLocalStr);
+            rendered = rendered.replace("${startedDate}", startedDateStr);
+            rendered = rendered.replace("${finishedDate}", finishedDateStr);
+            rendered = rendered.replace("${startedTime}", startedTimeStr);
+            rendered = rendered.replace("${finishedTime}", finishedTimeStr);
+            rendered = rendered.replace("${durationMs}", durationStr);
+            rendered = rendered.replace("${duration}", durationStr);
+            rendered = rendered.replace("${monitoringType}", rule.getMonitoringType() != null ? rule.getMonitoringType().name() : "");
+            rendered = rendered.replace("${alertOperator}", rule.getAlertOperator() != null ? rule.getAlertOperator().name() : "");
+            
+            renderedVars.put(varName, rendered);
+        }
+
+        // JSON 형식으로 반환하여 KakaoDeliverer에서 파싱 가능하도록
+        return objectMapper.writeValueAsString(renderedVars);
     }
 
     private String safe(String s) {

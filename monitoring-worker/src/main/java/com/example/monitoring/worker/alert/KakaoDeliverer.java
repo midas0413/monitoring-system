@@ -1,18 +1,23 @@
 package com.example.monitoring.worker.alert;
 
 import com.example.monitoring.common.domain.CheckRunEntity;
+import com.example.monitoring.common.domain.KakaoTemplateEntity;
 import com.example.monitoring.common.domain.MonitoringRuleEntity;
 import com.example.monitoring.common.domain.NotificationChannel;
 import com.example.monitoring.common.domain.ServerEntity;
 // import com.example.monitoring.common.repo.CheckRepository;  // Deprecated
 import com.example.monitoring.common.repo.CheckRunRepository;
+import com.example.monitoring.common.repo.KakaoTemplateRepository;
 import com.example.monitoring.common.repo.MonitoringRuleRepository;
 import com.example.monitoring.common.repo.ServerRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,21 +33,25 @@ public class KakaoDeliverer implements NotificationDeliverer {
     private final AligoClient aligoClient;
     private final AligoProperties aligoProperties;
     private final CheckRunRepository checkRunRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final MonitoringRuleRepository monitoringRuleRepository;
     private final ServerRepository serverRepository;
+    private final KakaoTemplateRepository kakaoTemplateRepository;
 
     public KakaoDeliverer(
             AligoClient aligoClient,
             AligoProperties aligoProperties,
             CheckRunRepository checkRunRepository,
             MonitoringRuleRepository monitoringRuleRepository,
-            ServerRepository serverRepository
+            ServerRepository serverRepository,
+            KakaoTemplateRepository kakaoTemplateRepository
     ) {
         this.aligoClient = aligoClient;
         this.aligoProperties = aligoProperties;
         this.checkRunRepository = checkRunRepository;
         this.monitoringRuleRepository = monitoringRuleRepository;
         this.serverRepository = serverRepository;
+        this.kakaoTemplateRepository = kakaoTemplateRepository;
     }
 
     @Override
@@ -58,8 +67,20 @@ public class KakaoDeliverer implements NotificationDeliverer {
     
     /**
      * checkRunId를 통해 정확한 서버명을 가져오는 메서드
+     * @param toAddr 수신자 주소
+     * @param title 제목
+     * @param body 본문
+     * @param checkRunId 체크 실행 ID (서버명 추출용)
+     * @param kakaoTemplateCode 카카오 템플릿 코드 (null이면 AligoProperties의 기본 템플릿 코드 사용)
      */
     public DeliverResult deliverWithContext(String toAddr, String title, String body, Long checkRunId) {
+        return deliverWithContext(toAddr, title, body, checkRunId, null);
+    }
+    
+    /**
+     * checkRunId와 템플릿 코드를 받아서 알림 발송
+     */
+    public DeliverResult deliverWithContext(String toAddr, String title, String body, Long checkRunId, String kakaoTemplateCode) {
         if (!StringUtils.hasText(toAddr)) {
             return DeliverResult.fail("수신자 정보 없음");
         }
@@ -78,9 +99,48 @@ public class KakaoDeliverer implements NotificationDeliverer {
 
         // 1) 알림톡 시도 (설정 있으면)
         if (aligoProperties.isAlimtalkAvailable()) {
-            // 템플릿 변수 추출: var1=#{시스템}(서버명/VPN명), var2=#{알림}(알림내용)
-            String systemName = extractSystemName(body, title, checkRunId);
-            String alertContent = extractAlertContent(body);
+            // body가 JSON 형식인지 확인 (템플릿 변수 값이 있는 경우)
+            Map<String, String> templateVars = null;
+            String systemName = null;
+            String alertContent = null;
+            
+            if (body != null && body.trim().startsWith("{") && body.trim().endsWith("}")) {
+                try {
+                    // JSON 형식으로 파싱
+                    templateVars = objectMapper.readValue(body, 
+                            objectMapper.getTypeFactory().constructMapType(HashMap.class, String.class, String.class));
+                    log.info("[KAKAO] 템플릿 변수 JSON 파싱 성공: {}", templateVars);
+                    
+                    // 템플릿 변수에서 "시스템" 또는 첫 번째 변수를 systemName으로, "알림" 또는 두 번째 변수를 alertContent로 사용
+                    // 변수명이 정확히 일치하지 않을 수 있으므로 순서대로 사용
+                    String[] varNames = templateVars.keySet().toArray(new String[0]);
+                    if (varNames.length > 0) {
+                        systemName = templateVars.get(varNames[0]);
+                        // "시스템"이라는 이름의 변수가 있으면 우선 사용
+                        if (templateVars.containsKey("시스템")) {
+                            systemName = templateVars.get("시스템");
+                        }
+                    }
+                    if (varNames.length > 1) {
+                        alertContent = templateVars.get(varNames[1]);
+                        // "알림"이라는 이름의 변수가 있으면 우선 사용
+                        if (templateVars.containsKey("알림")) {
+                            alertContent = templateVars.get("알림");
+                        }
+                    } else if (varNames.length == 1) {
+                        // 변수가 하나만 있으면 그것을 alertContent로 사용
+                        alertContent = templateVars.get(varNames[0]);
+                    }
+                } catch (Exception e) {
+                    log.warn("[KAKAO] 템플릿 변수 JSON 파싱 실패, 기본 방식 사용: {}", e.getMessage());
+                }
+            }
+            
+            // JSON 파싱 실패하거나 JSON이 아니면 기본 방식 사용
+            if (systemName == null || alertContent == null) {
+                systemName = extractSystemName(body, title, checkRunId);
+                alertContent = extractAlertContent(body);
+            }
             
             // 변수 값 검증
             if (!StringUtils.hasText(systemName)) {
@@ -94,7 +154,73 @@ public class KakaoDeliverer implements NotificationDeliverer {
             
             log.info("[KAKAO] 알림톡 템플릿 변수. var1(시스템)={}, var2(알림)={}", systemName, alertContent);
             
-            var ar = aligoClient.sendAlimtalk(toAddr, title, body, systemName, alertContent);
+            // 템플릿 코드 결정: 우선순위
+            // 1. 파라미터로 받은 템플릿 코드 (NotificationOutboxEntity에서 전달됨)
+            // 2. 없으면 checkRunId를 통해 알림 규칙에서 가져오기 (방어적 프로그래밍)
+            // 3. 그것도 없으면 AligoProperties의 기본 템플릿 코드 사용
+            String templateCode = kakaoTemplateCode;
+            
+            if (!StringUtils.hasText(templateCode) && checkRunId != null) {
+                // 파라미터로 받은 템플릿 코드가 없으면 알림 규칙에서 가져오기
+                CheckRunEntity run = checkRunRepository.findById(checkRunId).orElse(null);
+                if (run != null && run.getMonitoringRuleId() != null) {
+                    MonitoringRuleEntity rule = monitoringRuleRepository.findById(run.getMonitoringRuleId()).orElse(null);
+                    if (rule != null && StringUtils.hasText(rule.getKakaoTemplateCode())) {
+                        templateCode = rule.getKakaoTemplateCode();
+                        log.info("[KAKAO] 알림 규칙에서 템플릿 코드 가져옴. ruleId={}, templateCode={}", rule.getId(), templateCode);
+                    }
+                }
+            }
+            
+            // 여전히 없으면 AligoProperties의 기본 템플릿 코드 사용 (기존 동작 유지)
+            if (!StringUtils.hasText(templateCode)) {
+                templateCode = aligoProperties.getTemplateCode();
+                log.info("[KAKAO] 기본 템플릿 코드 사용. templateCode={}", templateCode);
+            } else {
+                log.info("[KAKAO] 알림 규칙 템플릿 코드 사용. templateCode={}", templateCode);
+            }
+            
+            // 템플릿 엔티티 조회 (템플릿 메시지 형태와 버튼 정보 사용)
+            KakaoTemplateEntity template = null;
+            String templateMessage = null;
+            String buttonInfo = null;
+            if (StringUtils.hasText(templateCode)) {
+                template = kakaoTemplateRepository.findByTemplateCode(templateCode).orElse(null);
+                if (template != null) {
+                    templateMessage = template.getTemplateMessage();
+                    buttonInfo = template.getButtonInfo();
+                    log.info("[KAKAO] 템플릿 정보 조회. templateCode={}, hasTemplateMessage={}, hasButtonInfo={}", 
+                            templateCode, StringUtils.hasText(templateMessage), StringUtils.hasText(buttonInfo));
+                } else {
+                    log.warn("[KAKAO] 템플릿 엔티티를 찾을 수 없음. templateCode={}", templateCode);
+                }
+            }
+            
+            // 템플릿 메시지 형태가 있으면 변수 치환하여 메시지 조합
+            String finalMessage = body;
+            if (StringUtils.hasText(templateMessage) && templateVars != null) {
+                // 템플릿 메시지 형태에서 #{변수명} 형식을 변수 값으로 치환
+                finalMessage = templateMessage;
+                for (Map.Entry<String, String> entry : templateVars.entrySet()) {
+                    String varName = entry.getKey();
+                    String varValue = entry.getValue();
+                    // #{변수명} 형식을 변수 값으로 치환
+                    finalMessage = finalMessage.replace("#{" + varName + "}", varValue);
+                }
+                log.info("[KAKAO] 템플릿 메시지 형태 사용. templateMessage={}, finalMessage={}", templateMessage, finalMessage);
+            } else if (StringUtils.hasText(templateMessage)) {
+                // 템플릿 변수가 JSON이 아니면 기존 방식 사용 (systemName, alertContent)
+                finalMessage = templateMessage;
+                if (StringUtils.hasText(systemName)) {
+                    finalMessage = finalMessage.replace("#{시스템}", systemName);
+                }
+                if (StringUtils.hasText(alertContent)) {
+                    finalMessage = finalMessage.replace("#{알림}", alertContent);
+                }
+                log.info("[KAKAO] 템플릿 메시지 형태 사용 (기존 변수). templateMessage={}, finalMessage={}", templateMessage, finalMessage);
+            }
+            
+            var ar = aligoClient.sendAlimtalk(toAddr, title, finalMessage, systemName, alertContent, templateCode, buttonInfo);
             if (ar.success()) {
                 // Aligo API 응답 메시지에 "대체발송" 키워드가 포함되어 있는지 확인
                 String resultMsg = ar.message() != null ? ar.message() : "";

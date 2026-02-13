@@ -19,6 +19,8 @@ import org.springframework.web.client.RestTemplate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -54,13 +56,19 @@ public class MessageTemplateTestService {
 
     private final MonitoringRuleRepository ruleRepository;
     private final ServerRepository serverRepository;
+    private final com.example.monitoring.common.repo.KakaoTemplateRepository kakaoTemplateRepository;
+    private final com.example.monitoring.common.repo.VpnConnectionRepository vpnRepository;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
     public MessageTemplateTestService(MonitoringRuleRepository ruleRepository,
-                                     ServerRepository serverRepository) {
+                                     ServerRepository serverRepository,
+                                     com.example.monitoring.common.repo.KakaoTemplateRepository kakaoTemplateRepository,
+                                     com.example.monitoring.common.repo.VpnConnectionRepository vpnRepository) {
         this.ruleRepository = ruleRepository;
         this.serverRepository = serverRepository;
+        this.kakaoTemplateRepository = kakaoTemplateRepository;
+        this.vpnRepository = vpnRepository;
         this.restTemplate = new RestTemplate();
         this.objectMapper = new ObjectMapper();
     }
@@ -95,29 +103,256 @@ public class MessageTemplateTestService {
     }
 
     /**
-     * 메시지 템플릿을 렌더링하고 테스트 알림을 발송
+     * 카카오 템플릿을 사용하여 테스트 알림을 발송
      */
-    public TestResult testTemplate(Long ruleId, String template, String testRecipient, String channel) {
+    public TestResult testKakaoTemplate(Long ruleId, String testRecipient) {
         try {
             // 규칙 정보 조회
             MonitoringRuleEntity rule = ruleRepository.findById(ruleId)
                     .orElseThrow(() -> new IllegalArgumentException("규칙을 찾을 수 없습니다: " + ruleId));
 
-            // 템플릿 렌더링
-            String renderedMessage = renderTemplate(rule, template);
-
-            // 알림 발송
-            if ("KAKAO".equalsIgnoreCase(channel)) {
-                return sendKakaoTest(testRecipient, rule.getName(), renderedMessage);
-            } else if ("SMS".equalsIgnoreCase(channel)) {
-                return sendSmsTest(testRecipient, rule.getName(), renderedMessage);
-            } else {
-                return TestResult.fail("지원하지 않는 채널입니다: " + channel);
+            // 카카오 템플릿 코드 확인
+            String templateCode = rule.getKakaoTemplateCode();
+            if (!StringUtils.hasText(templateCode)) {
+                return TestResult.fail("카카오 템플릿이 선택되지 않았습니다. 알림 규칙에서 카카오 템플릿을 선택하세요.");
             }
+
+            // 템플릿 엔티티 조회
+            com.example.monitoring.common.domain.KakaoTemplateEntity template = kakaoTemplateRepository
+                    .findByTemplateCode(templateCode)
+                    .orElse(null);
+            
+            if (template == null) {
+                return TestResult.fail("카카오 템플릿을 찾을 수 없습니다. 템플릿 코드: " + templateCode);
+            }
+
+            // 템플릿 변수 값 렌더링
+            String templateVariablesJson = rule.getKakaoTemplateVariables();
+            Map<String, String> templateVars = null;
+            String finalMessage = null;
+            String buttonInfo = template.getButtonInfo();
+
+            if (StringUtils.hasText(templateVariablesJson)) {
+                try {
+                    // JSON 파싱
+                    templateVars = objectMapper.readValue(templateVariablesJson,
+                            objectMapper.getTypeFactory().constructMapType(HashMap.class, String.class, String.class));
+
+                    // 템플릿 메시지 형태가 있으면 변수 치환하여 메시지 조합
+                    String templateMessage = template.getTemplateMessage();
+                    if (StringUtils.hasText(templateMessage) && templateVars != null) {
+                        // 템플릿 메시지 형태에서 #{변수명} 형식을 변수 값으로 치환
+                        finalMessage = templateMessage;
+                        for (Map.Entry<String, String> entry : templateVars.entrySet()) {
+                            String varName = entry.getKey();
+                            String varValue = renderTemplateVariable(entry.getValue(), rule);
+                            // #{변수명} 형식을 변수 값으로 치환
+                            finalMessage = finalMessage.replace("#{" + varName + "}", varValue);
+                        }
+                        log.info("카카오 템플릿 메시지 형태 사용하여 테스트 메시지 생성: ruleId={}, templateCode={}", ruleId, templateCode);
+                    } else {
+                        // 템플릿 변수 값을 JSON 문자열로 변환
+                        finalMessage = objectMapper.writeValueAsString(templateVars);
+                        log.info("카카오 템플릿 변수 사용하여 테스트 메시지 생성: ruleId={}, templateCode={}", ruleId, templateCode);
+                    }
+                } catch (Exception e) {
+                    log.warn("카카오 템플릿 변수 메시지 생성 실패: ruleId={}, error={}", ruleId, e.getMessage(), e);
+                    return TestResult.fail("템플릿 변수 처리 실패: " + e.getMessage());
+                }
+            } else {
+                // 템플릿 변수가 없으면 기본 메시지 사용
+                finalMessage = template.getTemplateMessage();
+                if (!StringUtils.hasText(finalMessage)) {
+                    finalMessage = rule.getName() + " 모니터링에 알림이 발생했습니다.";
+                }
+            }
+
+            // 카카오 알림 발송
+            return sendKakaoTestWithTemplate(testRecipient, rule.getName(), finalMessage, templateCode, buttonInfo);
         } catch (Exception e) {
-            log.error("템플릿 테스트 실패: ruleId={}", ruleId, e);
+            log.error("카카오 템플릿 테스트 실패: ruleId={}", ruleId, e);
             return TestResult.fail("테스트 실패: " + e.getMessage());
         }
+    }
+
+    /**
+     * 템플릿 변수 값 내부의 ${변수명}을 실제 값으로 치환
+     */
+    private String renderTemplateVariable(String varTemplate, MonitoringRuleEntity rule) {
+        if (!StringUtils.hasText(varTemplate)) {
+            return "";
+        }
+
+        // 서버 정보 조회
+        ServerEntity server = null;
+        String serverName = "";
+        String serverHost = "";
+        String serverTimezone = null;
+        if (rule.getServerId() != null) {
+            Optional<ServerEntity> serverOpt = serverRepository.findById(rule.getServerId());
+            if (serverOpt.isPresent()) {
+                server = serverOpt.get();
+                serverName = server.getName() != null ? server.getName() : "";
+                serverHost = server.getHost() != null ? server.getHost() : "";
+                serverTimezone = server.getTimezone();
+            }
+        }
+
+        // 더미 체크 실행 데이터 생성
+        OffsetDateTime now = OffsetDateTime.now(ZoneId.of("Asia/Seoul"));
+        Double outputNum = 100.0;
+        int outputLen = 50;
+        String threshold = rule.getThresholdNum() != null ? String.valueOf(rule.getThresholdNum())
+                : (rule.getThresholdLen() != null ? String.valueOf(rule.getThresholdLen()) : "");
+        String status = "FAIL";
+
+        // 시간 포맷팅
+        ZoneId koreaZone = ZoneId.of("Asia/Seoul");
+        String startedAtStr = formatDateTime(now.minusSeconds(10), koreaZone);
+        String finishedAtStr = formatDateTime(now, koreaZone);
+        String startedAtLocalStr = startedAtStr;
+        String finishedAtLocalStr = finishedAtStr;
+        String startedDateStr = formatDate(now.minusSeconds(10), koreaZone);
+        String finishedDateStr = formatDate(now, koreaZone);
+        String startedTimeStr = formatTime(now.minusSeconds(10), koreaZone);
+        String finishedTimeStr = formatTime(now, koreaZone);
+        String durationStr = "10초";
+
+        // 변수 치환
+        String rendered = varTemplate;
+        rendered = rendered.replace("${ruleName}", safe(rule.getName()));
+        rendered = rendered.replace("${ruleId}", safeNum(rule.getId()));
+        rendered = rendered.replace("${serverId}", safeNum(rule.getServerId()));
+        rendered = rendered.replace("${serverName}", safe(serverName));
+        rendered = rendered.replace("${serverHost}", safe(serverHost));
+        rendered = rendered.replace("${serverTimezone}", safe(serverTimezone));
+        rendered = rendered.replace("${outputNum}", outputNum != null ? String.valueOf(outputNum) : "");
+        rendered = rendered.replace("${outputLen}", String.valueOf(outputLen));
+        rendered = rendered.replace("${threshold}", threshold);
+        rendered = rendered.replace("${thresholdNum}", rule.getThresholdNum() != null ? String.valueOf(rule.getThresholdNum()) : "");
+        rendered = rendered.replace("${thresholdLen}", rule.getThresholdLen() != null ? String.valueOf(rule.getThresholdLen()) : "");
+        rendered = rendered.replace("${pattern}", safe(rule.getPattern()));
+        rendered = rendered.replace("${status}", status);
+        rendered = rendered.replace("${success}", "false");
+        rendered = rendered.replace("${output}", "테스트 출력값");
+        rendered = rendered.replace("${error}", "");
+        rendered = rendered.replace("${startedAt}", startedAtStr);
+        rendered = rendered.replace("${finishedAt}", finishedAtStr);
+        rendered = rendered.replace("${startedAtLocal}", startedAtLocalStr);
+        rendered = rendered.replace("${finishedAtLocal}", finishedAtLocalStr);
+        rendered = rendered.replace("${startedDate}", startedDateStr);
+        rendered = rendered.replace("${finishedDate}", finishedDateStr);
+        rendered = rendered.replace("${startedTime}", startedTimeStr);
+        rendered = rendered.replace("${finishedTime}", finishedTimeStr);
+        rendered = rendered.replace("${durationMs}", "10000");
+        rendered = rendered.replace("${duration}", durationStr);
+        rendered = rendered.replace("${monitoringType}", rule.getMonitoringType() != null ? rule.getMonitoringType().name() : "");
+        rendered = rendered.replace("${alertOperator}", rule.getAlertOperator() != null ? rule.getAlertOperator().name() : "");
+
+        return rendered;
+    }
+
+    /**
+     * VPN 카카오 템플릿을 사용하여 테스트 알림을 발송
+     */
+    public TestResult testVpnKakaoTemplate(Long vpnId, String testRecipient) {
+        try {
+            // VPN 정보 조회
+            com.example.monitoring.common.domain.VpnConnectionEntity vpn = vpnRepository.findById(vpnId)
+                    .orElseThrow(() -> new IllegalArgumentException("VPN을 찾을 수 없습니다: " + vpnId));
+
+            // 카카오 템플릿 코드 확인
+            String templateCode = vpn.getKakaoTemplateCode();
+            if (!StringUtils.hasText(templateCode)) {
+                return TestResult.fail("카카오 템플릿이 선택되지 않았습니다. VPN 설정에서 카카오 템플릿을 선택하세요.");
+            }
+
+            // 템플릿 엔티티 조회
+            com.example.monitoring.common.domain.KakaoTemplateEntity template = kakaoTemplateRepository
+                    .findByTemplateCode(templateCode)
+                    .orElse(null);
+            
+            if (template == null) {
+                return TestResult.fail("카카오 템플릿을 찾을 수 없습니다. 템플릿 코드: " + templateCode);
+            }
+
+            // 템플릿 변수 값 렌더링
+            String templateVariablesJson = vpn.getKakaoTemplateVariables();
+            Map<String, String> templateVars = null;
+            String finalMessage = null;
+            String buttonInfo = template.getButtonInfo();
+
+            if (StringUtils.hasText(templateVariablesJson)) {
+                try {
+                    // JSON 파싱
+                    templateVars = objectMapper.readValue(templateVariablesJson,
+                            objectMapper.getTypeFactory().constructMapType(HashMap.class, String.class, String.class));
+
+                    // 템플릿 메시지 형태가 있으면 변수 치환하여 메시지 조합
+                    String templateMessage = template.getTemplateMessage();
+                    if (StringUtils.hasText(templateMessage) && templateVars != null) {
+                        // 템플릿 메시지 형태에서 #{변수명} 형식을 변수 값으로 치환
+                        finalMessage = templateMessage;
+                        for (Map.Entry<String, String> entry : templateVars.entrySet()) {
+                            String varName = entry.getKey();
+                            String varValue = renderVpnTemplateVariable(entry.getValue(), vpn);
+                            // #{변수명} 형식을 변수 값으로 치환
+                            finalMessage = finalMessage.replace("#{" + varName + "}", varValue);
+                        }
+                        log.info("VPN 카카오 템플릿 메시지 형태 사용하여 테스트 메시지 생성: vpnId={}, templateCode={}", vpnId, templateCode);
+                    } else {
+                        // 템플릿 변수 값을 JSON 문자열로 변환
+                        finalMessage = objectMapper.writeValueAsString(templateVars);
+                        log.info("VPN 카카오 템플릿 변수 사용하여 테스트 메시지 생성: vpnId={}, templateCode={}", vpnId, templateCode);
+                    }
+                } catch (Exception e) {
+                    log.warn("VPN 카카오 템플릿 변수 메시지 생성 실패: vpnId={}, error={}", vpnId, e.getMessage(), e);
+                    return TestResult.fail("템플릿 변수 처리 실패: " + e.getMessage());
+                }
+            } else {
+                // 템플릿 변수가 없으면 기본 메시지 사용
+                finalMessage = template.getTemplateMessage();
+                if (!StringUtils.hasText(finalMessage)) {
+                    finalMessage = vpn.getName() + " VPN 상태 변경 알림이 발생했습니다.";
+                }
+            }
+
+            // 카카오 알림 발송
+            return sendKakaoTestWithTemplate(testRecipient, vpn.getName(), finalMessage, templateCode, buttonInfo);
+        } catch (Exception e) {
+            log.error("VPN 카카오 템플릿 테스트 실패: vpnId={}", vpnId, e);
+            return TestResult.fail("테스트 실패: " + e.getMessage());
+        }
+    }
+
+    /**
+     * VPN 템플릿 변수 값 내부의 ${변수명}을 실제 값으로 치환
+     */
+    private String renderVpnTemplateVariable(String varTemplate, com.example.monitoring.common.domain.VpnConnectionEntity vpn) {
+        if (!StringUtils.hasText(varTemplate)) {
+            return "";
+        }
+
+        // 더미 VPN 상태 변경 데이터 생성
+        OffsetDateTime now = OffsetDateTime.now(ZoneId.of("Asia/Seoul"));
+        String changeTimeStr = formatDateTime(now, ZoneId.of("Asia/Seoul"));
+        String changeDateStr = formatDate(now, ZoneId.of("Asia/Seoul"));
+        String changeTimeOnlyStr = formatTime(now, ZoneId.of("Asia/Seoul"));
+        String oldStatus = "DOWN";
+        String newStatus = "UP";
+
+        // 변수 치환
+        String rendered = varTemplate;
+        rendered = rendered.replace("${vpnName}", safe(vpn.getName()));
+        rendered = rendered.replace("${vpnId}", safeNum(vpn.getId()));
+        rendered = rendered.replace("${vpnHost}", safe(vpn.getHost()));
+        rendered = rendered.replace("${oldStatus}", oldStatus);
+        rendered = rendered.replace("${newStatus}", newStatus);
+        rendered = rendered.replace("${changeTime}", changeTimeStr);
+        rendered = rendered.replace("${changeDate}", changeDateStr);
+        rendered = rendered.replace("${changeTimeOnly}", changeTimeOnlyStr);
+
+        return rendered;
     }
 
     /**
@@ -237,11 +472,136 @@ public class MessageTemplateTestService {
     }
 
     /**
-     * 카카오 알림톡 테스트 발송
+     * KAKAO 템플릿 변수 값을 사용하여 메시지 생성 (테스트용)
      */
-    private TestResult sendKakaoTest(String receiver, String title, String message) {
+    private String renderKakaoTemplateMessage(MonitoringRuleEntity rule, String template) throws Exception {
+        String templateVariablesJson = rule.getKakaoTemplateVariables();
+        if (!StringUtils.hasText(templateVariablesJson)) {
+            return renderTemplate(rule, template); // 기본 메시지 사용
+        }
+
+        // JSON 파싱
+        Map<String, String> templateVars = objectMapper.readValue(templateVariablesJson, 
+                objectMapper.getTypeFactory().constructMapType(HashMap.class, String.class, String.class));
+
+        // 서버 정보 조회
+        ServerEntity server = null;
+        String serverName = "";
+        String serverHost = "";
+        String serverTimezone = null;
+        ZoneId serverZoneId = null;
+        if (rule.getServerId() != null) {
+            Optional<ServerEntity> serverOpt = serverRepository.findById(rule.getServerId());
+            if (serverOpt.isPresent()) {
+                server = serverOpt.get();
+                serverName = server.getName() != null ? server.getName() : "";
+                serverHost = server.getHost() != null ? server.getHost() : "";
+                serverTimezone = server.getTimezone();
+                if (serverTimezone != null && !serverTimezone.isBlank()) {
+                    try {
+                        serverZoneId = ZoneId.of(serverTimezone);
+                    } catch (Exception e) {
+                        log.warn("Invalid timezone: {}", serverTimezone, e);
+                    }
+                }
+            }
+        }
+
+        // 더미 체크 실행 데이터 생성
+        OffsetDateTime now = OffsetDateTime.now(ZoneId.of("Asia/Seoul"));
+        Double outputNum = 100.0;
+        int outputLen = 50;
+        String threshold = rule.getThresholdNum() != null ? String.valueOf(rule.getThresholdNum())
+                : (rule.getThresholdLen() != null ? String.valueOf(rule.getThresholdLen()) : "");
+        String status = "FAIL";
+
+        // 시간 포맷팅
+        ZoneId koreaZone = ZoneId.of("Asia/Seoul");
+        String startedAtStr = now.minusSeconds(10).format(DEFAULT_DATETIME_FORMATTER);
+        String finishedAtStr = now.format(DEFAULT_DATETIME_FORMATTER);
+        String startedAtLocalStr = startedAtStr; // 테스트용으로 동일하게 설정
+        String finishedAtLocalStr = finishedAtStr;
+        String startedDateStr = now.minusSeconds(10).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        String finishedDateStr = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        String startedTimeStr = now.minusSeconds(10).format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+        String finishedTimeStr = now.format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+        String durationStr = "10초";
+
+        // 각 템플릿 변수 값에 실제 값으로 치환
+        Map<String, String> renderedVars = new HashMap<>();
+        for (Map.Entry<String, String> entry : templateVars.entrySet()) {
+            String varName = entry.getKey();
+            String varTemplate = entry.getValue();
+            
+            // 변수 템플릿에 실제 값 치환
+            String rendered = varTemplate;
+            rendered = rendered.replace("${ruleName}", safe(rule.getName()));
+            rendered = rendered.replace("${ruleId}", safeNum(rule.getId()));
+            rendered = rendered.replace("${serverId}", safeNum(rule.getServerId()));
+            rendered = rendered.replace("${serverName}", safe(serverName));
+            rendered = rendered.replace("${serverHost}", safe(serverHost));
+            rendered = rendered.replace("${serverTimezone}", safe(serverTimezone));
+            rendered = rendered.replace("${outputNum}", outputNum != null ? String.valueOf(outputNum) : "");
+            rendered = rendered.replace("${outputLen}", String.valueOf(outputLen));
+            rendered = rendered.replace("${threshold}", threshold);
+            rendered = rendered.replace("${thresholdNum}", rule.getThresholdNum() != null ? String.valueOf(rule.getThresholdNum()) : "");
+            rendered = rendered.replace("${thresholdLen}", rule.getThresholdLen() != null ? String.valueOf(rule.getThresholdLen()) : "");
+            rendered = rendered.replace("${pattern}", safe(rule.getPattern()));
+            rendered = rendered.replace("${status}", status);
+            rendered = rendered.replace("${success}", "false");
+            rendered = rendered.replace("${output}", "테스트 출력값");
+            rendered = rendered.replace("${error}", "");
+            rendered = rendered.replace("${startedAt}", startedAtStr);
+            rendered = rendered.replace("${finishedAt}", finishedAtStr);
+            rendered = rendered.replace("${startedAtLocal}", startedAtLocalStr);
+            rendered = rendered.replace("${finishedAtLocal}", finishedAtLocalStr);
+            rendered = rendered.replace("${startedDate}", startedDateStr);
+            rendered = rendered.replace("${finishedDate}", finishedDateStr);
+            rendered = rendered.replace("${startedTime}", startedTimeStr);
+            rendered = rendered.replace("${finishedTime}", finishedTimeStr);
+            rendered = rendered.replace("${durationMs}", durationStr);
+            rendered = rendered.replace("${duration}", durationStr);
+            rendered = rendered.replace("${monitoringType}", rule.getMonitoringType() != null ? rule.getMonitoringType().name() : "");
+            rendered = rendered.replace("${alertOperator}", rule.getAlertOperator() != null ? rule.getAlertOperator().name() : "");
+            
+            renderedVars.put(varName, rendered);
+        }
+
+        // JSON 형식으로 반환하여 KakaoDeliverer에서 파싱 가능하도록
+        return objectMapper.writeValueAsString(renderedVars);
+    }
+    
+    private String safe(Object obj) {
+        return obj != null ? String.valueOf(obj) : "";
+    }
+    
+    private String safeNum(Object obj) {
+        return obj != null ? String.valueOf(obj) : "";
+    }
+
+    /**
+     * 카카오 알림톡 테스트 발송 (템플릿 메시지 형태와 버튼 정보 사용)
+     * @param receiver 수신자 전화번호
+     * @param title 제목
+     * @param message 메시지 (템플릿 메시지 형태에서 변수 치환된 최종 메시지)
+     * @param templateCode 템플릿 코드
+     * @param buttonInfo 버튼 정보 (JSON 형식)
+     */
+    private TestResult sendKakaoTestWithTemplate(String receiver, String title, String message, String templateCode, String buttonInfo) {
         if (!isAlimtalkAvailable()) {
             return TestResult.fail("알림톡 설정이 완료되지 않았습니다. (apiKey, userId, sender, senderKey, templateCode 필요)");
+        }
+
+        // 템플릿 코드 결정: 파라미터로 받은 것이 있으면 사용, 없으면 기본값
+        String tplCode = (templateCode != null && !templateCode.trim().isEmpty()) ? templateCode : this.templateCode;
+        if (tplCode == null || tplCode.trim().isEmpty()) {
+            return TestResult.fail("템플릿 코드가 설정되지 않았습니다. 알림 규칙에 카카오 템플릿 ID를 설정하거나 Aligo 기본 템플릿 코드를 설정하세요.");
+        }
+
+        // 템플릿 코드 길이 검증 (Aligo API 제한: 7바이트)
+        int byteLength = tplCode.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        if (byteLength > 7) {
+            return TestResult.fail("템플릿 코드는 7바이트 이하여야 합니다. 현재: " + byteLength + "바이트 (Aligo API 제한). 템플릿 코드: " + tplCode);
         }
 
         try {
@@ -252,7 +612,7 @@ public class MessageTemplateTestService {
             params.add("apikey", apiKey);
             params.add("userid", userId);
             params.add("senderkey", senderKey);
-            params.add("tpl_code", templateCode);
+            params.add("tpl_code", tplCode);
             params.add("sender", sender);
             params.add("receiver_1", normalizePhone(receiver));
             params.add("subject_1", truncate(title, 50));
@@ -261,15 +621,12 @@ public class MessageTemplateTestService {
             String systemInfo = title != null ? title : "시스템";
             String alertInfo = message != null ? message : "알림 내용 없음";
 
-            String message1;
-            if (alertInfo.contains("\n")) {
-                message1 = String.format("%s 모니터링에 알림이 발생했습니다.\n알림내용 :\n%s", systemInfo, alertInfo);
-            } else {
-                message1 = String.format("%s 모니터링에 알림이 발생했습니다.\n알림내용 : %s", systemInfo, alertInfo);
-            }
-            params.add("message_1", truncate(message1, 1000));
+            // 메시지는 이미 템플릿 메시지 형태에서 변수 치환된 최종 메시지
+            params.add("message_1", truncate(message, 1000));
 
-            String button1 = "{\"button\":[{\"name\":\"채널추가\",\"linkType\":\"AC\",\"linkTypeName\":\"채널 추가\"}]}";
+            // 버튼 정보가 있으면 사용, 없으면 기본 버튼
+            String button1 = StringUtils.hasText(buttonInfo) ? buttonInfo 
+                    : "{\"button\":[{\"name\":\"채널추가\",\"linkType\":\"AC\",\"linkTypeName\":\"채널 추가\"}]}";
             params.add("button_1", button1);
 
             if ("Y".equalsIgnoreCase(testMode)) {
@@ -369,14 +726,6 @@ public class MessageTemplateTestService {
     private String truncate(String s, int maxLen) {
         if (s == null) return "";
         return s.length() > maxLen ? s.substring(0, maxLen) : s;
-    }
-
-    private String safe(String s) {
-        return (s == null) ? "" : s;
-    }
-
-    private String safeNum(Object n) {
-        return (n == null) ? "" : String.valueOf(n);
     }
 
     private String formatDateTime(OffsetDateTime dt, ZoneId targetZoneId) {

@@ -3,22 +3,29 @@ FROM gradle:8.5-jdk17 AS builder
 
 WORKDIR /app
 
+# Gradle 설정 파일 복사 (의존성 캐싱 최적화)
 COPY build.gradle.kts settings.gradle.kts gradle.properties ./
 COPY gradle ./gradle
 COPY monitoring-common/build.gradle.kts ./monitoring-common/
 COPY monitoring-worker/build.gradle.kts ./monitoring-worker/
 
+# 의존성 다운로드 (캐시 활용)
 RUN gradle :monitoring-worker:dependencies --no-daemon || true
 
+# 소스 코드 복사
 COPY monitoring-common ./monitoring-common
 COPY monitoring-worker ./monitoring-worker
 
+# 애플리케이션 빌드
 RUN gradle :monitoring-worker:clean :monitoring-worker:build -x test --no-daemon
 
+# 런타임 이미지
 FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 
+# 빌드된 JAR 파일 복사
 COPY --from=builder /app/monitoring-worker/build/libs/*.jar app.jar
 
+# 애플리케이션 실행
 ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]

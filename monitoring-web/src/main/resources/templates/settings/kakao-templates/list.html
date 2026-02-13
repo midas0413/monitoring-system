@@ -1,0 +1,71 @@
+<div th:fragment="content">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>카카오 템플릿 관리</h2>
+    <a th:href="@{/settings/kakao-templates/new}" class="btn btn-primary">+ 템플릿 등록</a>
+  </div>
+
+  <!-- 메시지 -->
+  <div th:if="${message}" class="alert alert-success alert-dismissible fade show" role="alert">
+    <span th:text="${message}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <span th:text="${error}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
+  <div class="card card-shadow">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>템플릿 코드</th>
+              <th>템플릿 이름</th>
+              <th>변수</th>
+              <th>활성</th>
+              <th>템플릿 메시지 형태</th>
+              <th>작업</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr th:if="${templates == null || #lists.isEmpty(templates)}">
+              <td colspan="7" class="text-center text-muted">등록된 템플릿이 없습니다</td>
+            </tr>
+            <tr th:each="template : ${templates}">
+              <td th:text="${template.id}"></td>
+              <td><code th:text="${template.templateCode}"></code></td>
+              <td th:text="${template.name}"></td>
+              <td>
+                <span th:if="${template.variables}" class="badge bg-info" 
+                      th:text="${template.variables}"></span>
+                <span th:unless="${template.variables}" class="text-muted">-</span>
+              </td>
+              <td>
+                <span class="badge" 
+                      th:classappend="${template.enabled} ? 'bg-success' : 'bg-secondary'"
+                      th:text="${template.enabled} ? '활성' : '비활성'"></span>
+              </td>
+              <td>
+                <small th:if="${template.templateMessage}" 
+                       th:text="${#strings.abbreviate(template.templateMessage, 50)}" 
+                       class="text-muted"></small>
+                <span th:unless="${template.templateMessage}" class="text-muted">-</span>
+              </td>
+              <td>
+                <a th:href="@{/settings/kakao-templates/{id}/edit(id=${template.id})}" 
+                   class="btn btn-sm btn-outline-primary">수정</a>
+                <form th:action="@{/settings/kakao-templates/{id}/delete(id=${template.id})}" 
+                      method="post" style="display: inline;" 
+                      onsubmit="return confirm('이 템플릿을 삭제하시겠습니까?');">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                </form>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
