@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: monitoring-system-worker:latest
+    container_name: monitoring-worker
+    ports:
+      - "0.0.0.0:8081:8081"  # 모든 네트워크 인터페이스에서 접속 가능
+    env_file:
+      - .env
+    environment:
+      # 데이터베이스 설정 (외부 데이터베이스 사용)
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://172.22.1.113:5432/monitoring}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-monitoring}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-monitoring}
+      
+      # Worker 포트 설정
+      WORKER_PORT: ${WORKER_PORT:-8081}
+      
+      # Worker 설정
+      WORKER_ID: ${WORKER_ID:-}
+      WORKER_CLAIM_LIMIT: ${WORKER_CLAIM_LIMIT:-10}
+      WORKER_LOCK_SECONDS: ${WORKER_LOCK_SECONDS:-30}
+      WORKER_LOOP_SLEEP_MS: ${WORKER_LOOP_SLEEP_MS:-1000}
+      
+      # Worker API 보안 설정
+      WORKER_API_KEY: ${WORKER_API_KEY:-}
+      
+      # Aligo API 설정 (SMS/카카오 알림톡)
+      ALIGO_API_KEY: ${ALIGO_API_KEY:-ou73by0iwvi33psmwrgvsjgvxtsc8t7f}
+      ALIGO_USER_ID: ${ALIGO_USER_ID:-midas09}
+      ALIGO_SENDER: ${ALIGO_SENDER:-02-736-3500}
+      ALIGO_SENDER_KEY: ${ALIGO_SENDER_KEY:-fab6a2937b472d39f03bb3ca2873bd331ce3a7af}
+      ALIGO_TEMPLATE_CODE: ${ALIGO_TEMPLATE_CODE:-UC_2669}
+      ALIGO_TEST_MODE: ${ALIGO_TEST_MODE:-N}
+      
+      # Mail 설정
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-smtp.cafe24.com}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-cnit@cnit21.com}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-Cnit52940*}
+      
+      # 로깅 레벨
+      LOGGING_LEVEL_ROOT: ${LOGGING_LEVEL_ROOT:-INFO}
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB:-INFO}
+      LOGGING_LEVEL_COM_EXAMPLE_MONITORING: ${LOGGING_LEVEL_COM_EXAMPLE_MONITORING:-INFO}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8081/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

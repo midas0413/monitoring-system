@@ -33,6 +33,32 @@ COPY --from=builder /app/monitoring-web/build/libs/*.jar app.jar
 # 포트 노출
 EXPOSE 8080
 
+# 기본 환경변수 설정 (현재 환경설정 포함)
+# 주의: 한글이 포함된 값은 application.yml의 기본값을 사용합니다.
+# 데이터베이스 설정
+ENV SPRING_DATASOURCE_URL=jdbc:postgresql://172.22.1.113:5432/monitoring
+ENV SPRING_DATASOURCE_USERNAME=monitoring
+ENV SPRING_DATASOURCE_PASSWORD=monitoring
+
+# Worker API 설정
+ENV WORKER_API_BASE_URL=http://172.22.2.13:8081
+ENV WORKER_API_ENABLED=true
+ENV WORKER_API_TIMEOUT_MS=10000
+
+# Aligo API 설정 (기본값, 환경변수로 오버라이드 가능)
+ENV ALIGO_API_KEY=ou73by0iwvi33psmwrgvsjgvxtsc8t7f
+ENV ALIGO_USER_ID=midas09
+ENV ALIGO_SENDER=02-736-3500
+ENV ALIGO_SENDER_KEY=fab6a2937b472d39f03bb3ca2873bd331ce3a7af
+ENV ALIGO_TEMPLATE_CODE=UC_2669
+ENV ALIGO_TEST_MODE=N
+
+# 로깅 레벨
+ENV LOGGING_LEVEL_ROOT=INFO
+ENV LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB=INFO
+ENV LOGGING_LEVEL_ORG_THYMELEAF=INFO
+ENV LOGGING_LEVEL_COM_EXAMPLE_MONITORING=INFO
+
 # Health check 설정
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1

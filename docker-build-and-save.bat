@@ -45,8 +45,23 @@ if errorlevel 1 (
 )
 
 echo Compressing web image...
-powershell -Command "Compress-Archive -Path %IMAGE_PREFIX%-web-%VERSION%.tar -DestinationPath %IMAGE_PREFIX%-web-%VERSION%.zip -Force"
-del %IMAGE_PREFIX%-web-%VERSION%.tar
+if exist %IMAGE_PREFIX%-web-%VERSION%.tar (
+    powershell -ExecutionPolicy Bypass -Command "Compress-Archive -Path '%IMAGE_PREFIX%-web-%VERSION%.tar' -DestinationPath '%IMAGE_PREFIX%-web-%VERSION%.zip' -Force"
+    if errorlevel 1 (
+        echo Error compressing web image
+        exit /b 1
+    )
+    if exist %IMAGE_PREFIX%-web-%VERSION%.zip (
+        echo Web image zip file created successfully
+        del %IMAGE_PREFIX%-web-%VERSION%.tar
+    ) else (
+        echo Error: Zip file was not created
+        exit /b 1
+    )
+) else (
+    echo Error: Tar file does not exist: %IMAGE_PREFIX%-web-%VERSION%.tar
+    exit /b 1
+)
 
 echo Saving worker image...
 docker save %IMAGE_PREFIX%-worker:%VERSION% -o %IMAGE_PREFIX%-worker-%VERSION%.tar
@@ -57,8 +72,23 @@ if errorlevel 1 (
 )
 
 echo Compressing worker image...
-powershell -Command "Compress-Archive -Path %IMAGE_PREFIX%-worker-%VERSION%.tar -DestinationPath %IMAGE_PREFIX%-worker-%VERSION%.zip -Force"
-del %IMAGE_PREFIX%-worker-%VERSION%.tar
+if exist %IMAGE_PREFIX%-worker-%VERSION%.tar (
+    powershell -ExecutionPolicy Bypass -Command "Compress-Archive -Path '%IMAGE_PREFIX%-worker-%VERSION%.tar' -DestinationPath '%IMAGE_PREFIX%-worker-%VERSION%.zip' -Force"
+    if errorlevel 1 (
+        echo Error compressing worker image
+        exit /b 1
+    )
+    if exist %IMAGE_PREFIX%-worker-%VERSION%.zip (
+        echo Worker image zip file created successfully
+        del %IMAGE_PREFIX%-worker-%VERSION%.tar
+    ) else (
+        echo Error: Zip file was not created
+        exit /b 1
+    )
+) else (
+    echo Error: Tar file does not exist: %IMAGE_PREFIX%-worker-%VERSION%.tar
+    exit /b 1
+)
 
 echo.
 echo ==========================================
