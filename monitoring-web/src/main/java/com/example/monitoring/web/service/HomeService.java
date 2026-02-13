@@ -5,6 +5,7 @@ import com.example.monitoring.common.repo.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.*;
@@ -21,15 +22,18 @@ public class HomeService {
     private final MonitoringRuleRepository ruleRepo;
     private final VpnConnectionRepository vpnRepo;
     private final NotificationOutboxRepository notificationOutboxRepository;
+    private final CheckRunRepository checkRunRepository;
 
     public HomeService(ServerRepository serverRepo,
                        MonitoringRuleRepository ruleRepo,
                        VpnConnectionRepository vpnRepo,
-                       NotificationOutboxRepository notificationOutboxRepository) {
+                       NotificationOutboxRepository notificationOutboxRepository,
+                       CheckRunRepository checkRunRepository) {
         this.serverRepo = serverRepo;
         this.ruleRepo = ruleRepo;
         this.vpnRepo = vpnRepo;
         this.notificationOutboxRepository = notificationOutboxRepository;
+        this.checkRunRepository = checkRunRepository;
     }
 
     /** 모든 활성화된 서버 목록 */
@@ -63,6 +67,19 @@ public class HomeService {
         return result;
     }
 
+    /** 룰별 알림 건수 */
+    public Map<Long, Long> countNotificationsByRule() {
+        Map<Long, Long> result = new HashMap<>();
+        List<MonitoringRuleEntity> allRules = ruleRepo.findAll();
+        for (MonitoringRuleEntity rule : allRules) {
+            if (Boolean.TRUE.equals(rule.getEnabled())) {
+                long count = notificationOutboxRepository.countSentByMonitoringRuleId(rule.getId(), NotificationStatus.SENT);
+                result.put(rule.getId(), count);
+            }
+        }
+        return result;
+    }
+
     /** 모든 활성화된 VPN 목록 */
     public List<VpnConnectionEntity> listAllVpns() {
         List<VpnConnectionEntity> vpns = vpnRepo.findByEnabledTrueOrderByNameAsc();
@@ -80,11 +97,60 @@ public class HomeService {
         return vpns;
     }
 
-    /** 서버 연결 상태 확인 (간단한 구현 - 실제로는 체크 결과 기반) */
+    /** 서버 연결 상태 확인 (체크 결과 기반) */
     public ServerStatus getServerStatus(ServerEntity server) {
-        // TODO: 실제 서버 연결 상태 체크 로직 구현
-        // 현재는 UNKNOWN 반환 (워커가 동작하지 않아도 표시하기 위해)
-        return ServerStatus.UNKNOWN;
+        // 해당 서버의 최근 체크 실행 결과를 기반으로 상태 판단
+        List<MonitoringRuleEntity> rules = ruleRepo.findByServerIdAndEnabledTrue(server.getId());
+        if (rules.isEmpty()) {
+            return ServerStatus.UNKNOWN;
+        }
+        
+        // 최근 체크 실행 결과 조회 (각 룰별 최근 1개씩)
+        boolean hasSuccess = false;
+        boolean hasFailure = false;
+        OffsetDateTime latestCheckTime = null;
+        int checkedRulesCount = 0;
+        
+        for (MonitoringRuleEntity rule : rules) {
+            // 최근 체크 실행 결과 조회
+            List<CheckRunEntity> latestRuns = checkRunRepository
+                    .findTop100ByMonitoringRuleIdOrderByStartedAtDesc(rule.getId());
+            CheckRunEntity latestRun = latestRuns.isEmpty() ? null : latestRuns.get(0);
+            
+            if (latestRun != null) {
+                checkedRulesCount++;
+                if (latestCheckTime == null || latestRun.getStartedAt().isAfter(latestCheckTime)) {
+                    latestCheckTime = latestRun.getStartedAt();
+                }
+                
+                if (Boolean.TRUE.equals(latestRun.getSuccess())) {
+                    hasSuccess = true;
+                } else {
+                    hasFailure = true;
+                }
+            }
+        }
+        
+        // 최근 체크 결과가 없으면 UNKNOWN
+        if (latestCheckTime == null) {
+            return ServerStatus.UNKNOWN;
+        }
+        
+        // 최근 체크가 10분 이내인지 확인 (너무 오래된 결과는 무시)
+        // 체크 간격이 60초인 경우를 고려하여 10분으로 설정
+        OffsetDateTime tenMinutesAgo = OffsetDateTime.now().minusMinutes(10);
+        if (latestCheckTime.isBefore(tenMinutesAgo)) {
+            return ServerStatus.UNKNOWN;
+        }
+        
+        // 성공과 실패가 모두 있으면 실패 우선, 성공만 있으면 UP, 실패만 있으면 DOWN
+        if (hasFailure) {
+            return ServerStatus.DOWN;
+        } else if (hasSuccess) {
+            return ServerStatus.UP;
+        } else {
+            return ServerStatus.UNKNOWN;
+        }
     }
 
     public long countSentNotificationsByCheck(Long checkId) {

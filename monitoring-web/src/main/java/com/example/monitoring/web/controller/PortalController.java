@@ -51,6 +51,10 @@ public class PortalController {
         // 서버별 알림 건수
         Map<Long, Long> notificationCountByServer = homeService.countNotificationsByServer();
         model.addAttribute("notificationCountByServer", notificationCountByServer);
+        
+        // 룰별 알림 건수
+        Map<Long, Long> notificationCountByRule = homeService.countNotificationsByRule();
+        model.addAttribute("notificationCountByRule", notificationCountByRule);
 
         // 서버 상태 맵 (서버 ID -> 상태)
         Map<Long, ServerStatus> serverStatusMap = new HashMap<>();
@@ -59,14 +63,17 @@ public class PortalController {
         }
         model.addAttribute("serverStatusMap", serverStatusMap);
 
-        // Check Runs (모니터링 결과)
+        // Check Runs (모니터링 결과) - checkruns/list.html에서 사용
         List<CheckRunEntity> checkRuns = checkRunService.list(ruleId, null);
-        model.addAttribute("checkRuns", checkRuns);
+        model.addAttribute("items", checkRuns);
         model.addAttribute("startedDisplay", checkRunService.buildStartedDisplayMap(checkRuns));
         model.addAttribute("finishedDisplay", checkRunService.buildFinishedDisplayMap(checkRuns));
         model.addAttribute("ruleNameDisplay", checkRunService.buildRuleNameDisplayMap(checkRuns));
         model.addAttribute("serverDisplay", checkRunService.buildServerDisplayMap(checkRuns));
-        model.addAttribute("filterRuleId", ruleId);
+        model.addAttribute("ruleNameByRunId", checkRunService.buildRuleNameByRunIdMap(checkRuns));
+        model.addAttribute("serverNameByRunId", checkRunService.buildServerNameByRunIdMap(checkRuns));
+        model.addAttribute("ruleId", ruleId);
+        model.addAttribute("showHeader", false); // 홈 화면에서 include할 때 헤더 숨김
 
         // 모든 룰 목록 (필터용)
         List<MonitoringRuleEntity> allRules = monitoringRuleService.list(null);

@@ -1,6 +1,9 @@
+server:
+  port: ${WORKER_PORT:8081}  # Worker API 포트
+
 spring:
   main:
-    web-application-type: none  # 웹 서버 미기동 (Worker 전용)
+    web-application-type: servlet  # REST API를 위해 웹 서버 기동
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
@@ -33,6 +36,10 @@ worker:
 
   outbox-claim-limit: 50
   outbox-tick-ms: 1000
+  
+  # Worker API 보안 설정
+  api:
+    key: ${WORKER_API_KEY:}  # API 키 (선택, 설정 시 Web에서 동일한 키를 사용해야 함)
 
   alert:
     sender-delay-ms: 1000

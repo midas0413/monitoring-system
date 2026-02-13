@@ -59,7 +59,7 @@ public class MonitoringRuleEvaluatorService {
 
     /**
      * 모니터링 룰 실행 결과 평가 및 알림 발송
-     * 룰 실행 후 규칙과 비교하여 해당되는 것만 check_runs에 등록 후 바로 알림
+     * 모든 체크 실행 결과를 check_runs에 저장하고, 규칙 평가를 통과한 경우에만 알림 발송
      */
     @Transactional
     public void evaluateAndNotify(MonitoringRuleEntity rule, boolean success, String output, 
@@ -67,41 +67,7 @@ public class MonitoringRuleEvaluatorService {
                                   OffsetDateTime finishedAt, long durationMs) {
         OffsetDateTime now = OffsetDateTime.now();
 
-        // 1. 규칙 평가
-        if (!evaluateRule(rule, success, output)) {
-            log.debug("Rule evaluation failed: ruleId={}, success={}", rule.getId(), success);
-            return;
-        }
-
-        // 2. LOGS 타입에서 "No matching log entries found"인 경우 알림 제외 (매칭 없음 = 정상)
-        if (rule.getMonitoringType() == MonitoringType.LOGS) {
-            String trimmedOutput = (output != null) ? output.trim() : "";
-            if ("No matching log entries found".equals(trimmedOutput)) {
-                log.debug("Skipping notification for 'No matching log entries found': ruleId={}", rule.getId());
-                return;
-            }
-        }
-
-        // 3. LOGS 타입인 경우 출력값 길이 체크 (직전 알림 발송 시 출력값 길이와 같으면 알림 발송하지 않음)
-        if (rule.getMonitoringType() == MonitoringType.LOGS) {
-            int currentOutputLength = (output != null) ? output.length() : 0;
-            Integer lastNotificationOutputLength = rule.getLastNotificationOutputLength();
-            
-            if (lastNotificationOutputLength != null && currentOutputLength == lastNotificationOutputLength) {
-                log.debug("Output length same as last notification: ruleId={}, length={}", 
-                        rule.getId(), currentOutputLength);
-                return;
-            }
-        }
-
-        // 4. Cooldown 체크 (동일한 rule_id와 output이 cooldown 시간 내에 있는지 확인)
-        if (!isCooldownOk(rule, output, now)) {
-            log.debug("Cooldown period not passed: ruleId={}, output={}", rule.getId(), 
-                    output != null ? output.substring(0, Math.min(50, output.length())) : "null");
-            return;
-        }
-
-        // 5. check_runs에 등록
+        // 1. 모든 체크 실행 결과를 check_runs에 저장 (서버 상태 판단을 위해)
         CheckRunEntity run = new CheckRunEntity();
         run.setMonitoringRuleId(rule.getId());
         run.setSuccess(success);
@@ -113,6 +79,40 @@ public class MonitoringRuleEvaluatorService {
         run = checkRunRepo.save(run);
 
         log.info("Check run created: ruleId={}, runId={}, success={}", rule.getId(), run.getId(), success);
+
+        // 2. 규칙 평가 (알림 발송 여부 결정)
+        if (!evaluateRule(rule, success, output)) {
+            log.debug("Rule evaluation failed: ruleId={}, success={}", rule.getId(), success);
+            return; // 알림 발송하지 않음
+        }
+
+        // 3. LOGS 타입에서 "No matching log entries found"인 경우 알림 제외 (매칭 없음 = 정상)
+        if (rule.getMonitoringType() == MonitoringType.LOGS) {
+            String trimmedOutput = (output != null) ? output.trim() : "";
+            if ("No matching log entries found".equals(trimmedOutput)) {
+                log.debug("Skipping notification for 'No matching log entries found': ruleId={}", rule.getId());
+                return; // 알림 발송하지 않음
+            }
+        }
+
+        // 4. LOGS 타입인 경우 출력값 길이 체크 (직전 알림 발송 시 출력값 길이와 같으면 알림 발송하지 않음)
+        if (rule.getMonitoringType() == MonitoringType.LOGS) {
+            int currentOutputLength = (output != null) ? output.length() : 0;
+            Integer lastNotificationOutputLength = rule.getLastNotificationOutputLength();
+            
+            if (lastNotificationOutputLength != null && currentOutputLength == lastNotificationOutputLength) {
+                log.debug("Output length same as last notification: ruleId={}, length={}", 
+                        rule.getId(), currentOutputLength);
+                return; // 알림 발송하지 않음
+            }
+        }
+
+        // 5. Cooldown 체크 (동일한 rule_id와 output이 cooldown 시간 내에 있는지 확인)
+        if (!isCooldownOk(rule, output, now)) {
+            log.debug("Cooldown period not passed: ruleId={}, output={}", rule.getId(), 
+                    output != null ? output.substring(0, Math.min(50, output.length())) : "null");
+            return; // 알림 발송하지 않음
+        }
 
         // 6. 알림 발송
         rule.setLastFiredAt(now);

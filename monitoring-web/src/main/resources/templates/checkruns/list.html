@@ -4,7 +4,7 @@
 <div th:fragment="content">
   <div class="container-fluid">
 
-    <div class="page-header mb-3">
+    <div class="page-header mb-3" th:if="${showHeader != false}">
       <h5>체크 실행 내역</h5>
       <div class="page-header-actions">
         <a class="btn btn-outline-secondary" th:href="@{/}">← 홈</a>

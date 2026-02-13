@@ -1,275 +1,157 @@
-package com.example.monitoring.web.service;
+package com.example.monitoring.worker.api;
 
-import com.example.monitoring.web.config.WorkerApiProperties;
+import com.example.monitoring.common.domain.*;
+import com.example.monitoring.common.repo.*;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.stereotype.Service;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestTemplate;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Check 등록 시 SHELL/SQL을 대상에 테스트. 연결 정보를 파라미터로 받음.
- * Worker API가 활성화되어 있으면 Worker를 통해 실행, 그렇지 않으면 Web에서 직접 실행.
+ * Worker에서 실행하는 체크/테스트 서비스
+ * Web의 CheckTestService와 동일한 로직을 사용하되, Worker에서 실행
  */
 @Service
-public class CheckTestService {
+public class WorkerCheckTestService {
 
-    private static final Logger log = LoggerFactory.getLogger(CheckTestService.class);
+    private static final Logger log = LoggerFactory.getLogger(WorkerCheckTestService.class);
 
     private static final int SSH_CONNECT_TIMEOUT_MS = 10_000;
     private static final int SSH_CMD_TIMEOUT_MS = 30_000;
 
-    @Autowired(required = false)
-    private WorkerApiProperties workerApiProperties;
-
-    private final RestTemplate restTemplate;
+    @Autowired
+    private ServerRepository serverRepository;
     
-    public CheckTestService() {
-        this.restTemplate = new RestTemplate();
-    }
+    @Autowired
+    private MonitoringRuleRepository monitoringRuleRepository;
     
-    private void configureRestTemplate() {
-        // Worker API 설정에 따라 타임아웃 동적 설정
-        int timeoutMs = (workerApiProperties != null && workerApiProperties.getTimeoutMs() > 0) 
-            ? workerApiProperties.getTimeoutMs() 
-            : 10000;
-        
-        org.springframework.http.client.SimpleClientHttpRequestFactory factory = 
-            new org.springframework.http.client.SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(5000); // 연결 타임아웃은 5초 고정
-        factory.setReadTimeout(timeoutMs); // 읽기 타임아웃은 설정값 사용
-        this.restTemplate.setRequestFactory(factory);
-    }
+    @Autowired
+    private CheckRunRepository checkRunRepository;
 
-    /**
-     * Worker API를 통해 테스트 실행
-     * @return 성공 시 TestResult, 실패 시 TestResult.fail() (오류 메시지 포함)
-     */
-    private TestResult callWorkerApi(String endpoint, MultiValueMap<String, String> params) {
-        if (workerApiProperties == null || !workerApiProperties.isEnabled()) {
-            log.debug("Worker API가 비활성화되어 있습니다. 직접 실행합니다.");
-            return null; // Worker API 비활성화 시 null 반환하여 직접 실행
+    // TestResult record 정의
+    public record TestResult(boolean success, String output) {
+        public static TestResult ok(String output) {
+            return new TestResult(true, output);
         }
-
-        try {
-            // RestTemplate 타임아웃 설정 업데이트
-            configureRestTemplate();
-            
-            String url = workerApiProperties.getBaseUrl() + "/api/worker" + endpoint;
-            log.info("Worker API 호출 시작: endpoint={}, url={}, params={}", endpoint, url, params);
-            
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-            
-            // API 키가 설정되어 있으면 헤더에 추가
-            if (workerApiProperties.getApiKey() != null && !workerApiProperties.getApiKey().isEmpty()) {
-                headers.set("X-Worker-API-Key", workerApiProperties.getApiKey());
-                log.debug("Worker API 키를 헤더에 추가했습니다.");
-            }
-            
-            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
-            
-            ResponseEntity<TestResult> response = restTemplate.postForEntity(url, request, TestResult.class);
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                log.info("Worker API 호출 성공: endpoint={}, success={}", endpoint, response.getBody().success());
-                return response.getBody();
-            }
-            // HTTP 응답은 성공했지만 body가 없는 경우
-            log.warn("Worker API 응답이 비어있습니다: endpoint={}, status={}", endpoint, response.getStatusCode());
-            return TestResult.fail("Worker API 응답이 비어있습니다.");
-        } catch (org.springframework.web.client.ResourceAccessException e) {
-            // 연결 실패 (Connection refused 등)
-            String errorMsg = "Worker API 연결 실패: " + e.getMessage();
-            if (e.getCause() != null) {
-                errorMsg += " (" + e.getCause().getMessage() + ")";
-            }
-            log.error("Worker API 연결 실패: endpoint={}, error={}", endpoint, errorMsg, e);
-            return TestResult.fail(errorMsg + "\n\nWorker 서버가 실행 중인지 확인하세요. (URL: " + workerApiProperties.getBaseUrl() + ")");
-        } catch (org.springframework.web.client.HttpClientErrorException e) {
-            // HTTP 4xx 오류
-            log.error("Worker API HTTP 4xx 오류: endpoint={}, status={}, error={}", endpoint, e.getStatusCode(), e.getMessage());
-            return TestResult.fail("Worker API 오류 (" + e.getStatusCode() + "): " + e.getMessage());
-        } catch (org.springframework.web.client.HttpServerErrorException e) {
-            // HTTP 5xx 오류
-            log.error("Worker API HTTP 5xx 오류: endpoint={}, status={}, error={}", endpoint, e.getStatusCode(), e.getMessage());
-            return TestResult.fail("Worker 서버 오류 (" + e.getStatusCode() + "): " + e.getMessage());
-        } catch (Exception e) {
-            // 기타 오류
-            log.error("Worker API 호출 중 예상치 못한 오류: endpoint={}, error={}", endpoint, e.getMessage(), e);
-            return TestResult.fail("Worker API 호출 실패: " + e.getMessage());
+        public static TestResult fail(String output) {
+            return new TestResult(false, output);
         }
     }
 
-    /**
-     * VPN 연결 테스트 (다중 방법 시도)
-     * 1. Ping 테스트 (ICMP)
-     * 2. TCP 연결 테스트 (여러 포트 시도)
-     * 3. HTTP 요청 테스트 (선택적)
-     */
     public TestResult testVpnConnection(String host) {
-        log.info("VPN 연결 테스트 시작: host={}, workerApiEnabled={}", host, 
-                workerApiProperties != null && workerApiProperties.isEnabled());
+        log.info("Worker에서 VPN 연결 테스트 시작: host={}", host);
         
-        // Worker API 호출 시도
-        if (workerApiProperties != null && workerApiProperties.isEnabled()) {
-            log.info("Worker API를 통해 VPN 연결 테스트 실행: host={}", host);
-            MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-            params.add("host", host);
-            TestResult result = callWorkerApi("/test/vpn-connection", params);
-            // callWorkerApi는 실패 시 TestResult.fail()을 반환하므로 바로 반환
-            log.info("VPN 연결 테스트 완료 (Worker API): host={}, success={}", host, result.success());
-            return result;
-        }
-        
-        // Worker API 비활성화 시 직접 실행
-        log.warn("Worker API가 비활성화되어 있습니다. Web에서 직접 VPN 연결 테스트를 실행합니다: host={}", host);
         if (!StringUtils.hasText(host)) {
+            log.warn("VPN Host가 비어있습니다.");
             return TestResult.fail("VPN Host를 입력하세요.");
         }
 
         try {
-            // 호스트에서 포트 추출 (host:port 형식 지원)
             String[] parts = host.split(":");
             String hostname = parts[0];
             int specifiedPort = parts.length > 1 ? Integer.parseInt(parts[1]) : -1;
+            log.debug("VPN 연결 테스트: hostname={}, port={}", hostname, specifiedPort > 0 ? specifiedPort : "기본 포트들");
 
             StringBuilder resultMsg = new StringBuilder();
             boolean success = false;
 
-            // 1. Ping 테스트 시도 (ICMP)
+            // Ping 테스트
             try {
+                log.debug("Ping 테스트 시작: hostname={}", hostname);
                 java.net.InetAddress addr = java.net.InetAddress.getByName(hostname);
-                boolean reachable = addr.isReachable(3000); // 3초 타임아웃
+                boolean reachable = addr.isReachable(3000);
                 if (reachable) {
                     resultMsg.append("✓ Ping 성공 (").append(hostname).append(")\n");
                     success = true;
+                    log.info("Ping 테스트 성공: hostname={}", hostname);
                 } else {
                     resultMsg.append("✗ Ping 실패 (").append(hostname).append(")\n");
+                    log.warn("Ping 테스트 실패: hostname={}", hostname);
                 }
             } catch (Exception e) {
                 resultMsg.append("⚠ Ping 테스트 불가 (권한 또는 네트워크 문제: ").append(e.getMessage()).append(")\n");
+                log.warn("Ping 테스트 불가: hostname={}, error={}", hostname, e.getMessage());
             }
 
-            // 2. TCP 연결 테스트
+            // TCP 연결 테스트
             int[] portsToTest;
             if (specifiedPort > 0) {
                 portsToTest = new int[]{specifiedPort};
+                log.debug("TCP 연결 테스트 시작: hostname={}, port={}", hostname, specifiedPort);
             } else {
-                // 기본 포트들 시도: 80, 443, 22, 8080
                 portsToTest = new int[]{80, 443, 22, 8080};
+                log.debug("TCP 연결 테스트 시작: hostname={}, ports={}", hostname, portsToTest);
             }
 
             boolean tcpSuccess = false;
             for (int port : portsToTest) {
                 try (java.net.Socket socket = new java.net.Socket()) {
+                    log.debug("TCP 연결 시도: hostname={}, port={}", hostname, port);
                     socket.connect(new java.net.InetSocketAddress(hostname, port), 3000);
                     resultMsg.append("✓ TCP 연결 성공 (").append(hostname).append(":").append(port).append(")\n");
                     tcpSuccess = true;
                     success = true;
-                    break; // 하나라도 성공하면 중단
+                    log.info("TCP 연결 성공: hostname={}, port={}", hostname, port);
+                    break;
                 } catch (Exception e) {
-                    // 개별 포트 실패는 무시하고 다음 포트 시도
+                    // 개별 포트 실패는 무시
+                    log.debug("TCP 연결 실패: hostname={}, port={}, error={}", hostname, port, e.getMessage());
                 }
             }
 
             if (!tcpSuccess) {
-                resultMsg.append("✗ TCP 연결 실패 (모든 포트 시도 실패: ");
-                for (int i = 0; i < portsToTest.length; i++) {
-                    if (i > 0) resultMsg.append(", ");
-                    resultMsg.append(portsToTest[i]);
-                }
-                resultMsg.append(")\n");
-            }
-
-            // 3. HTTP 요청 테스트 (포트 80 또는 443이 성공한 경우)
-            if (tcpSuccess && (specifiedPort == 80 || specifiedPort == 443 || specifiedPort == -1)) {
-                try {
-                    String protocol = (specifiedPort == 443 || (specifiedPort == -1 && tcpSuccess)) ? "https" : "http";
-                    int httpPort = specifiedPort > 0 ? specifiedPort : (protocol.equals("https") ? 443 : 80);
-                    java.net.URL url = new java.net.URL(protocol + "://" + hostname + ":" + httpPort);
-                    java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
-                    conn.setConnectTimeout(3000);
-                    conn.setReadTimeout(3000);
-                    conn.setRequestMethod("HEAD");
-                    int responseCode = conn.getResponseCode();
-                    if (responseCode >= 200 && responseCode < 400) {
-                        resultMsg.append("✓ HTTP 응답 성공 (").append(responseCode).append(")\n");
-                    } else {
-                        resultMsg.append("⚠ HTTP 응답: ").append(responseCode).append("\n");
-                    }
-                    conn.disconnect();
-                } catch (Exception e) {
-                    // HTTP 테스트 실패는 무시 (TCP 연결만으로도 충분)
-                    resultMsg.append("⚠ HTTP 테스트 불가: ").append(e.getMessage()).append("\n");
-                }
+                resultMsg.append("✗ TCP 연결 실패 (모든 포트 시도 실패)\n");
+                log.warn("TCP 연결 실패: hostname={}, 모든 포트 시도 실패", hostname);
             }
 
             if (success) {
+                log.info("VPN 연결 테스트 성공: host={}, result={}", host, resultMsg.toString().trim());
                 return TestResult.ok(resultMsg.toString().trim());
             } else {
+                log.warn("VPN 연결 테스트 실패: host={}, result={}", host, resultMsg.toString().trim());
                 return TestResult.fail(resultMsg.toString().trim());
             }
 
         } catch (NumberFormatException e) {
+            log.error("VPN 연결 테스트 중 포트 형식 오류: host={}, error={}", host, e.getMessage());
             return TestResult.fail("잘못된 포트 형식입니다: " + host);
         } catch (Exception e) {
-            // UnknownHostException 등은 내부 try-catch에서 이미 처리됨
+            log.error("VPN 연결 테스트 중 예외 발생: host={}, error={}", host, e.getMessage(), e);
             return TestResult.fail("VPN 연결 테스트 실패: " + e.getMessage());
         }
     }
 
-    /**
-     * SSH 연결 테스트 (스크립트 실행 없이 연결만 확인)
-     */
     public TestResult testSshConnection(String host, Integer port, String sshUsername, String sshPassword, String sshPrivateKeyPath) {
-        log.info("SSH 연결 테스트 시작: host={}, workerApiEnabled={}", host,
-                workerApiProperties != null && workerApiProperties.isEnabled());
+        log.info("Worker에서 SSH 연결 테스트 시작: host={}, port={}", host, port);
         
-        // Worker API 호출 시도
-        if (workerApiProperties != null && workerApiProperties.isEnabled()) {
-            log.info("Worker API를 통해 SSH 연결 테스트 실행: host={}", host);
-            MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-            params.add("host", host);
-            if (port != null) params.add("port", String.valueOf(port));
-            params.add("sshUsername", sshUsername);
-            if (sshPassword != null) params.add("sshPassword", sshPassword);
-            if (sshPrivateKeyPath != null) params.add("sshPrivateKeyPath", sshPrivateKeyPath);
-            TestResult result = callWorkerApi("/test/ssh-connection", params);
-            log.info("SSH 연결 테스트 완료 (Worker API): host={}, success={}", host, result.success());
-            // callWorkerApi는 실패 시 TestResult.fail()을 반환하므로 바로 반환
-            return result;
-        }
-        
-        // Worker API 비활성화 시 직접 실행
-        log.warn("Worker API가 비활성화되어 있습니다. Web에서 직접 SSH 연결 테스트를 실행합니다: host={}", host);
         if (!StringUtils.hasText(host)) {
+            log.warn("SSH 연결 테스트: Host가 비어있습니다.");
             return TestResult.fail("Host를 입력하세요.");
         }
         int p = (port != null) ? port : 22;
         if (!StringUtils.hasText(sshUsername)) {
+            log.warn("SSH 연결 테스트: SSH Username이 비어있습니다.");
             return TestResult.fail("SSH Username을 입력하세요.");
         }
         if (!StringUtils.hasText(sshPassword) && !StringUtils.hasText(sshPrivateKeyPath)) {
+            log.warn("SSH 연결 테스트: SSH 인증 정보가 없습니다.");
             return TestResult.fail("SSH 비밀번호 또는 Private Key 경로가 필요합니다.");
         }
 
         try (SSHClient ssh = new SSHClient()) {
+            log.debug("SSH 연결 시도: host={}, port={}, username={}", host, p, sshUsername);
             ssh.addHostKeyVerifier(new PromiscuousVerifier());
             ssh.setConnectTimeout(SSH_CONNECT_TIMEOUT_MS);
             ssh.setTimeout(SSH_CMD_TIMEOUT_MS);
@@ -281,48 +163,33 @@ public class CheckTestService {
                 ssh.authPassword(sshUsername, sshPassword != null ? sshPassword : "");
             }
 
-            // 연결 성공 확인을 위해 간단한 명령 실행 (echo)
             try (var session = ssh.startSession()) {
                 var cmd = session.exec("echo 'SSH connection test successful'");
                 cmd.join(5_000, TimeUnit.MILLISECONDS);
                 int exitCode = cmd.getExitStatus() != null ? cmd.getExitStatus() : -1;
                 if (exitCode == 0) {
+                    log.info("SSH 연결 테스트 성공: host={}, port={}", host, p);
                     return TestResult.ok("SSH 연결이 성공적으로 확인되었습니다.");
                 } else {
+                    log.warn("SSH 연결 테스트 실패: host={}, port={}, exitCode={}", host, p, exitCode);
                     return TestResult.fail("SSH 연결은 되었지만 명령 실행에 실패했습니다. (exit code: " + exitCode + ")");
                 }
             }
         } catch (IOException e) {
+            log.error("SSH 연결 테스트 중 예외 발생: host={}, port={}, error={}", host, p, e.getMessage(), e);
             return TestResult.fail("SSH 연결 실패: " + e.getMessage());
         }
     }
 
     public TestResult testShell(String host, Integer port, String sshUsername, String sshPassword, String sshPrivateKeyPath, String script) {
-        log.info("Shell script 테스트 시작: host={}, workerApiEnabled={}", host, 
-                workerApiProperties != null && workerApiProperties.isEnabled());
+        log.info("Worker에서 Shell script 테스트 시작: host={}, port={}", host, port);
         
-        // Worker API 호출 시도
-        if (workerApiProperties != null && workerApiProperties.isEnabled()) {
-            log.info("Worker API를 통해 Shell script 테스트 실행: host={}", host);
-            MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-            params.add("host", host);
-            if (port != null) params.add("port", String.valueOf(port));
-            params.add("sshUsername", sshUsername);
-            if (sshPassword != null) params.add("sshPassword", sshPassword);
-            if (sshPrivateKeyPath != null) params.add("sshPrivateKeyPath", sshPrivateKeyPath);
-            params.add("script", script);
-            TestResult result = callWorkerApi("/test/shell", params);
-            log.info("Shell script 테스트 완료 (Worker API): host={}, success={}", host, result.success());
-            // callWorkerApi는 실패 시 TestResult.fail()을 반환하므로 바로 반환
-            return result;
-        }
-        
-        // Worker API 비활성화 시 직접 실행
-        log.warn("Worker API가 비활성화되어 있습니다. Web에서 직접 Shell script 테스트를 실행합니다: host={}", host);
         if (!StringUtils.hasText(script)) {
+            log.warn("Shell script 테스트: 스크립트가 비어있습니다.");
             return TestResult.fail("스크립트를 입력하세요.");
         }
         if (!StringUtils.hasText(host)) {
+            log.warn("Shell script 테스트: Host가 비어있습니다.");
             return TestResult.fail("Host를 입력하세요.");
         }
         int p = (port != null) ? port : 22;
@@ -362,45 +229,29 @@ public class CheckTestService {
                 if (!success && StringUtils.hasText(stderr)) {
                     output = stderr;
                 }
+                if (success) {
+                    log.info("Shell script 테스트 성공: host={}, port={}", host, p);
+                } else {
+                    log.warn("Shell script 테스트 실패: host={}, port={}, exitCode={}", host, p, exitCode);
+                }
                 return success ? TestResult.ok(output) : TestResult.fail(output);
             }
         } catch (IOException e) {
+            log.error("Shell script 테스트 중 예외 발생: host={}, port={}, error={}", host, p, e.getMessage(), e);
             return TestResult.fail(e.getMessage());
         }
     }
 
-    /**
-     * 로그 파일 모니터링 테스트
-     */
-    public TestResult testLogs(String host, Integer port, String sshUsername, String sshPassword, 
+    public TestResult testLogs(String host, Integer port, String sshUsername, String sshPassword,
                                 String sshPrivateKeyPath, String logFilePath, String includeKeywords, String excludeKeywords) {
-        log.info("로그 파일 테스트 시작: host={}, logFilePath={}, workerApiEnabled={}", host, logFilePath,
-                workerApiProperties != null && workerApiProperties.isEnabled());
+        log.info("Worker에서 로그 파일 테스트 시작: host={}, logFilePath={}", host, logFilePath);
         
-        // Worker API 호출 시도
-        if (workerApiProperties != null && workerApiProperties.isEnabled()) {
-            log.info("Worker API를 통해 로그 파일 테스트 실행: host={}, logFilePath={}", host, logFilePath);
-            MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-            params.add("host", host);
-            if (port != null) params.add("port", String.valueOf(port));
-            params.add("sshUsername", sshUsername);
-            if (sshPassword != null) params.add("sshPassword", sshPassword);
-            if (sshPrivateKeyPath != null) params.add("sshPrivateKeyPath", sshPrivateKeyPath);
-            params.add("logFilePath", logFilePath);
-            if (includeKeywords != null) params.add("includeKeywords", includeKeywords);
-            if (excludeKeywords != null) params.add("excludeKeywords", excludeKeywords);
-            TestResult result = callWorkerApi("/test/logs", params);
-            log.info("로그 파일 테스트 완료 (Worker API): host={}, success={}", host, result.success());
-            // callWorkerApi는 실패 시 TestResult.fail()을 반환하므로 바로 반환
-            return result;
-        }
-        
-        // Worker API 비활성화 시 직접 실행
-        log.warn("Worker API가 비활성화되어 있습니다. Web에서 직접 로그 파일 테스트를 실행합니다: host={}", host);
         if (!StringUtils.hasText(logFilePath)) {
+            log.warn("로그 파일 테스트: 로그 파일 경로가 비어있습니다.");
             return TestResult.fail("로그 파일 경로를 입력하세요.");
         }
         if (!StringUtils.hasText(host)) {
+            log.warn("로그 파일 테스트: Host가 비어있습니다.");
             return TestResult.fail("Host를 입력하세요.");
         }
         int p = (port != null) ? port : 22;
@@ -513,14 +364,16 @@ public class CheckTestService {
                 finalOutput += "\n[WARNING] " + lastError;
             }
 
+            log.info("로그 파일 테스트 성공: host={}, logFilePath={}", host, logFilePath);
             return TestResult.ok(finalOutput);
         } catch (IOException e) {
+            log.error("로그 파일 테스트 중 예외 발생: host={}, logFilePath={}, error={}", host, logFilePath, e.getMessage(), e);
             return TestResult.fail("SSH 연결 실패: " + e.getMessage());
         }
     }
 
     /**
-     * 로그 파일 검색 명령어 구성 (MonitoringRuleExecutorService와 동일한 로직)
+     * 로그 파일 검색 명령어 구성
      */
     private String buildLogSearchCommand(String logPath, String includeKeywords, String excludeKeywords) {
         StringBuilder command = new StringBuilder();
@@ -562,32 +415,14 @@ public class CheckTestService {
     }
 
     public TestResult testSql(String host, String dbType, Integer dbPort, String dbName, String dbUsername, String dbPassword, String sql) {
-        log.info("SQL 테스트 시작: host={}, dbType={}, dbName={}, workerApiEnabled={}", host, dbType, dbName,
-                workerApiProperties != null && workerApiProperties.isEnabled());
+        log.info("Worker에서 SQL 테스트 시작: host={}, dbType={}, dbName={}", host, dbType, dbName);
         
-        // Worker API 호출 시도
-        if (workerApiProperties != null && workerApiProperties.isEnabled()) {
-            log.info("Worker API를 통해 SQL 테스트 실행: host={}, dbType={}, dbName={}", host, dbType, dbName);
-            MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-            params.add("host", host);
-            params.add("dbType", dbType);
-            params.add("dbPort", String.valueOf(dbPort));
-            params.add("dbName", dbName);
-            params.add("dbUsername", dbUsername);
-            if (dbPassword != null) params.add("dbPassword", dbPassword);
-            params.add("sql", sql);
-            TestResult result = callWorkerApi("/test/sql", params);
-            log.info("SQL 테스트 완료 (Worker API): host={}, success={}", host, result.success());
-            // callWorkerApi는 실패 시 TestResult.fail()을 반환하므로 바로 반환
-            return result;
-        }
-        
-        // Worker API 비활성화 시 직접 실행
-        log.warn("Worker API가 비활성화되어 있습니다. Web에서 직접 SQL 테스트를 실행합니다: host={}", host);
         if (!StringUtils.hasText(sql)) {
+            log.warn("SQL 테스트: SQL이 비어있습니다.");
             return TestResult.fail("SQL을 입력하세요.");
         }
         if (!StringUtils.hasText(host) || !StringUtils.hasText(dbType) || dbPort == null || !StringUtils.hasText(dbName)) {
+            log.warn("SQL 테스트: 필수 파라미터가 비어있습니다. host={}, dbType={}, dbPort={}, dbName={}", host, dbType, dbPort, dbName);
             return TestResult.fail("Host, DB종류, Port, DB명을 입력하세요.");
         }
         if (!StringUtils.hasText(dbUsername)) {
@@ -649,6 +484,7 @@ public class CheckTestService {
                     }
                 }
                 String urlInfo = urlsToTry.length > 1 ? "\n사용된 URL: " + url : "";
+                log.info("SQL 테스트 성공: host={}, dbType={}, dbName={}, result={}", host, dbType, dbName, output);
                 return TestResult.ok("SQL 실행 성공\n결과: " + output + urlInfo);
             } catch (org.springframework.jdbc.CannotGetJdbcConnectionException e) {
                 lastException = e;
@@ -691,6 +527,7 @@ public class CheckTestService {
                 } else {
                     errorMsg += e.getMessage();
                 }
+                log.error("SQL 테스트 실행 오류: host={}, dbType={}, dbName={}, error={}", host, dbType, dbName, errorMsg);
                 return TestResult.fail(errorMsg);
             } catch (Exception e) {
                 lastException = e;
@@ -781,34 +618,13 @@ public class CheckTestService {
         };
     }
 
-    /**
-     * 디스크 공간 모니터링 테스트
-     */
     public TestResult testDiskSpace(String host, Integer port, String sshUsername, String sshPassword,
                                     String sshPrivateKeyPath, String diskPath) {
-        log.info("디스크 공간 테스트 시작: host={}, diskPath={}, workerApiEnabled={}", host, diskPath,
-                workerApiProperties != null && workerApiProperties.isEnabled());
+        log.info("Worker에서 디스크 공간 테스트 시작: host={}, diskPath={}", host, diskPath);
         
-        // Worker API 호출 시도
-        if (workerApiProperties != null && workerApiProperties.isEnabled()) {
-            log.info("Worker API를 통해 디스크 공간 테스트 실행: host={}, diskPath={}", host, diskPath);
-            MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-            params.add("host", host);
-            if (port != null) params.add("port", String.valueOf(port));
-            params.add("sshUsername", sshUsername);
-            if (sshPassword != null) params.add("sshPassword", sshPassword);
-            if (sshPrivateKeyPath != null) params.add("sshPrivateKeyPath", sshPrivateKeyPath);
-            if (diskPath != null) params.add("diskPath", diskPath);
-            TestResult result = callWorkerApi("/test/disk-space", params);
-            log.info("디스크 공간 테스트 완료 (Worker API): host={}, success={}", host, result.success());
-            // callWorkerApi는 실패 시 TestResult.fail()을 반환하므로 바로 반환
-            return result;
-        }
-        
-        // Worker API 비활성화 시 직접 실행
-        log.warn("Worker API가 비활성화되어 있습니다. Web에서 직접 디스크 공간 테스트를 실행합니다: host={}", host);
         // diskPath는 선택 입력 (비어있으면 전체 마운트 포인트 확인)
         if (!StringUtils.hasText(host)) {
+            log.warn("디스크 공간 테스트: Host가 비어있습니다.");
             return TestResult.fail("Host를 입력하세요.");
         }
         int p = (port != null) ? port : 22;
@@ -898,26 +714,71 @@ public class CheckTestService {
                             }
                         }
                         
+                        log.info("디스크 공간 테스트 성공: host={}, diskPath={}", host, diskPath);
                         return TestResult.ok(result.toString());
                     } else {
+                        log.warn("디스크 공간 테스트: 출력 없음. host={}, diskPath={}", host, diskPath);
                         return TestResult.ok("디스크 정보를 가져올 수 없습니다. (출력 없음)");
                     }
                 } else {
                     String errorMsg = StringUtils.hasText(stderr) ? stderr : "exitCode=" + exitCode;
+                    log.error("디스크 공간 테스트 실패: host={}, diskPath={}, error={}", host, diskPath, errorMsg);
                     return TestResult.fail("디스크 정보 조회 실패: " + errorMsg);
                 }
             }
         } catch (IOException e) {
+            log.error("디스크 공간 테스트 중 예외 발생: host={}, diskPath={}, error={}", host, diskPath, e.getMessage(), e);
             return TestResult.fail("SSH 연결 실패: " + e.getMessage());
         }
     }
 
-    public record TestResult(boolean success, String output) {
-        public static TestResult ok(String output) {
-            return new TestResult(true, output);
+    public WorkerApiController.ServerStatusResponse getServerStatus(Long serverId) {
+        ServerEntity server = serverRepository.findById(serverId).orElse(null);
+        if (server == null) {
+            return WorkerApiController.ServerStatusResponse.error("서버를 찾을 수 없습니다: " + serverId);
         }
-        public static TestResult fail(String output) {
-            return new TestResult(false, output);
+
+        List<MonitoringRuleEntity> rules = monitoringRuleRepository.findByServerIdAndEnabledTrue(serverId);
+        if (rules.isEmpty()) {
+            return WorkerApiController.ServerStatusResponse.ok("UNKNOWN");
+        }
+
+        boolean hasSuccess = false;
+        boolean hasFailure = false;
+        OffsetDateTime latestCheckTime = null;
+
+        for (MonitoringRuleEntity rule : rules) {
+            List<CheckRunEntity> latestRuns = checkRunRepository.findTop100ByMonitoringRuleIdOrderByStartedAtDesc(rule.getId());
+            CheckRunEntity latestRun = latestRuns.isEmpty() ? null : latestRuns.get(0);
+
+            if (latestRun != null) {
+                if (latestCheckTime == null || latestRun.getStartedAt().isAfter(latestCheckTime)) {
+                    latestCheckTime = latestRun.getStartedAt();
+                }
+
+                if (Boolean.TRUE.equals(latestRun.getSuccess())) {
+                    hasSuccess = true;
+                } else {
+                    hasFailure = true;
+                }
+            }
+        }
+
+        if (latestCheckTime == null) {
+            return WorkerApiController.ServerStatusResponse.ok("UNKNOWN");
+        }
+
+        OffsetDateTime fiveMinutesAgo = OffsetDateTime.now().minusMinutes(5);
+        if (latestCheckTime.isBefore(fiveMinutesAgo)) {
+            return WorkerApiController.ServerStatusResponse.ok("UNKNOWN");
+        }
+
+        if (hasFailure) {
+            return WorkerApiController.ServerStatusResponse.ok("DOWN");
+        } else if (hasSuccess) {
+            return WorkerApiController.ServerStatusResponse.ok("UP");
+        } else {
+            return WorkerApiController.ServerStatusResponse.ok("UNKNOWN");
         }
     }
 }
