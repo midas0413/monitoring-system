@@ -1,8 +1,9 @@
 version: '3.8'
 
-# 배포용 docker-compose 설정
-# 이미 빌드된 이미지를 사용합니다
-# 사용법: docker-compose -f docker-compose.deploy.yml up -d
+# 배포용 docker-compose 설정 (환경설정 .env 사용)
+# 이미 빌드된 이미지를 사용합니다.
+# 사용법: .env 파일을 같은 디렉터리에 두고
+#   docker-compose -f docker-compose.deploy.yml --env-file .env up -d
 
 services:
   postgres:
@@ -23,8 +24,10 @@ services:
       retries: 5
 
   web:
-    image: monitoring-system-web:latest  # 로드된 이미지 사용
+    image: monitoring-system-web:latest
     container_name: monitoring-web
+    env_file:
+      - .env
     ports:
       - "${WEB_PORT:-8080}:8080"
     environment:
@@ -32,6 +35,12 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-monitoring}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-monitoring}
       APP_SYSTEM_NAME: ${APP_SYSTEM_NAME:-Monitoring Portal}
+      ALIGO_API_KEY: ${ALIGO_API_KEY:-}
+      ALIGO_USER_ID: ${ALIGO_USER_ID:-}
+      ALIGO_SENDER: ${ALIGO_SENDER:-}
+      ALIGO_SENDER_KEY: ${ALIGO_SENDER_KEY:-}
+      ALIGO_TEMPLATE_CODE: ${ALIGO_TEMPLATE_CODE:-}
+      ALIGO_TEST_MODE: ${ALIGO_TEST_MODE:-N}
       LOGGING_LEVEL_ROOT: ${LOGGING_LEVEL_ROOT:-INFO}
       LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB:-INFO}
       LOGGING_LEVEL_ORG_THYMELEAF: ${LOGGING_LEVEL_ORG_THYMELEAF:-INFO}
@@ -41,8 +50,10 @@ services:
     restart: unless-stopped
 
   worker:
-    image: monitoring-system-worker:latest  # 로드된 이미지 사용
+    image: monitoring-system-worker:latest
     container_name: monitoring-worker
+    env_file:
+      - .env
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-monitoring}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-monitoring}

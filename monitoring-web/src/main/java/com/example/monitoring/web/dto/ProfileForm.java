@@ -12,6 +12,8 @@ public class ProfileForm {
     @Size(min = 4, max = 100, message = "비밀번호는 4자 이상 100자 이하여야 합니다")
     private String password;
 
+    private String passwordConfirm; // 새 비밀번호 확인 (일치할 때만 저장)
+
     private String currentPassword; // 현재 비밀번호 (비밀번호 변경 시 확인용)
 
     @NotBlank(message = "성명은 필수입니다")
@@ -33,6 +35,9 @@ public class ProfileForm {
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+
+    public String getPasswordConfirm() { return passwordConfirm; }
+    public void setPasswordConfirm(String passwordConfirm) { this.passwordConfirm = passwordConfirm; }
 
     public String getCurrentPassword() { return currentPassword; }
     public void setCurrentPassword(String currentPassword) { this.currentPassword = currentPassword; }

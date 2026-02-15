@@ -7,8 +7,12 @@
     <div class="page-header mb-3">
       <h5>알림 발송 내역</h5>
       <div class="page-header-actions">
+        <a class="btn btn-outline-secondary" th:href="@{/outbox}" th:if="${filterCheckRunId != null}">전체 보기</a>
         <a class="btn btn-outline-secondary" th:href="@{/}">← 홈</a>
       </div>
+    </div>
+    <div class="alert alert-info py-2 mb-3" th:if="${filterCheckRunId != null}">
+      체크 실행 #<span th:text="${filterCheckRunId}">-</span>에 대한 알림만 표시합니다. 없으면 해당 체크 실행에 연결된 수신자가 없거나 Worker가 같은 DB에 알림을 저장하지 않은 경우입니다.
     </div>
 
     <div class="card card-shadow">

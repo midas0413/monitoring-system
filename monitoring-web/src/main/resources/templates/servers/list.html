@@ -34,6 +34,7 @@
           <th>타임존</th>
           <th>용도</th>
           <th>VPN</th>
+          <th>연결상태</th>
           <th>적용여부</th>
           <th>작업</th>
         </tr>
@@ -51,6 +52,11 @@
           </td>
           <td th:text="${vpnDisplay.get(item.id)} ?: '-'"></td>
           <td>
+            <span class="badge"
+                  th:classappend="${(item.connectionStatus != null && item.connectionStatus.name() == 'UP') ? 'bg-success' : ((item.connectionStatus != null && item.connectionStatus.name() == 'DOWN') ? 'bg-danger' : 'bg-secondary')}"
+                  th:text="${item.connectionStatus != null ? item.connectionStatus.name() : 'UNKNOWN'}">UNKNOWN</span>
+          </td>
+          <td>
             <span th:if="${item.enabled}" class="badge bg-success">적용</span>
             <span th:unless="${item.enabled}" class="badge bg-secondary">적용해제</span>
           </td>
@@ -63,7 +69,7 @@
           </td>
         </tr>
         <tr th:if="${items == null || #lists.isEmpty(items)}">
-          <td colspan="8" class="text-center text-muted py-4">해당 데이터가 없습니다</td>
+          <td colspan="9" class="text-center text-muted py-4">해당 데이터가 없습니다</td>
         </tr>
       </tbody>
     </table>

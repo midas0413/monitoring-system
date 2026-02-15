@@ -135,6 +135,8 @@ public class ServerController {
         form.setTimezone(entity.getTimezone());
         form.setServerPurpose(entity.getServerPurpose());
         form.setEnabled(entity.getEnabled());
+        form.setConnectionStatus(entity.getConnectionStatus());
+        form.setConnectionCheckIntervalSec(entity.getConnectionCheckIntervalSec());
         form.setDescription(entity.getDescription());
         
         // SSH 정보

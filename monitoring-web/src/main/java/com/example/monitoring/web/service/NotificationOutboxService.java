@@ -37,7 +37,10 @@ public class NotificationOutboxService {
         this.checkRunRepository = checkRunRepository;
     }
 
-    public List<NotificationOutboxEntity> list(int page) {
+    public List<NotificationOutboxEntity> list(int page, Long checkRunId) {
+        if (checkRunId != null) {
+            return repository.findByCheckRunIdOrderByIdDesc(checkRunId, PageRequest.of(0, PAGE_SIZE));
+        }
         return repository.findByOrderByIdDesc(PageRequest.of(Math.max(0, page), PAGE_SIZE));
     }
 

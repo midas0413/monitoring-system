@@ -1,6 +1,7 @@
 package com.example.monitoring.web.dto;
 
 import com.example.monitoring.common.domain.ServerPurpose;
+import com.example.monitoring.common.domain.ServerStatus;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -11,6 +12,10 @@ public class ServerForm {
     private String timezone;
     private ServerPurpose serverPurpose;
     private Boolean enabled = true;
+    /** 연결상태 (읽기 전용, ping 주기 체크로 갱신) */
+    private ServerStatus connectionStatus;
+    /** 연결상태 체크 주기(초). 0이면 미사용 */
+    private Integer connectionCheckIntervalSec = 0;
     private String description;
     
     // SSH 연결 정보 (SHELL, LOGS, DISK_SPACE 모니터링용)
@@ -40,6 +45,12 @@ public class ServerForm {
 
     public Boolean getEnabled() { return enabled; }
     public void setEnabled(Boolean enabled) { this.enabled = enabled; }
+
+    public ServerStatus getConnectionStatus() { return connectionStatus; }
+    public void setConnectionStatus(ServerStatus connectionStatus) { this.connectionStatus = connectionStatus; }
+
+    public Integer getConnectionCheckIntervalSec() { return connectionCheckIntervalSec; }
+    public void setConnectionCheckIntervalSec(Integer connectionCheckIntervalSec) { this.connectionCheckIntervalSec = connectionCheckIntervalSec; }
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }

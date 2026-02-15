@@ -32,10 +32,10 @@ public class WorkerApiProperties {
     private String apiKey;
 
     /**
-     * Worker API 호출 타임아웃 (밀리초)
-     * 기본값: 10000 (10초)
+     * Worker API 호출 읽기 타임아웃 (밀리초)
+     * SQL/SSH 테스트 등 응답이 늦을 수 있으므로 30초 권장
      */
-    private int timeoutMs = 10000;
+    private int timeoutMs = 30000;
 
     public String getBaseUrl() {
         return baseUrl;

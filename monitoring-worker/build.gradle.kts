@@ -16,6 +16,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-web") // Aligo REST API 호출용
+    implementation("org.springframework.boot:spring-boot-starter-actuator") // Docker healthcheck용
     implementation("org.springframework.boot:spring-boot-starter-mail") // Gmail SMTP
 
     implementation("org.flywaydb:flyway-core")

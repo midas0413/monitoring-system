@@ -8,6 +8,8 @@ import java.util.Optional;
 
 public interface ServerRepository extends JpaRepository<ServerEntity, Long> {
     List<ServerEntity> findByEnabledTrueOrderByNameAsc();
+    /** 연결상태 체크 주기가 설정된 서버 (interval > 0) */
+    List<ServerEntity> findByEnabledTrueAndConnectionCheckIntervalSecGreaterThanOrderByNameAsc(int minInterval);
     Optional<ServerEntity> findByName(String name);
     boolean existsByName(String name);
 }

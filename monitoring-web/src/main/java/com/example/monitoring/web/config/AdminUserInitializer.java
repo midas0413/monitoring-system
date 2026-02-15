@@ -42,20 +42,8 @@ public class AdminUserInitializer implements CommandLineRunner {
             userRepository.save(admin);
             log.info("기본 관리자 계정이 생성되었습니다: admin/admin123");
         } else {
-            // admin 계정이 있으면 비밀번호를 올바른 해시로 업데이트
-            UserEntity admin = adminOpt.get();
-            String correctHash = passwordEncoder.encode("admin123");
-            
-            // 비밀번호가 다르면 업데이트 (BCrypt는 매번 다른 해시를 생성하므로 matches로 확인)
-            if (!passwordEncoder.matches("admin123", admin.getPassword())) {
-                admin.setPassword(correctHash);
-                admin.setEnabled(true);
-                admin.setRole("ADMIN");
-                userRepository.save(admin);
-                log.info("기본 관리자 계정의 비밀번호가 업데이트되었습니다: admin/admin123");
-            } else {
-                log.info("기본 관리자 계정이 이미 존재합니다: admin");
-            }
+            // admin 계정이 이미 있으면 패스워드 초기화하지 않음 (기존 비밀번호 유지)
+            log.info("기본 관리자 계정이 이미 존재합니다. 비밀번호는 초기화하지 않습니다: admin");
         }
     }
 }

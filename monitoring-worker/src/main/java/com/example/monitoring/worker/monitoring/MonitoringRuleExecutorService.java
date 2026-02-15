@@ -1,7 +1,9 @@
 package com.example.monitoring.worker.monitoring;
 
-import com.example.monitoring.common.domain.*;
-import com.example.monitoring.common.repo.*;
+import com.example.monitoring.common.domain.MonitoringRuleEntity;
+import com.example.monitoring.common.domain.ServerEntity;
+import com.example.monitoring.common.repo.MonitoringRuleRepository;
+import com.example.monitoring.common.repo.ServerRepository;
 import com.example.monitoring.worker.db.CheckConnProvider;
 import com.example.monitoring.worker.db.CheckSshProvider;
 import org.slf4j.Logger;

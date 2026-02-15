@@ -142,6 +142,7 @@ public class ServerService {
         entity.setTimezone(form.getTimezone());
         entity.setServerPurpose(form.getServerPurpose());
         entity.setEnabled(form.getEnabled());
+        entity.setConnectionCheckIntervalSec(form.getConnectionCheckIntervalSec() != null ? form.getConnectionCheckIntervalSec() : 0);
         entity.setDescription(form.getDescription());
         
         // SSH 정보

@@ -122,7 +122,7 @@ public class VpnCheckService {
             vpnRepo.saveAndFlush(freshVpn);
             log.debug("VPN status unchanged but updated lastCheckedAt: id={}, name={}, status={}, lastCheckedAt={}", 
                     freshVpn.getId(), freshVpn.getName(), freshVpn.getStatus(), freshVpn.getLastCheckedAt());
-            // VPN이 계속 DOWN인 경우에도 매 체크마다 룰 비활성화 적용 (수동 재활성화 방지, 워커 재시작 시 동기화)
+            // VPN이 계속 DOWN인 경우에도 매 체크마다 룰 비활성화
             if (newStatus == ServerStatus.DOWN) {
                 disableMonitoringForVpn(freshVpn.getId());
             }

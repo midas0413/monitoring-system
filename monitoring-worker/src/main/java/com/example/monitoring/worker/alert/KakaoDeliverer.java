@@ -5,11 +5,13 @@ import com.example.monitoring.common.domain.KakaoTemplateEntity;
 import com.example.monitoring.common.domain.MonitoringRuleEntity;
 import com.example.monitoring.common.domain.NotificationChannel;
 import com.example.monitoring.common.domain.ServerEntity;
+import com.example.monitoring.common.domain.VpnConnectionEntity;
 // import com.example.monitoring.common.repo.CheckRepository;  // Deprecated
 import com.example.monitoring.common.repo.CheckRunRepository;
 import com.example.monitoring.common.repo.KakaoTemplateRepository;
 import com.example.monitoring.common.repo.MonitoringRuleRepository;
 import com.example.monitoring.common.repo.ServerRepository;
+import com.example.monitoring.common.repo.VpnConnectionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +39,7 @@ public class KakaoDeliverer implements NotificationDeliverer {
     private final MonitoringRuleRepository monitoringRuleRepository;
     private final ServerRepository serverRepository;
     private final KakaoTemplateRepository kakaoTemplateRepository;
+    private final VpnConnectionRepository vpnConnectionRepository;
 
     public KakaoDeliverer(
             AligoClient aligoClient,
@@ -44,7 +47,8 @@ public class KakaoDeliverer implements NotificationDeliverer {
             CheckRunRepository checkRunRepository,
             MonitoringRuleRepository monitoringRuleRepository,
             ServerRepository serverRepository,
-            KakaoTemplateRepository kakaoTemplateRepository
+            KakaoTemplateRepository kakaoTemplateRepository,
+            VpnConnectionRepository vpnConnectionRepository
     ) {
         this.aligoClient = aligoClient;
         this.aligoProperties = aligoProperties;
@@ -52,6 +56,7 @@ public class KakaoDeliverer implements NotificationDeliverer {
         this.monitoringRuleRepository = monitoringRuleRepository;
         this.serverRepository = serverRepository;
         this.kakaoTemplateRepository = kakaoTemplateRepository;
+        this.vpnConnectionRepository = vpnConnectionRepository;
     }
 
     @Override
@@ -248,15 +253,23 @@ public class KakaoDeliverer implements NotificationDeliverer {
      * checkRunId가 있으면 MonitoringRuleEntity와 ServerEntity에서 정확히 가져오고, 없으면 body나 title에서 추출
      */
     private String extractSystemName(String body, String title, Long checkRunId) {
-        // 1) checkRunId를 통해 정확한 서버명 가져오기
+        // 1) checkRunId를 통해 정확한 서버명 또는 VPN명 가져오기
         if (checkRunId != null) {
             CheckRunEntity run = checkRunRepository.findById(checkRunId).orElse(null);
-            if (run != null && run.getMonitoringRuleId() != null) {
-                MonitoringRuleEntity rule = monitoringRuleRepository.findById(run.getMonitoringRuleId()).orElse(null);
-                if (rule != null && rule.getServerId() != null) {
-                    ServerEntity server = serverRepository.findById(rule.getServerId()).orElse(null);
-                    if (server != null && StringUtils.hasText(server.getName())) {
-                        return server.getName();
+            if (run != null) {
+                if (run.getMonitoringRuleId() != null) {
+                    MonitoringRuleEntity rule = monitoringRuleRepository.findById(run.getMonitoringRuleId()).orElse(null);
+                    if (rule != null && rule.getServerId() != null) {
+                        ServerEntity server = serverRepository.findById(rule.getServerId()).orElse(null);
+                        if (server != null && StringUtils.hasText(server.getName())) {
+                            return server.getName();
+                        }
+                    }
+                } else if (run.getVpnId() != null) {
+                    // VPN 상태변경 알림: vpn_id로 VPN명 조회
+                    VpnConnectionEntity vpn = vpnConnectionRepository.findById(run.getVpnId()).orElse(null);
+                    if (vpn != null && StringUtils.hasText(vpn.getName())) {
+                        return vpn.getName();
                     }
                 }
             }

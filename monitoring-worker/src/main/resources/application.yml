@@ -1,6 +1,16 @@
 server:
   port: ${WORKER_PORT:8081}  # Worker API 포트
 
+# Actuator (Docker healthcheck용 - health만 노출)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: when_authorized  # 기본은 상태만 반환
+
 spring:
   main:
     web-application-type: servlet  # REST API를 위해 웹 서버 기동

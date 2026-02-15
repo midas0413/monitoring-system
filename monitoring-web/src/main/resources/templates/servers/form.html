@@ -74,6 +74,23 @@
       </div>
     </div>
 
+    <div class="mb-3">
+      <label for="connectionCheckIntervalSec" class="form-label">연결상태 체크 주기 (초)</label>
+      <input type="number" class="form-control" id="connectionCheckIntervalSec" th:field="*{connectionCheckIntervalSec}"
+             min="0" step="1" placeholder="0">
+      <small class="text-muted">0 = 미사용. 60 이상 입력 시 해당 주기(초)마다 서버 host에 ping으로 연결상태를 갱신합니다.</small>
+    </div>
+
+    <div th:if="${form.id != null}" class="mb-3">
+      <label class="form-label">연결상태</label>
+      <div>
+        <span class="badge"
+              th:classappend="${form.connectionStatus != null && form.connectionStatus.name() == 'UP'} ? ' bg-success' : (${form.connectionStatus != null && form.connectionStatus.name() == 'DOWN'} ? ' bg-danger' : ' bg-secondary')"
+              th:text="${form.connectionStatus != null ? form.connectionStatus.name() : 'UNKNOWN'}">UNKNOWN</span>
+        <small class="text-muted ms-2">ping 주기 체크로 갱신됩니다.</small>
+      </div>
+    </div>
+
     <!-- SSH 연결 정보 (SHELL, LOGS, DISK_SPACE 모니터링용) -->
     <div class="mb-3">
       <div class="d-flex justify-content-between align-items-center mb-2">

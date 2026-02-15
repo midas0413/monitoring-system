@@ -33,7 +33,7 @@
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
           <tr>
-            <th style="width:70px">ID</th>
+            <th style="width:90px">ID</th>
             <th style="width:250px">규칙명</th>
             <th style="width:120px">서버명</th>
             <th style="width:80px">성공</th>
@@ -45,7 +45,10 @@
           </thead>
           <tbody>
           <tr th:each="r : ${items}">
-            <td th:text="${r.id}">1</td>
+            <td>
+              <span th:text="${r.id}">1</span>
+              <a th:if="${r.id != null}" th:href="@{/outbox(checkRunId=${r.id})}" class="btn btn-link btn-sm p-0 ms-1" title="이 체크실행의 알림 보기">📤</a>
+            </td>
             <td th:text="${r.vpnId != null ? (ruleNameByRunId != null ? ruleNameByRunId.get(r.id) : 'VPN 상태변경') : (r.monitoringRuleId != null && ruleNameDisplay != null ? (ruleNameDisplay.get(r.monitoringRuleId) != null ? ruleNameDisplay.get(r.monitoringRuleId) : '-') : '-')}">-</td>
             <td th:text="${r.vpnId != null ? (serverNameByRunId != null ? serverNameByRunId.get(r.id) : '-') : (r.monitoringRuleId != null && serverDisplay != null ? (serverDisplay.get(r.monitoringRuleId) != null ? serverDisplay.get(r.monitoringRuleId) : '-') : '-')}">-</td>
             <td>

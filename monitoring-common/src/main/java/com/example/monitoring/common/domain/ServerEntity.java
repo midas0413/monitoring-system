@@ -27,6 +27,19 @@ public class ServerEntity {
     @Column(nullable = false)
     private Boolean enabled = true;
 
+    /** 연결상태: 주기 ping 체크 결과로 갱신 */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "connection_status", nullable = false, length = 20)
+    private ServerStatus connectionStatus = ServerStatus.UNKNOWN;
+
+    /** 연결상태 체크 주기(초). 0이면 주기 체크 미사용 */
+    @Column(name = "connection_check_interval_sec", nullable = false)
+    private Integer connectionCheckIntervalSec = 0;
+
+    /** 마지막 연결상태(ping) 체크 시각 */
+    @Column(name = "last_connection_check_at")
+    private OffsetDateTime lastConnectionCheckAt;
+
     @Column(length = 500)
     private String description;
 
@@ -66,6 +79,15 @@ public class ServerEntity {
 
     public Boolean getEnabled() { return enabled; }
     public void setEnabled(Boolean enabled) { this.enabled = enabled; }
+
+    public ServerStatus getConnectionStatus() { return connectionStatus; }
+    public void setConnectionStatus(ServerStatus connectionStatus) { this.connectionStatus = connectionStatus; }
+
+    public Integer getConnectionCheckIntervalSec() { return connectionCheckIntervalSec; }
+    public void setConnectionCheckIntervalSec(Integer connectionCheckIntervalSec) { this.connectionCheckIntervalSec = connectionCheckIntervalSec; }
+
+    public OffsetDateTime getLastConnectionCheckAt() { return lastConnectionCheckAt; }
+    public void setLastConnectionCheckAt(OffsetDateTime lastConnectionCheckAt) { this.lastConnectionCheckAt = lastConnectionCheckAt; }
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }

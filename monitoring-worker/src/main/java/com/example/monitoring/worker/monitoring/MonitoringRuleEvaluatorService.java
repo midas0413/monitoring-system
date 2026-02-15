@@ -75,7 +75,7 @@ public class MonitoringRuleEvaluatorService {
         run.setFinishedAt(finishedAt);
         run.setDurationMs(durationMs);
         run.setOutput(output);
-        run.setErrorMessage(errorMessage);
+        run.setErrorMessage(truncate(errorMessage, 1000)); // DB error_message varchar(1000)
         run = checkRunRepo.save(run);
 
         log.info("Check run created: ruleId={}, runId={}, success={}", rule.getId(), run.getId(), success);
@@ -124,6 +124,11 @@ public class MonitoringRuleEvaluatorService {
         ruleRepo.save(rule);
 
         enqueueNotifications(rule, run, now);
+    }
+
+    private static String truncate(String s, int maxLen) {
+        if (s == null || s.length() <= maxLen) return s;
+        return s.substring(0, maxLen);
     }
 
     /**
@@ -223,7 +228,7 @@ public class MonitoringRuleEvaluatorService {
         List<AlertRuleRecipientLinkEntity> links = linkRepo.findByRuleIdAndEnabledTrue(rule.getId());
         
         if (links.isEmpty()) {
-            log.warn("No recipients found for rule: ruleId={}", rule.getId());
+            log.warn("No recipients found for rule: ruleId={}, name={}. 알림 발송 내역에 기록되지 않습니다. 알림 규칙에 수신자를 연결하세요.", rule.getId(), rule.getName());
             return;
         }
 

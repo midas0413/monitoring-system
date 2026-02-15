@@ -42,6 +42,13 @@ public class ProfileController {
             RedirectAttributes redirectAttributes,
             Model model) {
         
+        // 새 비밀번호 입력 시 확인 일치 검사
+        if (form.getPassword() != null && !form.getPassword().trim().isEmpty()) {
+            if (form.getPasswordConfirm() == null || !form.getPassword().equals(form.getPasswordConfirm())) {
+                bindingResult.rejectValue("passwordConfirm", "passwordConfirm.mismatch", "새 비밀번호와 확인이 일치하지 않습니다");
+            }
+        }
+
         if (bindingResult.hasErrors()) {
             model.addAttribute("pageTitle", "내 정보");
             model.addAttribute("activeMenu", "profile");

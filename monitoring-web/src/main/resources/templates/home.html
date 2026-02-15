@@ -47,11 +47,11 @@
         <h6 class="mb-2">서버별 모니터링</h6>
       </div>
       <div class="col-12 col-sm-6 col-md-4" th:each="server : ${servers}">
-        <div class="card card-shadow h-100">
+        <div class="card card-shadow h-100" th:attr="data-server-id=${server.id}">
           <div class="card-header d-flex justify-content-between align-items-center py-2">
             <div>
               <span class="fw-bold" th:text="${server.name}">Server Name</span>
-              <span class="badge rounded-pill ms-2" 
+              <span class="badge rounded-pill ms-2 server-card-status-badge"
                     th:classappend="${serverStatusMap != null && serverStatusMap.get(server.id) == T(com.example.monitoring.common.domain.ServerStatus).UP} ? ' text-bg-success' : 
                                     (${serverStatusMap != null && serverStatusMap.get(server.id) == T(com.example.monitoring.common.domain.ServerStatus).DOWN} ? ' text-bg-danger' : ' text-bg-secondary')"
                     th:text="${serverStatusMap != null && serverStatusMap.get(server.id) != null ? serverStatusMap.get(server.id) : 'UNKNOWN'}">UNKNOWN</span>
@@ -144,6 +144,27 @@
     });
   }
   
+  /** 서버 카드 배지(UP/DOWN/UNKNOWN)를 리프레시 데이터로 갱신 */
+  function updateServerCardBadges(serverStatusMap) {
+    if (!serverStatusMap) return;
+    document.querySelectorAll('.card[data-server-id]').forEach(function(card) {
+      const serverId = card.getAttribute('data-server-id');
+      if (!serverId) return;
+      const status = serverStatusMap[serverId] !== undefined ? serverStatusMap[serverId] : (serverStatusMap[String(serverId)] || 'UNKNOWN');
+      const badge = card.querySelector('.server-card-status-badge');
+      if (!badge) return;
+      badge.textContent = status;
+      badge.className = 'badge rounded-pill ms-2 server-card-status-badge';
+      if (status === 'UP') {
+        badge.classList.add('text-bg-success');
+      } else if (status === 'DOWN') {
+        badge.classList.add('text-bg-danger');
+      } else {
+        badge.classList.add('text-bg-secondary');
+      }
+    });
+  }
+
   function updateServerStatusIndicators(serverStatusByTarget) {
     if (!serverStatusByTarget) return;
     
@@ -251,6 +272,9 @@
         console.log('[' + new Date().toLocaleTimeString('ko-KR') + '] Home 화면 리프레시 완료');
         if (data.notificationCountByCheck) {
           updateNotificationCounts(data.notificationCountByCheck);
+        }
+        if (data.serverStatusMap) {
+          updateServerCardBadges(data.serverStatusMap);
         }
         if (data.serverStatusByTarget) {
           updateServerStatusIndicators(data.serverStatusByTarget);

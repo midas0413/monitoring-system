@@ -44,15 +44,17 @@ public class ProfileService {
 
         // 비밀번호 변경
         if (form.getPassword() != null && !form.getPassword().trim().isEmpty()) {
+            // 새 비밀번호와 확인 일치 검사
+            if (form.getPasswordConfirm() == null || !form.getPassword().equals(form.getPasswordConfirm())) {
+                throw new RuntimeException("새 비밀번호와 확인이 일치하지 않습니다");
+            }
             // 현재 비밀번호 확인
             if (form.getCurrentPassword() == null || form.getCurrentPassword().trim().isEmpty()) {
                 throw new RuntimeException("현재 비밀번호를 입력해주세요");
             }
-            
             if (!passwordEncoder.matches(form.getCurrentPassword(), entity.getPassword())) {
                 throw new RuntimeException("현재 비밀번호가 올바르지 않습니다");
             }
-
             entity.setPassword(passwordEncoder.encode(form.getPassword()));
         }
 

@@ -52,15 +52,17 @@ public class HomeRefreshApiController {
         Map<Long, String> ruleNameDisplay = checkRunService.buildRuleNameDisplayMap(checkRuns);
         Map<Long, String> serverDisplay = checkRunService.buildServerDisplayMap(checkRuns);
         
-        // 서버 상태 맵을 문자열로 변환 (기존 호환성)
+        // 서버 카드 배지용: 서버 ID(문자열) -> 상태(문자열) (JSON 직렬화 일관성)
+        Map<String, String> serverStatusMapForJson = new HashMap<>();
+        for (ServerEntity server : servers) {
+            ServerStatus status = serverStatusMap.get(server.getId());
+            serverStatusMapForJson.put(String.valueOf(server.getId()), status != null ? status.name() : "UNKNOWN");
+        }
+        // 서버명 기준 (기존 호환성)
         Map<String, String> serverStatusByTarget = new HashMap<>();
         for (ServerEntity server : servers) {
             ServerStatus status = serverStatusMap.get(server.getId());
-            if (status != null) {
-                serverStatusByTarget.put(server.getName(), status.name());
-            } else {
-                serverStatusByTarget.put(server.getName(), "UNKNOWN");
-            }
+            serverStatusByTarget.put(server.getName(), status != null ? status.name() : "UNKNOWN");
         }
 
         // VPN 상태 목록
@@ -74,7 +76,7 @@ public class HomeRefreshApiController {
 
         Map<String, Object> result = new HashMap<>();
         result.put("notificationCountByServer", notificationCountByServer);
-        result.put("serverStatusMap", serverStatusMap);
+        result.put("serverStatusMap", serverStatusMapForJson);
         result.put("checkRuns", checkRuns);
         result.put("startedDisplay", startedDisplay);
         result.put("ruleNameDisplay", ruleNameDisplay);

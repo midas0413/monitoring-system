@@ -48,7 +48,7 @@ public class CheckTestService {
         // Worker API 설정에 따라 타임아웃 동적 설정
         int timeoutMs = (workerApiProperties != null && workerApiProperties.getTimeoutMs() > 0) 
             ? workerApiProperties.getTimeoutMs() 
-            : 10000;
+            : 30000;
         
         org.springframework.http.client.SimpleClientHttpRequestFactory factory = 
             new org.springframework.http.client.SimpleClientHttpRequestFactory();
@@ -100,7 +100,7 @@ public class CheckTestService {
                 errorMsg += " (" + e.getCause().getMessage() + ")";
             }
             log.error("Worker API 연결 실패: endpoint={}, error={}", endpoint, errorMsg, e);
-            return TestResult.fail(errorMsg + "\n\nWorker 서버가 실행 중인지 확인하세요. (URL: " + workerApiProperties.getBaseUrl() + ")");
+            return TestResult.fail(errorMsg + "\n\nWorker 서버가 실행 중인지 확인하세요. (URL: " + workerApiProperties.getBaseUrl() + ")\nRead timed out인 경우 worker.api.timeout-ms(또는 WORKER_API_TIMEOUT_MS) 값을 늘려 보세요.");
         } catch (org.springframework.web.client.HttpClientErrorException e) {
             // HTTP 4xx 오류
             log.error("Worker API HTTP 4xx 오류: endpoint={}, status={}, error={}", endpoint, e.getStatusCode(), e.getMessage());

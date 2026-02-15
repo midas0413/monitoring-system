@@ -13,6 +13,7 @@ import com.example.monitoring.common.repo.CheckRunRepository;
 import com.example.monitoring.common.repo.NotificationOutboxRepository;
 import com.example.monitoring.common.repo.VpnNotificationTemplateRepository;
 import com.example.monitoring.common.repo.VpnRecipientLinkRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -22,7 +23,9 @@ import org.springframework.util.StringUtils;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * VPN 상태 변경 알림 발송
@@ -38,6 +41,7 @@ public class VpnStatusChangeNotifier {
     private final VpnNotificationTemplateRepository templateRepo;
     private final VpnRecipientLinkRepository vpnRecipientLinkRepo;
     private final CheckRunRepository checkRunRepo;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public VpnStatusChangeNotifier(NotificationOutboxRepository outboxRepo,
                                   VpnNotificationTemplateRepository templateRepo,
@@ -147,7 +151,19 @@ public class VpnStatusChangeNotifier {
                 String toAddr = getRecipientAddress(recipient, channel);
                 if (!StringUtils.hasText(toAddr)) continue;
 
-                createNotification(toAddr, channel, title, body, now, checkRun.getId(), vpn);
+                // KAKAO 채널이고 VPN에 카카오 템플릿 변수가 있으면 알림규칙과 동일하게 JSON body 사용
+                String notificationTitle = title;
+                String notificationBody = body;
+                if (channel == NotificationChannel.KAKAO && StringUtils.hasText(vpn.getKakaoTemplateCode()) && StringUtils.hasText(vpn.getKakaoTemplateVariables())) {
+                    try {
+                        notificationBody = buildVpnKakaoTemplateBody(vpn, oldStatus, newStatus, changeTimeStr);
+                        notificationTitle = "VPN 상태 변경: " + (vpn.getName() != null ? vpn.getName() : "Unknown");
+                        log.info("VPN KAKAO 알림: 카카오 템플릿 변수 사용. vpn={}", vpn.getName());
+                    } catch (Exception e) {
+                        log.warn("VPN KAKAO 템플릿 변수 body 생성 실패, 기본 body 사용: vpn={}, error={}", vpn.getName(), e.getMessage());
+                    }
+                }
+                createNotification(toAddr, channel, notificationTitle, notificationBody, now, checkRun.getId(), vpn);
             }
         }
     }
@@ -203,6 +219,28 @@ public class VpnStatusChangeNotifier {
             case EMAIL -> recipient.getEmail();
             case KAKAO -> recipient.getKakao();
         };
+    }
+
+    /**
+     * VPN 카카오 템플릿 변수 JSON 생성 (알림규칙과 동일 방식)
+     * vpn.kakaoTemplateVariables(JSON) 각 값에 ${vpnName}, ${vpnHost} 등 치환 후 JSON 문자열 반환
+     */
+    private String buildVpnKakaoTemplateBody(VpnConnectionEntity vpn, ServerStatus oldStatus, ServerStatus newStatus, String changeTimeStr) throws Exception {
+        String templateVariablesJson = vpn.getKakaoTemplateVariables();
+        if (!StringUtils.hasText(templateVariablesJson)) {
+            throw new IllegalArgumentException("kakaoTemplateVariables is empty");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, String> templateVars = objectMapper.readValue(templateVariablesJson,
+                objectMapper.getTypeFactory().constructMapType(HashMap.class, String.class, String.class));
+        Map<String, String> renderedVars = new HashMap<>();
+        for (Map.Entry<String, String> entry : templateVars.entrySet()) {
+            String varName = entry.getKey();
+            String varTemplate = entry.getValue();
+            String rendered = renderTemplate(varTemplate != null ? varTemplate : "", vpn, oldStatus, newStatus, changeTimeStr);
+            renderedVars.put(varName, rendered);
+        }
+        return objectMapper.writeValueAsString(renderedVars);
     }
 
     /**
