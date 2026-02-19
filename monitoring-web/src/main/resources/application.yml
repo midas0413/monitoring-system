@@ -34,9 +34,14 @@ logging:
 
 spring:
   datasource:
+    # 로컬 bootRun 시: DB가 접근 가능한 URL로 설정 (예: localhost 또는 SPRING_DATASOURCE_URL 환경변수)
+    # 예: set SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/monitoring
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://172.22.1.113:5432/monitoring}
     username: ${SPRING_DATASOURCE_USERNAME:monitoring}
     password: ${SPRING_DATASOURCE_PASSWORD:monitoring}
+    hikari:
+      connection-timeout: 20000   # 20초 (연결 대기)
+      initialization-fail-timeout: -1  # -1: 연결 실패 시 즉시 종료 (기본)
   jpa:
     hibernate:
       ddl-auto: validate

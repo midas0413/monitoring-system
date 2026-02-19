@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -95,15 +96,26 @@ public class MonitoringRuleEvaluatorService {
             }
         }
 
-        // 4. LOGS 타입인 경우 출력값 길이 체크 (직전 알림 발송 시 출력값 길이와 같으면 알림 발송하지 않음)
+        // 4. LOGS 타입: 직전 check run의 output 길이와 같으면 같은 날짜일 때만 알림 제외, 다른 날짜면 발송 (날짜는 서버 현지 시각 기준)
         if (rule.getMonitoringType() == MonitoringType.LOGS) {
             int currentOutputLength = (output != null) ? output.length() : 0;
-            Integer lastNotificationOutputLength = rule.getLastNotificationOutputLength();
-            
-            if (lastNotificationOutputLength != null && currentOutputLength == lastNotificationOutputLength) {
-                log.debug("Output length same as last notification: ruleId={}, length={}", 
-                        rule.getId(), currentOutputLength);
-                return; // 알림 발송하지 않음
+            Optional<CheckRunEntity> previousRunOpt = checkRunRepo.findTop1ByMonitoringRuleIdAndStartedAtBeforeOrderByStartedAtDesc(
+                    rule.getId(), run.getStartedAt());
+            if (previousRunOpt.isPresent()) {
+                CheckRunEntity previousRun = previousRunOpt.get();
+                int previousLength = (previousRun.getOutput() != null) ? previousRun.getOutput().length() : 0;
+                if (currentOutputLength == previousLength) {
+                    ZoneId serverZone = resolveServerZoneId(rule);
+                    LocalDate previousDate = previousRun.getStartedAt().atZoneSameInstant(serverZone).toLocalDate();
+                    LocalDate currentDate = run.getStartedAt().atZoneSameInstant(serverZone).toLocalDate();
+                    if (previousDate.equals(currentDate)) {
+                        log.debug("Output length same as previous run and same date (server zone): ruleId={}, length={}", 
+                                rule.getId(), currentOutputLength);
+                        return; // 같은 날짜·같은 길이 → 알림 제외
+                    }
+                    log.debug("Output length same as previous run but different date (server zone): ruleId={}, length={}, sending notification", 
+                            rule.getId(), currentOutputLength);
+                }
             }
         }
 
@@ -129,6 +141,28 @@ public class MonitoringRuleEvaluatorService {
     private static String truncate(String s, int maxLen) {
         if (s == null || s.length() <= maxLen) return s;
         return s.substring(0, maxLen);
+    }
+
+    /** 규칙에 연결된 서버의 현지 타임존 반환. 서버/타임존 없거나 잘못된 경우 Asia/Seoul 사용 */
+    private ZoneId resolveServerZoneId(MonitoringRuleEntity rule) {
+        if (rule.getServerId() == null) {
+            return ZoneId.of("Asia/Seoul");
+        }
+        Optional<ServerEntity> serverOpt = serverRepo.findById(rule.getServerId());
+        if (serverOpt.isEmpty()) {
+            return ZoneId.of("Asia/Seoul");
+        }
+        String tz = serverOpt.get().getTimezone();
+        if (tz == null || tz.isBlank()) {
+            return ZoneId.of("Asia/Seoul");
+        }
+        try {
+            return ZoneId.of(tz);
+        } catch (Exception e) {
+            log.warn("Invalid server timezone: ruleId={}, serverId={}, timezone={}", 
+                    rule.getId(), rule.getServerId(), tz, e);
+            return ZoneId.of("Asia/Seoul");
+        }
     }
 
     /**

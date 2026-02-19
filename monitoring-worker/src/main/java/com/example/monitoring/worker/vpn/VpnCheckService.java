@@ -108,9 +108,10 @@ public class VpnCheckService {
                         freshVpn.getName(), oldStatus, newStatus);
             }
 
-            // VPN Down 시 해당 서버의 모니터링 룰 비활성화
+            // VPN Down 시 해당 서버의 모니터링 룰 비활성화 및 서버 연결상태 DOWN
             if (newStatus == ServerStatus.DOWN) {
                 disableMonitoringForVpn(freshVpn.getId());
+                setServersConnectionStatusDownForVpn(freshVpn.getId());
             } 
             // VPN Up 시 모니터링 룰 재활성화
             else if (newStatus == ServerStatus.UP && oldStatus == ServerStatus.DOWN) {
@@ -122,9 +123,26 @@ public class VpnCheckService {
             vpnRepo.saveAndFlush(freshVpn);
             log.debug("VPN status unchanged but updated lastCheckedAt: id={}, name={}, status={}, lastCheckedAt={}", 
                     freshVpn.getId(), freshVpn.getName(), freshVpn.getStatus(), freshVpn.getLastCheckedAt());
-            // VPN이 계속 DOWN인 경우에도 매 체크마다 룰 비활성화
+            // VPN이 계속 DOWN인 경우에도 매 체크마다 룰 비활성화 및 서버 연결상태 DOWN 유지
             if (newStatus == ServerStatus.DOWN) {
                 disableMonitoringForVpn(freshVpn.getId());
+                setServersConnectionStatusDownForVpn(freshVpn.getId());
+            }
+        }
+    }
+
+    /**
+     * VPN에 연결된 모든 서버의 연결상태를 DOWN으로 설정 (VPN 다운 시 호출)
+     */
+    private void setServersConnectionStatusDownForVpn(Long vpnId) {
+        List<ServerVpnLinkEntity> links = linkRepo.findByVpnIdAndEnabledTrue(vpnId);
+        for (ServerVpnLinkEntity link : links) {
+            ServerEntity server = serverRepo.findById(link.getServerId()).orElse(null);
+            if (server != null) {
+                server.setConnectionStatus(ServerStatus.DOWN);
+                serverRepo.save(server);
+                log.info("Server connection status set to DOWN (VPN down): serverId={}, serverName={}, vpnId={}",
+                        server.getId(), server.getName(), vpnId);
             }
         }
     }
@@ -135,7 +153,7 @@ public class VpnCheckService {
      */
     @Transactional
     public void syncRulesForDownVpns() {
-        List<VpnConnectionEntity> downVpns = vpnRepo.findByEnabledTrueAndStatus(ServerStatus.DOWN.name());
+        List<VpnConnectionEntity> downVpns = vpnRepo.findByEnabledTrueAndStatus(ServerStatus.DOWN);
         if (downVpns.isEmpty()) {
             log.debug("No enabled VPNs with status DOWN to sync");
             return;
@@ -143,6 +161,7 @@ public class VpnCheckService {
         log.info("Syncing monitoring rules for {} VPN(s) with status DOWN (startup)", downVpns.size());
         for (VpnConnectionEntity vpn : downVpns) {
             disableMonitoringForVpn(vpn.getId());
+            setServersConnectionStatusDownForVpn(vpn.getId());
         }
     }
 

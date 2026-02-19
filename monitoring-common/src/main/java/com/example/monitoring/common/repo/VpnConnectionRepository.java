@@ -1,5 +1,6 @@
 package com.example.monitoring.common.repo;
 
+import com.example.monitoring.common.domain.ServerStatus;
 import com.example.monitoring.common.domain.VpnConnectionEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -10,5 +11,5 @@ public interface VpnConnectionRepository extends JpaRepository<VpnConnectionEnti
     List<VpnConnectionEntity> findByEnabledTrueOrderByNameAsc();
     List<VpnConnectionEntity> findByEnabledTrue();
     Optional<VpnConnectionEntity> findByName(String name);
-    List<VpnConnectionEntity> findByEnabledTrueAndStatus(String status);
+    List<VpnConnectionEntity> findByEnabledTrueAndStatus(ServerStatus status);
 }

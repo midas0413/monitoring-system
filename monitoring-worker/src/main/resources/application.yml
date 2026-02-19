@@ -22,6 +22,8 @@ spring:
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
+      # SMTP 서버가 TLS 1.0만 지원할 경우 클라이언트에서 TLS 1.0 허용 (보안상 서버 측 TLS 1.2 이상 권장)
+      mail.smtp.ssl.protocols: TLSv1 TLSv1.1 TLSv1.2 TLSv1.3
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://172.22.1.113:5432/monitoring}
     username: ${SPRING_DATASOURCE_USERNAME:monitoring}

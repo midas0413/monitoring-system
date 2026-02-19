@@ -5,6 +5,7 @@ import com.example.monitoring.common.domain.ServerStatus;
 import com.example.monitoring.common.repo.ServerRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,16 +25,19 @@ public class ServerConnectionCheckService {
     private static final int PING_TIMEOUT_MS = 3000;
 
     private final ServerRepository serverRepo;
+    private final ServerConnectionCheckService self;
 
-    public ServerConnectionCheckService(ServerRepository serverRepo) {
+    public ServerConnectionCheckService(ServerRepository serverRepo,
+                                        @Lazy ServerConnectionCheckService self) {
         this.serverRepo = serverRepo;
+        this.self = self;
     }
 
     /**
      * 30초마다 실행. 체크 주기가 설정된 서버 중 주기가 지난 경우 ping 후 연결상태 갱신
+     * self.checkAndUpdate()로 호출해 별도 트랜잭션에서 저장되도록 함 (같은 클래스 내부 호출 시 프록시 미적용 방지)
      */
     @Scheduled(fixedDelay = 30000)
-    @Transactional(readOnly = true)
     public void runScheduledCheck() {
         List<ServerEntity> servers = serverRepo.findByEnabledTrueAndConnectionCheckIntervalSecGreaterThanOrderByNameAsc(0);
         if (servers.isEmpty()) {
@@ -46,7 +50,7 @@ public class ServerConnectionCheckService {
                 if (!shouldCheckNow(server, now)) {
                     continue;
                 }
-                checkAndUpdate(server);
+                self.checkAndUpdate(server);
             } catch (Exception e) {
                 log.warn("Server connection check failed. serverId={}, name={}, host={}", 
                         server.getId(), server.getName(), server.getHost(), e);
