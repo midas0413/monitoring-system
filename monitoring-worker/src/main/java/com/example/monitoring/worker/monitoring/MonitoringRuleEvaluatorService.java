@@ -120,7 +120,7 @@ public class MonitoringRuleEvaluatorService {
         }
 
         // 5. Cooldown 체크 (동일한 rule_id와 output이 cooldown 시간 내에 있는지 확인)
-        if (!isCooldownOk(rule, output, now)) {
+        if (!isCooldownOk(rule, output, now, run.getId())) {
             log.debug("Cooldown period not passed: ruleId={}, output={}", rule.getId(), 
                     output != null ? output.substring(0, Math.min(50, output.length())) : "null");
             return; // 알림 발송하지 않음
@@ -220,7 +220,7 @@ public class MonitoringRuleEvaluatorService {
      * Cooldown 체크
      * cooldown 시간 내에 동일한 알림이 있을 경우 (rule_id, output이 같은 경우) 알림을 통보하지 않음
      */
-    private boolean isCooldownOk(MonitoringRuleEntity rule, String output, OffsetDateTime now) {
+    private boolean isCooldownOk(MonitoringRuleEntity rule, String output, OffsetDateTime now, Long currentRunId) {
         Integer cooldownSec = rule.getCooldownSec();
         if (cooldownSec == null || cooldownSec <= 0) {
             return true;
@@ -243,6 +243,10 @@ public class MonitoringRuleEvaluatorService {
                 rule.getId(), checkStart);
         
         for (CheckRunEntity run : recentRuns) {
+            // 현재 evaluateAndNotify에서 방금 저장한 실행 건은 자기 자신이므로 중복 판단에서 제외
+            if (currentRunId != null && Objects.equals(run.getId(), currentRunId)) {
+                continue;
+            }
             if (Objects.equals(run.getOutput(), output)) {
                 log.debug("Duplicate output found in cooldown period: ruleId={}, runId={}", 
                         rule.getId(), run.getId());
